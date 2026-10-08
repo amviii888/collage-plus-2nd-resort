@@ -47,6 +47,7 @@ import {
   REGISTERED_PROFESSORS, 
   getActiveRegisteredProfessors,
   getAdminCustomTeacherCodes, 
+  getDeletedBuiltinProfessors,
   saveAdminTeacherCodeMapping, 
   saveTeacherCodeMappingToCloudAndLocal,
   deleteAdminTeacherCodeMapping,
@@ -188,15 +189,17 @@ export default function AdminTeacherManagementPage() {
 
         // Add active built-in professors as manageable entries if not existing
         getActiveRegisteredProfessors().forEach(p => {
+            if (!p) return;
             if (isDeleted(p.id, p.name, p.code)) return;
-            if (!list.some(item => item.name === p.name || item.id === p.id || item.id === p.code)) {
+            if (!list.some(item => item.name === p.name || item.id === p.id || (p.code && item.id === p.code))) {
+                const codeSlug = (p.code || 'prof').toLowerCase();
                 list.push({
-                    id: p.id || p.code,
-                    name: p.name,
-                    email: `${p.code.toLowerCase()}@faculty.mola5saty.com`,
-                    pfp: p.avatarUrl,
-                    hero: p.heroImageUrl,
-                    subject: p.subjectAr
+                    id: p.id || p.code || String(Math.random()),
+                    name: p.name || 'أستاذ مادة',
+                    email: `${codeSlug}@faculty.mola5saty.com`,
+                    pfp: p.avatarUrl || '',
+                    hero: p.heroImageUrl || '',
+                    subject: p.subjectAr || 'عام'
                 });
             }
         });

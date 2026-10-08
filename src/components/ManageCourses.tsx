@@ -12,6 +12,7 @@ import {
   updateDoc,
   serverTimestamp,
   deleteDoc,
+  deleteField,
   writeBatch,
   setDoc,
   query,
@@ -64,6 +65,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { uploadImageToCloudinary } from '@/lib/cloudinary';
 import { isBunnyStreamUrl } from '@/lib/bunnyStream';
+
+function cleanFirestorePayload(obj: any): any {
+  if (obj === undefined) return undefined;
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(item => cleanFirestorePayload(item)).filter(item => item !== undefined);
+  }
+  const clean: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      const sanitized = cleanFirestorePayload(value);
+      if (sanitized !== undefined) {
+        clean[key] = sanitized;
+      }
+    }
+  }
+  return clean;
+}
 
 const videoSchema = z.object({
   id: z.string(),
@@ -406,29 +425,43 @@ function CourseForm({
     if (!firestore) return;
     setIsSubmitting(true);
     try {
-      const courseData: Record<string, any> = {
-        ...data,
+      const rawCourseData: Record<string, any> = {
+        title: data.title || '',
+        description: data.description || '',
+        thumbnailUrl: data.thumbnailUrl || '',
+        attachmentUrl: data.attachmentUrl || '',
+        videoNote: data.videoNote || '',
+        grades: Array.isArray(data.grades) ? data.grades : [],
+        subjects: Array.isArray(data.subjects) ? data.subjects : [],
+        locked: Boolean(data.locked),
+        lockMode: data.lockMode || 'both',
+        price: Number(data.price ?? 0),
+        viewLimit: Number(data.viewLimit ?? 3),
+        units: (data.units || []).map((u) => ({
+          id: u.id || uuidv4(),
+          title: u.title || '',
+          videos: (u.videos || []).map((v) => ({
+            id: v.id || uuidv4(),
+            title: v.title || '',
+            url: v.url || '',
+          })),
+        })),
         teacherId,
         teacherName: teacher?.name || '',
         teacherProfilePictureUrl: teacher?.profilePictureUrl || null,
       };
 
-      if (data.testId && data.testId !== 'none') {
-        courseData.testId = data.testId;
-      } else {
-        delete courseData.testId;
+      if (
+        data.testId &&
+        typeof data.testId === 'string' &&
+        data.testId !== 'none' &&
+        data.testId !== 'undefined' &&
+        data.testId.trim() !== ''
+      ) {
+        rawCourseData.testId = data.testId.trim();
       }
 
-      delete courseData.homeworkId;
-      delete courseData.videos;
-      delete courseData.videoUrl;
-
-      // Strictly purge any undefined values to satisfy Firestore addDoc/updateDoc
-      Object.keys(courseData).forEach(key => {
-        if (courseData[key] === undefined) {
-          delete courseData[key];
-        }
-      });
+      const courseData = cleanFirestorePayload(rawCourseData);
 
       // Save to local offline store first (One-Way Smart Push state-label pattern)
       const saveLocally = (courseId: string, isSynced: boolean) => {
@@ -459,22 +492,31 @@ function CourseForm({
           const courseRef = doc(firestore, 'teachers', teacherId, 'courses', courseToEdit.id);
           const batch = writeBatch(firestore);
 
-          batch.update(courseRef, { ...courseData, updatedAt: serverTimestamp() });
+          const updatePayload: Record<string, any> = {
+            ...courseData,
+            updatedAt: serverTimestamp(),
+          };
+
+          if (!courseData.testId && courseToEdit.testId) {
+            updatePayload.testId = deleteField();
+          }
+
+          batch.update(courseRef, updatePayload);
 
           if (courseToEdit.isFeatured) {
             const featuredCourseRef = doc(firestore, 'featuredCourses', courseToEdit.id);
-            batch.set(
-              featuredCourseRef,
-              {
-                ...courseData,
-                id: courseToEdit.id,
-                isFeatured: true,
-                teacherName: teacher?.name || courseToEdit.teacherName || '',
-                teacherProfilePictureUrl: teacher?.profilePictureUrl || courseToEdit.teacherProfilePictureUrl || null,
-                updatedAt: serverTimestamp(),
-              },
-              { merge: true }
-            );
+            const featuredPayload: Record<string, any> = {
+              ...courseData,
+              id: courseToEdit.id,
+              isFeatured: true,
+              teacherName: teacher?.name || courseToEdit.teacherName || '',
+              teacherProfilePictureUrl: teacher?.profilePictureUrl || courseToEdit.teacherProfilePictureUrl || null,
+              updatedAt: serverTimestamp(),
+            };
+            if (!courseData.testId && courseToEdit.testId) {
+              featuredPayload.testId = deleteField();
+            }
+            batch.set(featuredCourseRef, featuredPayload, { merge: true });
           }
 
           await batch.commit();
@@ -1093,9 +1135,9 @@ function CourseForm({
                     </SelectTrigger>
                     <SelectContent className="bg-white dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white">
                       <SelectItem value="none">None (No Test Attached)</SelectItem>
-                      {tests.map((t) => (
+                      {tests.filter((t) => Boolean(t && t.id)).map((t) => (
                         <SelectItem key={t.id} value={t.id}>
-                          {t.title}
+                          {t.title || 'Untitled Assessment'}
                         </SelectItem>
                       ))}
                     </SelectContent>
