@@ -340,13 +340,13 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
   return (
     <div className="space-y-8">
       {/* Top Header & Course Switcher */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-card border border-zinc-800/80 shadow-lg">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-white dark:bg-card border border-slate-200 dark:border-zinc-800/80 shadow-sm">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-emerald-400" />
-            <h2 className="text-xl font-bold tracking-tight">Course Analytics</h2>
+            <BarChart3 className="h-6 w-6 text-emerald-500 dark:text-emerald-400" />
+            <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Course Analytics</h2>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-slate-500 dark:text-muted-foreground">
             Monitor who viewed your lessons, student watch milestones, and privacy-protected ratings.
           </p>
         </div>
@@ -354,10 +354,10 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
         {/* Course Select Dropdown */}
         <div className="w-full md:w-80">
           <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
-            <SelectTrigger className="w-full bg-zinc-900 border-zinc-700 font-medium">
+            <SelectTrigger className="w-full bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-zinc-100 font-medium">
               <SelectValue placeholder="Select a course..." />
             </SelectTrigger>
-            <SelectContent className="bg-zinc-900 border-zinc-700 text-zinc-100">
+            <SelectContent className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-zinc-100">
               {courses.map(course => (
                 <SelectItem key={course.id} value={course.id}>
                   <div className="flex items-center gap-2 truncate">
@@ -373,10 +373,10 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
       {currentCourse && (
         <>
           {/* Selected Course Banner */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200 dark:border-zinc-800">
             <div className="flex items-center gap-4">
               {currentCourse.thumbnailUrl && (
-                <div className="relative h-16 w-24 rounded-lg overflow-hidden border border-zinc-800 shrink-0">
+                <div className="relative h-16 w-24 rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-800 shrink-0">
                   <Image
                     src={currentCourse.thumbnailUrl}
                     alt={currentCourse.title}
@@ -387,12 +387,12 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
                 </div>
               )}
               <div>
-                <h3 className="text-lg font-bold text-zinc-100">{currentCourse.title}</h3>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-1">
-                  <Badge variant="outline" className="border-emerald-500/30 text-emerald-400">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-zinc-100">{currentCourse.title}</h3>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-muted-foreground mt-1">
+                  <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
                     {currentCourse.units?.length || 0} Units
                   </Badge>
-                  <Badge variant="outline" className="border-amber-500/30 text-amber-400">
+                  <Badge variant="outline" className="border-amber-500/30 text-amber-600 dark:text-amber-400">
                     {totalCourseVideos} Lessons
                   </Badge>
                   <span>•</span>
@@ -401,79 +401,79 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
               </div>
             </div>
 
-            <Button asChild variant="outline" size="sm" className="border-zinc-700 hover:bg-zinc-800">
+            <Button asChild variant="outline" size="sm" className="border-slate-300 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200">
               <Link href={`/courses/${teacherId}/${currentCourse.id}`} target="_blank">
-                <Eye className="h-4 w-4 mr-2 text-emerald-400" /> View Course Page
+                <Eye className="h-4 w-4 mr-2 text-emerald-500 dark:text-emerald-400" /> View Course Page
               </Link>
             </Button>
           </div>
 
           {/* Key Metric Overview Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="bg-card/75 border-zinc-800 backdrop-blur-xl">
+            <Card className="bg-white dark:bg-card/75 border-slate-200 dark:border-zinc-800 shadow-sm backdrop-blur-xl">
               <CardContent className="p-5 flex items-center justify-between">
                 <div>
-                  <div className="text-xs font-medium text-muted-foreground">Total Viewers</div>
-                  <div className="text-3xl font-extrabold text-zinc-100 mt-1">
+                  <div className="text-xs font-medium text-slate-500 dark:text-muted-foreground">Total Viewers</div>
+                  <div className="text-3xl font-extrabold text-slate-900 dark:text-zinc-100 mt-1">
                     {isViewersLoading ? <Skeleton className="h-8 w-16" /> : processedViewers.length}
                   </div>
-                  <div className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1">
+                  <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
                     <Users className="h-3 w-3" /> Students opened course
                   </div>
                 </div>
-                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                   <Users className="h-6 w-6" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-card/75 border-zinc-800 backdrop-blur-xl">
+            <Card className="bg-white dark:bg-card/75 border-slate-200 dark:border-zinc-800 shadow-sm backdrop-blur-xl">
               <CardContent className="p-5 flex items-center justify-between">
                 <div>
-                  <div className="text-xs font-medium text-muted-foreground">Avg Progress</div>
-                  <div className="text-3xl font-extrabold text-zinc-100 mt-1">
+                  <div className="text-xs font-medium text-slate-500 dark:text-muted-foreground">Avg Progress</div>
+                  <div className="text-3xl font-extrabold text-slate-900 dark:text-zinc-100 mt-1">
                     {isViewersLoading ? <Skeleton className="h-8 w-16" /> : `${averageCompletionRate}%`}
                   </div>
-                  <div className="text-[11px] text-amber-400 mt-1 flex items-center gap-1">
+                  <div className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
                     <PlayCircle className="h-3 w-3" /> Video completion rate
                   </div>
                 </div>
-                <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <div className="p-3 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                   <PlayCircle className="h-6 w-6" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-card/75 border-zinc-800 backdrop-blur-xl">
+            <Card className="bg-white dark:bg-card/75 border-slate-200 dark:border-zinc-800 shadow-sm backdrop-blur-xl">
               <CardContent className="p-5 flex items-center justify-between">
                 <div>
-                  <div className="text-xs font-medium text-muted-foreground">Course Rating</div>
-                  <div className="text-3xl font-extrabold text-zinc-100 mt-1 flex items-center gap-1">
+                  <div className="text-xs font-medium text-slate-500 dark:text-muted-foreground">Course Rating</div>
+                  <div className="text-3xl font-extrabold text-slate-900 dark:text-zinc-100 mt-1 flex items-center gap-1">
                     {ratingStats.average > 0 ? ratingStats.average.toFixed(1) : 'N/A'}
                     <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
                   </div>
-                  <div className="text-[11px] text-zinc-400 mt-1">
+                  <div className="text-[11px] text-slate-500 dark:text-zinc-400 mt-1">
                     {ratingStats.count} total rating{ratingStats.count === 1 ? '' : 's'}
                   </div>
                 </div>
-                <div className="p-3 rounded-xl bg-amber-400/10 text-amber-400 border border-amber-400/20">
+                <div className="p-3 rounded-xl bg-amber-400/10 text-amber-500 dark:text-amber-400 border border-amber-400/20">
                   <Star className="h-6 w-6" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-card/75 border-zinc-800 backdrop-blur-xl">
+            <Card className="bg-white dark:bg-card/75 border-slate-200 dark:border-zinc-800 shadow-sm backdrop-blur-xl">
               <CardContent className="p-5 flex items-center justify-between">
                 <div>
-                  <div className="text-xs font-medium text-muted-foreground">Course Content</div>
-                  <div className="text-3xl font-extrabold text-zinc-100 mt-1">
+                  <div className="text-xs font-medium text-slate-500 dark:text-muted-foreground">Course Content</div>
+                  <div className="text-3xl font-extrabold text-slate-900 dark:text-zinc-100 mt-1">
                     {totalCourseVideos}
                   </div>
-                  <div className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1">
+                  <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
                     <Layers className="h-3 w-3" /> Across {currentCourse.units?.length || 0} unit(s)
                   </div>
                 </div>
-                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                   <BookOpen className="h-6 w-6" />
                 </div>
               </CardContent>
@@ -483,25 +483,25 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left 2 Cols: Student Viewer Progress Table */}
             <div className="lg:col-span-2 space-y-4">
-              <Card className="bg-card/75 border-zinc-800 backdrop-blur-xl">
-                <CardHeader className="pb-3 border-b border-zinc-800/60">
+              <Card className="bg-white dark:bg-card/75 border-slate-200 dark:border-zinc-800 shadow-sm backdrop-blur-xl">
+                <CardHeader className="pb-3 border-b border-slate-200 dark:border-zinc-800/60">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Users className="h-5 w-5 text-emerald-400" />
+                      <CardTitle className="text-lg flex items-center gap-2 text-slate-900 dark:text-white">
+                        <Users className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
                         Student Viewers & Lesson Milestones
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="text-slate-500 dark:text-muted-foreground">
                         Track who saw the videos and where they stopped watching (e.g. Unit 2, Lesson 1)
                       </CardDescription>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
-                        <SelectTrigger className="w-32 bg-zinc-900 border-zinc-700 text-xs">
+                        <SelectTrigger className="w-32 bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-zinc-100 text-xs">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-zinc-900 border-zinc-700">
+                        <SelectContent className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-zinc-100">
                           <SelectItem value="recent">Most Recent</SelectItem>
                           <SelectItem value="progress">Highest Progress</SelectItem>
                           <SelectItem value="name">Student Name</SelectItem>
@@ -512,12 +512,12 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
 
                   {/* Search Input */}
                   <div className="relative mt-3">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 dark:text-muted-foreground" />
                     <Input
                       placeholder="Search student by name or lesson..."
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
-                      className="pl-9 bg-zinc-900 border-zinc-800 text-sm"
+                      className="pl-9 bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-sm"
                     />
                   </div>
                 </CardHeader>
@@ -530,32 +530,32 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
                       <Skeleton className="h-12 w-full" />
                     </div>
                   ) : filteredViewers.length === 0 ? (
-                    <div className="p-8 text-center text-muted-foreground space-y-2">
+                    <div className="p-8 text-center text-slate-500 dark:text-muted-foreground space-y-2">
                       <Users className="h-8 w-8 mx-auto opacity-50" />
-                      <p className="font-medium">No student viewers found</p>
+                      <p className="font-medium text-slate-700 dark:text-slate-300">No student viewers found</p>
                       <p className="text-xs">
                         {searchQuery ? 'Try adjusting your search query.' : 'Students who view or play lessons will appear here automatically.'}
                       </p>
                     </div>
                   ) : (
-                    <div className="divide-y divide-zinc-800/60">
+                    <div className="divide-y divide-slate-100 dark:divide-zinc-800/60">
                       {filteredViewers.map(viewer => (
-                        <div key={viewer.id} className="p-4 hover:bg-zinc-900/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div key={viewer.id} className="p-4 hover:bg-slate-50 dark:hover:bg-zinc-900/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                           {/* Student Info */}
                           <div className="flex items-start gap-3 min-w-0">
-                            <div className="h-10 w-10 rounded-full bg-emerald-500/20 text-emerald-400 font-bold flex items-center justify-center shrink-0 border border-emerald-500/30 text-sm">
+                            <div className="h-10 w-10 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center shrink-0 border border-emerald-500/30 text-sm">
                               {(viewer.displayName || 'Student').charAt(0).toUpperCase()}
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-semibold text-zinc-100 truncate">{viewer.displayName}</span>
+                                <span className="font-semibold text-slate-900 dark:text-zinc-100 truncate">{viewer.displayName}</span>
                                 {viewer.studentCode && (
-                                  <Badge variant="outline" className="text-[10px] font-mono py-0 border-amber-500/30 text-amber-400 bg-amber-500/10">
+                                  <Badge variant="outline" className="text-[10px] font-mono py-0 border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/10">
                                     Code: #{viewer.studentCode}
                                   </Badge>
                                 )}
                                 {viewer.grade && (
-                                  <Badge variant="outline" className="text-[10px] py-0 border-zinc-700">
+                                  <Badge variant="outline" className="text-[10px] py-0 border-slate-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-400">
                                     {viewer.grade}
                                   </Badge>
                                 )}
@@ -563,14 +563,14 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
 
                               {/* Progress Location Pill */}
                               <div className="flex items-center gap-1.5 mt-1 text-xs">
-                                <span className="text-amber-400 font-medium">Stopped at:</span>
-                                <Badge variant="secondary" className="bg-amber-500/10 text-amber-300 border border-amber-500/20 text-xs py-0.5 px-2">
+                                <span className="text-amber-600 dark:text-amber-400 font-medium">Stopped at:</span>
+                                <Badge variant="secondary" className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 text-xs py-0.5 px-2">
                                   {viewer.locationText}
                                 </Badge>
                               </div>
 
                               {viewer.lastActiveDate && (
-                                <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
+                                <p className="text-[11px] text-slate-500 dark:text-muted-foreground mt-1 flex items-center gap-1">
                                   <Clock className="h-3 w-3" />
                                   Last active: {viewer.lastActiveDate.toLocaleDateString()} at {viewer.lastActiveDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </p>
@@ -582,12 +582,12 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
                           <div className="flex items-center gap-3 self-end sm:self-center shrink-0">
                             <div className="sm:text-right min-w-36 space-y-1.5">
                               <div className="flex items-center justify-between sm:justify-end gap-2 text-xs">
-                                <span className="text-zinc-400 font-medium">
+                                <span className="text-slate-600 dark:text-zinc-400 font-medium">
                                   {viewer.watchedCount} / {totalCourseVideos} Lessons
                                 </span>
-                                <span className="font-bold text-emerald-400">{viewer.progressPercent}%</span>
+                                <span className="font-bold text-emerald-600 dark:text-emerald-400">{viewer.progressPercent}%</span>
                               </div>
-                              <Progress value={viewer.progressPercent} className="h-2 bg-zinc-800" />
+                              <Progress value={viewer.progressPercent} className="h-2 bg-slate-200 dark:bg-zinc-800" />
                             </div>
 
                             {/* Revoke / Trash Action */}
@@ -595,7 +595,7 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
                               variant="ghost"
                               size="icon"
                               onClick={() => setRevokeTarget(viewer)}
-                              className="h-9 w-9 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
+                              className="h-9 w-9 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
                               title="Revoke course access & kick student"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -611,21 +611,21 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
 
             {/* Right Col: Course Rating Breakdown (Privacy-Preserving) */}
             <div className="space-y-4">
-              <Card className="bg-card/75 border-zinc-800 backdrop-blur-xl">
-                <CardHeader className="pb-3 border-b border-zinc-800/60">
-                  <CardTitle className="text-lg flex items-center gap-2">
+              <Card className="bg-white dark:bg-card/75 border-slate-200 dark:border-zinc-800 shadow-sm backdrop-blur-xl">
+                <CardHeader className="pb-3 border-b border-slate-200 dark:border-zinc-800/60">
+                  <CardTitle className="text-lg flex items-center gap-2 text-slate-900 dark:text-white">
                     <Star className="h-5 w-5 text-amber-400 fill-amber-400" />
                     Course Rating Breakdown
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-slate-500 dark:text-muted-foreground">
                     Aggregated rating feedback submitted by students for this course.
                   </CardDescription>
                 </CardHeader>
 
                 <CardContent className="p-5 space-y-6">
                   {/* Rating Overall Score Box */}
-                  <div className="flex items-center justify-center p-6 rounded-2xl bg-zinc-900/80 border border-zinc-800 text-center flex-col gap-2">
-                    <span className="text-4xl font-black text-zinc-100">
+                  <div className="flex items-center justify-center p-6 rounded-2xl bg-slate-50 dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 text-center flex-col gap-2">
+                    <span className="text-4xl font-black text-slate-900 dark:text-zinc-100">
                       {ratingStats.average > 0 ? ratingStats.average.toFixed(1) : '0.0'}
                     </span>
                     <div className="flex items-center gap-1">
@@ -635,19 +635,19 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
                           className={`h-5 w-5 ${
                             star <= Math.round(ratingStats.average)
                               ? 'fill-amber-400 text-amber-400'
-                              : 'text-zinc-700'
+                              : 'text-slate-300 dark:text-zinc-700'
                           }`}
                         />
                       ))}
                     </div>
-                    <span className="text-xs text-muted-foreground mt-1">
+                    <span className="text-xs text-slate-500 dark:text-muted-foreground mt-1">
                       Based on {ratingStats.count} rating{ratingStats.count === 1 ? '' : 's'}
                     </span>
                   </div>
 
                   {/* Distribution Bars */}
                   <div className="space-y-3">
-                    <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                    <h4 className="text-xs font-semibold text-slate-700 dark:text-zinc-400 uppercase tracking-wider">
                       Rating Distribution
                     </h4>
                     {[5, 4, 3, 2, 1].map(starNum => {
@@ -656,12 +656,12 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
 
                       return (
                         <div key={starNum} className="flex items-center gap-3 text-xs">
-                          <div className="flex items-center gap-1 w-12 font-medium text-zinc-300 shrink-0">
+                          <div className="flex items-center gap-1 w-12 font-medium text-slate-700 dark:text-zinc-300 shrink-0">
                             <span>{starNum}</span>
                             <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
                           </div>
-                          <Progress value={pct} className="h-2 bg-zinc-800 flex-grow" />
-                          <div className="w-16 text-right text-muted-foreground text-[11px] shrink-0">
+                          <Progress value={pct} className="h-2 bg-slate-200 dark:bg-zinc-800 flex-grow" />
+                          <div className="w-16 text-right text-slate-500 dark:text-muted-foreground text-[11px] shrink-0">
                             {count} ({pct}%)
                           </div>
                         </div>
@@ -669,8 +669,8 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
                     })}
                   </div>
 
-                  <div className="p-3 rounded-xl bg-zinc-900/50 border border-zinc-800/80 text-[11px] text-muted-foreground flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-800/80 text-[11px] text-slate-600 dark:text-muted-foreground flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-amber-500 dark:text-amber-400 shrink-0" />
                     <span>Ratings are anonymized to encourage honest student feedback.</span>
                   </div>
                 </CardContent>
@@ -682,21 +682,21 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
 
       {/* Revoke / Kick Student Confirmation Dialog */}
       <Dialog open={!!revokeTarget} onOpenChange={(open) => !open && setRevokeTarget(null)}>
-        <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 sm:max-w-md">
+        <DialogContent className="bg-white dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-zinc-100 sm:max-w-md shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-400 text-lg">
-              <Trash2 className="h-5 w-5 text-red-400" />
+            <DialogTitle className="flex items-center gap-2 text-red-600 dark:text-red-400 text-lg">
+              <Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" />
               Revoke Course Access
             </DialogTitle>
-            <DialogDescription className="text-zinc-400 text-sm pt-1">
-              Are you sure you want to revoke access for <strong className="text-zinc-100 font-semibold">{revokeTarget?.displayName}</strong>
+            <DialogDescription className="text-slate-600 dark:text-zinc-400 text-sm pt-1">
+              Are you sure you want to revoke access for <strong className="text-slate-900 dark:text-zinc-100 font-semibold">{revokeTarget?.displayName}</strong>
               {revokeTarget?.studentCode ? ` (Student Code #${revokeTarget?.studentCode})` : ''}?
             </DialogDescription>
           </DialogHeader>
 
-          <div className="p-3.5 rounded-xl bg-red-950/30 border border-red-900/40 text-xs text-red-300 space-y-1.5 mt-2">
-            <p className="font-semibold flex items-center gap-1.5 text-red-200">
-              <AlertTriangle className="h-4 w-4 text-red-400" />
+          <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-xs text-red-800 dark:text-red-300 space-y-1.5 mt-2">
+            <p className="font-semibold flex items-center gap-1.5 text-red-900 dark:text-red-200">
+              <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
               What will happen:
             </p>
             <p className="leading-relaxed">
@@ -709,7 +709,7 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
               variant="outline"
               onClick={() => setRevokeTarget(null)}
               disabled={isRevoking}
-              className="border-zinc-700 hover:bg-zinc-900 text-zinc-300"
+              className="border-slate-300 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-900 text-slate-700 dark:text-zinc-300"
             >
               Cancel
             </Button>

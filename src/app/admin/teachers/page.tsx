@@ -91,6 +91,7 @@ export default function AdminTeacherManagementPage() {
 
     // Code mappings state
     const [customCodes, setCustomCodes] = useState<Record<string, ProfessorItem>>({});
+    const [refreshKey, setRefreshKey] = useState(0);
     const [selectedTeacherForMapping, setSelectedTeacherForMapping] = useState<any | null>(null);
     const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
     const [mappingCode, setMappingCode] = useState('');
@@ -150,6 +151,7 @@ export default function AdminTeacherManagementPage() {
     useEffect(() => {
         const loadCodes = () => {
             setCustomCodes(getAdminCustomTeacherCodes());
+            setRefreshKey(prev => prev + 1);
         };
         loadCodes();
         window.addEventListener('admin_teacher_codes_updated', loadCodes);
@@ -159,10 +161,20 @@ export default function AdminTeacherManagementPage() {
     // Combine cloud teachers + preset professors for comprehensive management
     const allManageableTeachers = useMemo(() => {
         const list: Array<{ id: string; name: string; email?: string; pfp?: string; hero?: string; subject?: string }> = [];
-        
+        const deletedRaw = getDeletedBuiltinProfessors();
+        const deletedUpper = deletedRaw.map(d => (d || '').toUpperCase());
+
+        const isDeleted = (id?: string, name?: string, code?: string) => {
+            if (id && (deletedRaw.includes(id) || deletedUpper.includes(id.toUpperCase()))) return true;
+            if (name && (deletedRaw.includes(name) || deletedUpper.includes(name.toUpperCase()))) return true;
+            if (code && (deletedRaw.includes(code) || deletedUpper.includes(code.toUpperCase()))) return true;
+            return false;
+        };
+
         // Add cloud registered teachers
         if (cloudTeachers) {
             cloudTeachers.forEach(t => {
+                if (isDeleted(t.id, t.name, (t as any).code || (t as any).teacherCode)) return;
                 list.push({
                     id: t.id,
                     name: t.name,
@@ -176,6 +188,7 @@ export default function AdminTeacherManagementPage() {
 
         // Add active built-in professors as manageable entries if not existing
         getActiveRegisteredProfessors().forEach(p => {
+            if (isDeleted(p.id, p.name, p.code)) return;
             if (!list.some(item => item.name === p.name || item.id === p.id || item.id === p.code)) {
                 list.push({
                     id: p.id || p.code,
@@ -198,7 +211,7 @@ export default function AdminTeacherManagementPage() {
         }
 
         return list;
-    }, [cloudTeachers, searchFilter]);
+    }, [cloudTeachers, customCodes, searchFilter, refreshKey]);
 
     // Open link modal for specific teacher
     const handleOpenMappingForTeacher = (teacher: any) => {
@@ -282,18 +295,18 @@ export default function AdminTeacherManagementPage() {
         setIsMappingModalOpen(false);
     };
 
-    const handleDeleteMapping = async (code: string, teacherId?: string) => {
-        if (!window.confirm(`هل أنت متأكد من حذف الدكتور وكوده [${code}] نهائياً من النظام وقاعدة البيانات؟`)) {
-            return;
-        }
-
+    const handleDeleteMapping = async (code: string, teacherId?: string, teacherName?: string) => {
         try {
             await deleteProfessorCompletely(code, firestore);
             if (teacherId && teacherId !== code) {
                 await deleteProfessorCompletely(teacherId, firestore);
             }
+            if (teacherName) {
+                await deleteProfessorCompletely(teacherName, firestore);
+            }
             const current = getAdminCustomTeacherCodes();
-            setCustomCodes(current);
+            setCustomCodes({ ...current });
+            setRefreshKey(prev => prev + 1);
             toast({
                 title: 'تم حذف الدكتور والكود نهائياً 🗑️',
                 description: `تم إزالة الدكتور وكوده [${code}] من النظام وقاعدة البيانات.`,
@@ -484,7 +497,16 @@ export default function AdminTeacherManagementPage() {
                             {Object.entries({
                                 ...getActiveRegisteredProfessors().reduce((acc, p) => ({ ...acc, [p.code]: p }), {} as Record<string, ProfessorItem>),
                                 ...customCodes
-                            }).map(([code, prof]) => {
+                            })
+                            .filter(([code, prof]) => {
+                                if (!prof) return false;
+                                const deletedRaw = getDeletedBuiltinProfessors();
+                                const deletedUpper = deletedRaw.map(d => (d || '').toUpperCase());
+                                return !deletedUpper.includes(code.toUpperCase()) && 
+                                       !deletedUpper.includes((prof.id || '').toUpperCase()) &&
+                                       !deletedRaw.includes(prof.name);
+                            })
+                            .map(([code, prof]) => {
                                 if (!prof) return null;
                                 return (
                                     <Card key={code} className="border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all bg-white dark:bg-slate-900/60 overflow-hidden">
@@ -539,11 +561,12 @@ export default function AdminTeacherManagementPage() {
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
-                                                    onClick={() => handleDeleteMapping(code, prof.id)}
-                                                    className="h-8 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
+                                                    onClick={() => handleDeleteMapping(code, prof.id, prof.name)}
+                                                    className="h-8 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors cursor-pointer"
                                                     title={t('Delete Doctor & Code')}
+                                                    aria-label={t('Delete Doctor & Code')}
                                                 >
-                                                    <Trash2 className="w-3 h-3" />
+                                                    <Trash2 className="w-3.5 h-3.5" />
                                                 </Button>
                                             </div>
                                         </CardContent>
@@ -580,8 +603,12 @@ export default function AdminTeacherManagementPage() {
                         <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900/60 shadow-xs">
                             <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {allManageableTeachers.map((tItem) => {
-                                    const linkedCode = Object.entries(customCodes).find(([c, val]) => val.name === tItem.name || val.id === tItem.id)?.[0] || 
-                                                       (tItem.name.includes('فاروق') ? 'VV' : tItem.name.includes('خليل') ? 'VX' : null);
+                                    const deletedRaw = getDeletedBuiltinProfessors();
+                                    const deletedUpper = deletedRaw.map(d => (d || '').toUpperCase());
+                                    const customMatch = Object.entries(customCodes).find(([c, val]) => val.name === tItem.name || val.id === tItem.id)?.[0];
+                                    const defaultFallback = (tItem.name.includes('فاروق') && !deletedUpper.includes('VV')) ? 'VV' : 
+                                                           (tItem.name.includes('خليل') && !deletedUpper.includes('VX')) ? 'VX' : null;
+                                    const linkedCode = customMatch || defaultFallback;
                                     return (
                                         <div key={tItem.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                                             <div className="flex items-center gap-3">
@@ -617,9 +644,10 @@ export default function AdminTeacherManagementPage() {
 
                                                 <Button
                                                     variant="ghost"
-                                                    onClick={() => handleDeleteMapping(linkedCode || tItem.id, tItem.id)}
-                                                    className="h-9 px-2.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-xl"
+                                                    onClick={() => handleDeleteMapping(linkedCode || tItem.id, tItem.id, tItem.name)}
+                                                    className="h-9 px-2.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-xl transition-colors cursor-pointer"
                                                     title={t('Delete Doctor & Facility Account')}
+                                                    aria-label={t('Delete Doctor & Facility Account')}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>

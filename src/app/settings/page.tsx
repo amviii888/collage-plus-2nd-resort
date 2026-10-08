@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 import { LocalDataProvider, useLocalData } from '@/context/LocalDataContext';
 import { useToast } from '@/hooks/use-toast';
 import { AppCache } from '@/lib/cache';
-import { isStudentEmail } from '@/lib/auth-helpers';
+import { isStudentEmail, clearAllStudentAuthSessions } from '@/lib/auth-helpers';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
@@ -685,16 +685,7 @@ export default function SettingsPage() {
         }
 
         try {
-            localStorage.removeItem('viewingStudentId');
-            localStorage.removeItem('parentForStudentBarcode');
-            localStorage.removeItem('parentPhoneNumber');
-            localStorage.removeItem('assistantForTeacherId');
-            localStorage.removeItem('assistantTeacherName');
-            localStorage.removeItem('admin-session');
-            localStorage.removeItem('offline_student_id');
-            localStorage.removeItem('app_student_auth_session');
-            localStorage.removeItem('student_barcode');
-            sessionStorage.clear();
+            clearAllStudentAuthSessions();
         } catch (e) {
             console.error("Storage clear error:", e);
         }

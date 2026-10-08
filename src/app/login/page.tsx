@@ -29,7 +29,7 @@ import {
   Moon
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { isStudentEmail } from '@/lib/auth-helpers';
+import { isStudentEmail, clearAllStudentAuthSessions } from '@/lib/auth-helpers';
 
 const AuthHeader = () => {
     const { i18n } = useTranslation();
@@ -309,6 +309,9 @@ function LoginFormContent() {
                         localStorage.setItem('student_logged_in', 'true');
                     }
                 }
+            } else {
+                // Teacher / Non-student login: purge any residual student credentials or branding
+                clearAllStudentAuthSessions();
             }
 
             resetFailedAttempts('universal');

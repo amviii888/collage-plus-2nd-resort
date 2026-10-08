@@ -315,29 +315,71 @@ export function getDeletedBuiltinProfessors(): string[] {
  * Returns active registered professors excluding any that were deleted by admin
  */
 export function getActiveRegisteredProfessors(): ProfessorItem[] {
-  const deleted = getDeletedBuiltinProfessors();
-  return REGISTERED_PROFESSORS.filter(p => !deleted.includes(p.code.toUpperCase()) && !deleted.includes(p.id || ''));
+  const deletedRaw = getDeletedBuiltinProfessors();
+  const deletedUpper = deletedRaw.map(d => (d || '').toUpperCase());
+  return REGISTERED_PROFESSORS.filter(p => {
+    const isCodeDeleted = deletedUpper.includes(p.code.toUpperCase());
+    const isIdDeleted = p.id ? (deletedUpper.includes(p.id.toUpperCase()) || deletedRaw.includes(p.id)) : false;
+    const isNameDeleted = deletedRaw.includes(p.name) || deletedUpper.includes(p.name.toUpperCase());
+    return !isCodeDeleted && !isIdDeleted && !isNameDeleted;
+  });
 }
 
 /**
  * Delete an admin teacher code mapping and mark builtin placeholder as deleted if applicable
  */
-export function deleteAdminTeacherCodeMapping(code: string) {
+export function deleteAdminTeacherCodeMapping(codeOrIdOrName: string) {
   if (typeof window === 'undefined') return;
   try {
-    const cleanCode = code.trim().toUpperCase();
+    const clean = (codeOrIdOrName || '').trim();
+    if (!clean) return;
+    const cleanUpper = clean.toUpperCase();
 
     // 1. Remove from dynamic custom mappings
     const current = getAdminCustomTeacherCodes();
-    delete current[cleanCode];
+    delete current[cleanUpper];
+    delete current[clean];
+    Object.keys(current).forEach(k => {
+      const item = current[k];
+      if (
+        item.code?.toUpperCase() === cleanUpper || 
+        item.id?.toUpperCase() === cleanUpper || 
+        item.id === clean ||
+        item.name === clean
+      ) {
+        delete current[k];
+      }
+    });
     localStorage.setItem('admin_custom_teacher_codes', JSON.stringify(current));
 
-    // 2. Mark in deleted builtin list if it was a base registered professor
+    // 2. Mark in deleted builtin list if it was a base registered professor or any custom mapped code
     const deleted = getDeletedBuiltinProfessors();
-    if (!deleted.includes(cleanCode)) {
-      deleted.push(cleanCode);
-      localStorage.setItem('deleted_builtin_professors', JSON.stringify(deleted));
+    const toAdd = [clean, cleanUpper];
+
+    const matchedProf = REGISTERED_PROFESSORS.find(p => 
+      p.code.toUpperCase() === cleanUpper || 
+      (p.id && p.id.toUpperCase() === cleanUpper) ||
+      (p.id && p.id === clean) ||
+      p.name === clean ||
+      clean.includes(p.code) ||
+      p.name.includes(clean)
+    );
+
+    if (matchedProf) {
+      toAdd.push(matchedProf.code, matchedProf.code.toUpperCase());
+      if (matchedProf.id) {
+        toAdd.push(matchedProf.id, matchedProf.id.toUpperCase());
+      }
+      toAdd.push(matchedProf.name);
     }
+
+    toAdd.forEach(item => {
+      if (item && !deleted.includes(item)) {
+        deleted.push(item);
+      }
+    });
+
+    localStorage.setItem('deleted_builtin_professors', JSON.stringify(deleted));
 
     window.dispatchEvent(new Event('admin_teacher_codes_updated'));
     window.dispatchEvent(new Event('connected_professors_updated'));
@@ -349,28 +391,31 @@ export function deleteAdminTeacherCodeMapping(code: string) {
 /**
  * Completely delete a teacher (from custom codes, builtin registry, and Firestore)
  */
-export async function deleteProfessorCompletely(teacherIdOrCode: string, firestore?: any) {
-  if (!teacherIdOrCode) return;
-  const cleanIdOrCode = teacherIdOrCode.trim().toUpperCase();
+export async function deleteProfessorCompletely(teacherIdOrCodeOrName: string, firestore?: any) {
+  if (!teacherIdOrCodeOrName) return;
+  const target = teacherIdOrCodeOrName.trim();
+  const cleanUpper = target.toUpperCase();
 
-  deleteAdminTeacherCodeMapping(cleanIdOrCode);
+  deleteAdminTeacherCodeMapping(target);
 
   if (firestore) {
     try {
       const { doc, deleteDoc, setDoc, serverTimestamp } = await import('firebase/firestore');
       
       // Delete from teacher_codes
-      await deleteDoc(doc(firestore, 'teacher_codes', cleanIdOrCode)).catch(() => {});
+      await deleteDoc(doc(firestore, 'teacher_codes', cleanUpper)).catch(() => {});
+      await deleteDoc(doc(firestore, 'teacher_codes', target)).catch(() => {});
       
       // Delete from teachers collection
-      await deleteDoc(doc(firestore, 'teachers', teacherIdOrCode)).catch(() => {});
-      if (cleanIdOrCode !== teacherIdOrCode) {
-        await deleteDoc(doc(firestore, 'teachers', cleanIdOrCode)).catch(() => {});
+      await deleteDoc(doc(firestore, 'teachers', target)).catch(() => {});
+      if (cleanUpper !== target) {
+        await deleteDoc(doc(firestore, 'teachers', cleanUpper)).catch(() => {});
       }
 
       // Record in system_deleted_teachers to prevent re-seeding
-      await setDoc(doc(firestore, 'system_deleted_teachers', cleanIdOrCode), {
-        id: cleanIdOrCode,
+      await setDoc(doc(firestore, 'system_deleted_teachers', cleanUpper), {
+        id: cleanUpper,
+        target,
         deletedAt: serverTimestamp()
       }, { merge: true }).catch(() => {});
     } catch (e) {

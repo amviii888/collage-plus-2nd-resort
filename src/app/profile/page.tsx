@@ -58,7 +58,7 @@ import {
   Smartphone,
   ArrowLeft,
 } from 'lucide-react';
-import { isStudentEmail } from '@/lib/auth-helpers';
+import { isStudentEmail, clearAllStudentAuthSessions } from '@/lib/auth-helpers';
 import { getStudentConnectedProfessors, findProfessorByCode, setActiveProfessorBranding, ProfessorItem } from '@/lib/professors-registry';
 import { AttendanceHistoryModal } from '@/components/AttendanceHistoryModal';
 import { SeasonalHubCard } from '@/components/SeasonalHubCard';
@@ -1534,19 +1534,7 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
         } catch (e) {
             console.error("Logout failed:", e);
         }
-        try {
-            localStorage.removeItem('viewingStudentId');
-            localStorage.removeItem('parentForStudentBarcode');
-            localStorage.removeItem('parentPhoneNumber');
-            localStorage.removeItem('assistantForTeacherId');
-            localStorage.removeItem('assistantTeacherName');
-            localStorage.removeItem('admin-session');
-            localStorage.removeItem('offline_student_id');
-            localStorage.removeItem('app_student_auth_session');
-            sessionStorage.clear();
-        } catch (e) {
-            console.error("Storage clear error:", e);
-        }
+        clearAllStudentAuthSessions();
         window.location.href = '/signup-options';
     };
 

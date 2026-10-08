@@ -89,10 +89,21 @@ export function TeacherCodesManager() {
   const allTeachersList = useMemo(() => {
     const list: any[] = [];
     const seenIds = new Set<string>();
+    const deletedRaw = getDeletedBuiltinProfessors();
+    const deletedUpper = deletedRaw.map(d => (d || '').toUpperCase());
+
+    const isDeleted = (id?: string, name?: string, code?: string) => {
+      if (id && (deletedRaw.includes(id) || deletedUpper.includes(id.toUpperCase()))) return true;
+      if (name && (deletedRaw.includes(name) || deletedUpper.includes(name.toUpperCase()))) return true;
+      if (code && (deletedRaw.includes(code) || deletedUpper.includes(code.toUpperCase()))) return true;
+      return false;
+    };
 
     // 1. Remote teachers from Firestore
     if (remoteTeachers && remoteTeachers.length > 0) {
       remoteTeachers.forEach(t => {
+        const tCode = (t as any).code || Object.values(adminMappings).find(m => m.id === t.id)?.code || '';
+        if (isDeleted(t.id, t.name, tCode)) return;
         seenIds.add(t.id);
         list.push({
           id: t.id,
@@ -102,7 +113,7 @@ export function TeacherCodesManager() {
           heroImageUrl: t.heroImageUrl || 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=1200',
           subjects: t.subjects || [],
           bio: t.bio || '',
-          code: (t as any).code || Object.values(adminMappings).find(m => m.id === t.id)?.code || '',
+          code: tCode,
           source: 'firestore'
         });
       });
@@ -110,6 +121,8 @@ export function TeacherCodesManager() {
 
     // 2. Base registered professors (only active, excluding deleted)
     getActiveRegisteredProfessors().forEach(p => {
+      const pCode = Object.values(adminMappings).find(m => m.id === p.id)?.code || p.code;
+      if (isDeleted(p.id, p.name, pCode)) return;
       if (p.id && !seenIds.has(p.id)) {
         seenIds.add(p.id);
         list.push({
@@ -120,7 +133,7 @@ export function TeacherCodesManager() {
           heroImageUrl: p.heroImageUrl,
           subjects: [p.subjectAr],
           bio: p.descriptionAr,
-          code: Object.values(adminMappings).find(m => m.id === p.id)?.code || p.code,
+          code: pCode,
           source: 'registry'
         });
       }
@@ -131,14 +144,13 @@ export function TeacherCodesManager() {
 
   const handleDeleteTeacher = async (teacher: any) => {
     const code = teacher.code || teacher.id;
-    if (!window.confirm(`هل أنت متأكد من حذف الأستاذ (${teacher.name}) وكوده [${code}] نهائياً من النظام؟`)) {
-      return;
-    }
-
     try {
       await deleteProfessorCompletely(code, firestore);
       if (teacher.id && teacher.id !== code) {
         await deleteProfessorCompletely(teacher.id, firestore);
+      }
+      if (teacher.name) {
+        await deleteProfessorCompletely(teacher.name, firestore);
       }
       refreshMappings();
       toast({

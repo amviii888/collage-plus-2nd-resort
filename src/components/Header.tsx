@@ -15,7 +15,7 @@ import { Logo } from '@/components/icons';
 import { useOnlineStatus } from '@/hooks/use-online-status';
 import { cn } from '@/lib/utils';
 import { InstallPwaButton } from './InstallPwaButton';
-import { isStudentEmail, getStudentBarcodeFromEmail } from '@/lib/auth-helpers';
+import { isStudentEmail, getStudentBarcodeFromEmail, clearAllStudentAuthSessions } from '@/lib/auth-helpers';
 import { findProfessorByCode } from '@/lib/professors-registry';
 
 function UserProfile() {
@@ -57,10 +57,7 @@ function UserProfile() {
     useEffect(() => {
         if (isTeacher && typeof window !== 'undefined') {
             try {
-                localStorage.removeItem('viewingStudentId');
-                localStorage.removeItem('student_barcode');
-                localStorage.removeItem('offline_student_id');
-                localStorage.removeItem('app_student_auth_session');
+                clearAllStudentAuthSessions();
                 setStudentId(null);
                 setCachedStudent(null);
             } catch (e) {}
@@ -205,6 +202,15 @@ export function Header() {
     const isStudent = !isTeacher && (isStudentUser || isStudentSession);
 
     useEffect(() => {
+        if (isTeacher && typeof window !== 'undefined') {
+            try {
+                clearAllStudentAuthSessions();
+                setActiveProfBranding(null);
+            } catch (e) {}
+        }
+    }, [isTeacher]);
+
+    useEffect(() => {
         if (typeof window !== 'undefined') {
             const sid = localStorage.getItem('viewingStudentId');
             const asst = localStorage.getItem('assistantTeacherName');
@@ -212,8 +218,12 @@ export function Header() {
             setHasSession(!!(user || sid || asst || admin));
 
             const updateBranding = () => {
+                if (isTeacher) {
+                    setActiveProfBranding(null);
+                    return;
+                }
                 const activeCode = localStorage.getItem('active_connected_professor_code');
-                if (activeCode) {
+                if (activeCode && isStudent) {
                     const prof = findProfessorByCode(activeCode);
                     if (prof) {
                         setActiveProfBranding(prof);
@@ -231,7 +241,7 @@ export function Header() {
                 window.removeEventListener('connected_professors_updated', updateBranding);
             };
         }
-    }, [user]);
+    }, [user, isTeacher, isStudent]);
 
     const handleHeaderLogout = async () => {
         try {
@@ -241,20 +251,7 @@ export function Header() {
         } catch (e) {
             console.error(e);
         }
-        try {
-            localStorage.removeItem('viewingStudentId');
-            localStorage.removeItem('parentForStudentBarcode');
-            localStorage.removeItem('parentPhoneNumber');
-            localStorage.removeItem('assistantForTeacherId');
-            localStorage.removeItem('assistantTeacherName');
-            localStorage.removeItem('admin-session');
-            localStorage.removeItem('offline_student_id');
-            localStorage.removeItem('app_student_auth_session');
-            localStorage.removeItem('student_barcode');
-            sessionStorage.clear();
-        } catch (e) {
-            console.error(e);
-        }
+        clearAllStudentAuthSessions();
         window.location.href = '/signup-options';
     };
 
@@ -299,7 +296,7 @@ export function Header() {
                 {/* Brand & User Profile */}
                 <div className="flex items-center gap-4 sm:gap-6">
                     <Link href="/" className="flex items-center gap-2.5 transition-transform hover:scale-105 active:scale-95 group">
-                        {activeProfBranding ? (
+                        {isStudent && !isTeacher && activeProfBranding ? (
                             <div className="flex items-center gap-2.5">
                                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl border border-blue-500/30 bg-blue-50 dark:bg-slate-900 p-0.5 shadow-md shadow-blue-500/20 flex items-center justify-center overflow-hidden">
                                     <img 
