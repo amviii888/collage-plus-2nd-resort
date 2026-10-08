@@ -35,7 +35,7 @@ export default function PrivacyPolicyPage() {
                                 {isArabic ? 'سياسة الخصوصية وحماية البيانات الأكاديمية' : 'Privacy Policy & Academic Data Protection'}
                             </CardTitle>
                             <p className="text-xs text-blue-500 font-mono mt-1">
-                                {isArabic ? 'منصة ملخصاتي الجامعية (Mola5saty) — لعام 2026' : 'Mola5saty University Academic Platform — 2026'}
+                                {isArabic ? 'منصة ملخصاتي الجامعية (Mol5saty) — لعام 2026' : 'Mol5saty University Academic Platform — 2026'}
                             </p>
                         </div>
                     </div>
@@ -53,8 +53,8 @@ export default function PrivacyPolicyPage() {
                             </h2>
                             <p>
                                 {isArabic 
-                                    ? 'تلتزم منصة ملخصاتي (Mola5saty) بأعلى المعايير العالمية في حماية خصوصية وأمان الطلاب، وأساتذة الجامعات، والمشرفين الأكاديميين. توضح هذه السياسة كيف نقوم بتأمين بياناتك الأكاديمية والشخصية مع فرض أعلى درجات التشفير والحماية الرقمية.'
-                                    : 'Mola5saty University Platform is strictly committed to the highest global standards for student, professor, and faculty privacy. This policy outlines how academic records and personal credentials are encrypted, protected, and managed.'}
+                                    ? 'تلتزم منصة ملخصاتي (Mol5saty) بأعلى المعايير العالمية في حماية خصوصية وأمان الطلاب، وأساتذة الجامعات، والمشرفين الأكاديميين. توضح هذه السياسة كيف نقوم بتأمين بياناتك الأكاديمية والشخصية مع فرض أعلى درجات التشفير والحماية الرقمية.'
+                                    : 'Mol5saty University Platform is strictly committed to the highest global standards for student, professor, and faculty privacy. This policy outlines how academic records and personal credentials are encrypted, protected, and managed.'}
                             </p>
                         </div>
 

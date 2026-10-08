@@ -35,7 +35,7 @@ export default function TermsOfServicePage() {
                                 {isArabic ? 'شروط الخدمة والاتفاقية القانونية الملزمة' : 'Terms of Service & Binding Legal Agreement'}
                             </CardTitle>
                             <p className="text-xs text-blue-500 font-mono mt-1">
-                                {isArabic ? 'منصة ملخصاتي الجامعية (Mola5saty) — لعام 2026' : 'Mola5saty University Academic Platform — 2026'}
+                                {isArabic ? 'منصة ملخصاتي الجامعية (Mol5saty) — لعام 2026' : 'Mol5saty University Academic Platform — 2026'}
                             </p>
                         </div>
                     </div>
@@ -53,8 +53,8 @@ export default function TermsOfServicePage() {
                             </h2>
                             <p>
                                 {isArabic 
-                                    ? 'مرحباً بك في منصة ملخصاتي الجامعية (Mola5saty). تحكم هذه الاتفاقية القانونية كافة استخداماتك للمنصة، تطبيقات الهواتف الذكية (iOS & Android)، وخدمات الويب المرتبطة بها. بمجرد فتح المنصة، أو إنشاء حساب، أو استعراض أي ملخص أو محاضرة، فإنك تقر وتوافق صراحة ودون قيد أو شرط على الالتزام الكامل بجميع البنود والشروط الواردة في هذه الوثيقة.'
-                                    : 'Welcome to Mola5saty University Academic Platform. This legally binding Terms of Service agreement governs your access and usage of the platform, native mobile apps (iOS & Android), and associated web services. By opening, browsing, or utilizing any course, summary, or lecture, you unconditionally agree to be fully bound by these terms.'}
+                                    ? 'مرحباً بك في منصة ملخصاتي الجامعية (Mol5saty). تحكم هذه الاتفاقية القانونية كافة استخداماتك للمنصة، تطبيقات الهواتف الذكية (iOS & Android)، وخدمات الويب المرتبطة بها. بمجرد فتح المنصة، أو إنشاء حساب، أو استعراض أي ملخص أو محاضرة، فإنك تقر وتوافق صراحة ودون قيد أو شرط على الالتزام الكامل بجميع البنود والشروط الواردة في هذه الوثيقة.'
+                                    : 'Welcome to Mol5saty University Academic Platform. This legally binding Terms of Service agreement governs your access and usage of the platform, native mobile apps (iOS & Android), and associated web services. By opening, browsing, or utilizing any course, summary, or lecture, you unconditionally agree to be fully bound by these terms.'}
                             </p>
                         </div>
 

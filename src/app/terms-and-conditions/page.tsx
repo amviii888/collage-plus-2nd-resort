@@ -35,7 +35,7 @@ export default function TermsAndConditionsPage() {
                                 {isArabic ? 'الشروط والأحكام العامة وقواعد الاستخدام' : 'General Terms & Conditions of Use'}
                             </CardTitle>
                             <p className="text-xs text-blue-500 font-mono mt-1">
-                                {isArabic ? 'منصة ملخصاتي الجامعية (Mola5saty) — لعام 2026' : 'Mola5saty University Academic Platform — 2026'}
+                                {isArabic ? 'منصة ملخصاتي الجامعية (Mol5saty) — لعام 2026' : 'Mol5saty University Academic Platform — 2026'}
                             </p>
                         </div>
                     </div>
@@ -53,8 +53,8 @@ export default function TermsAndConditionsPage() {
                             </h2>
                             <p>
                                 {isArabic 
-                                    ? 'تحكم هذه الشروط والأحكام العامة استخدام كافة الخدمات، والأقسام، والمذكرات، وبنوك الأسئلة، والمشغلات الآمنة المتوفرة عبر منصة وتطبيق ملخصاتي (Mola5saty). يعد وصولك للمنصة إقراراً قانونياً ملزماً بموافقتك الكاملة على كافة القواعد المذكورة دون أي استثناء.'
-                                    : 'These Terms and Conditions govern the utilization of all services, course sections, lecture notes, MCQ banks, and secure streaming players available through Mola5saty. Your access constitutes a binding legal agreement to comply with all established rules without exception.'}
+                                    ? 'تحكم هذه الشروط والأحكام العامة استخدام كافة الخدمات، والأقسام، والمذكرات، وبنوك الأسئلة، والمشغلات الآمنة المتوفرة عبر منصة وتطبيق ملخصاتي (Mol5saty). يعد وصولك للمنصة إقراراً قانونياً ملزماً بموافقتك الكاملة على كافة القواعد المذكورة دون أي استثناء.'
+                                    : 'These Terms and Conditions govern the utilization of all services, course sections, lecture notes, MCQ banks, and secure streaming players available through Mol5saty. Your access constitutes a binding legal agreement to comply with all established rules without exception.'}
                             </p>
                         </div>
 

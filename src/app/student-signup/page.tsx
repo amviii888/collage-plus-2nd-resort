@@ -155,7 +155,7 @@ const AuthHeader = () => {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('mola5saty_theme') || localStorage.getItem('app_mode_dark');
+      const saved = localStorage.getItem('mol5saty_theme') || localStorage.getItem('app_mode_dark');
       if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
         setIsDarkMode(true);
         document.documentElement.classList.add('dark');
@@ -170,7 +170,7 @@ const AuthHeader = () => {
     const next = !isDarkMode;
     setIsDarkMode(next);
     try {
-      localStorage.setItem('mola5saty_theme', next ? 'dark' : 'light');
+      localStorage.setItem('mol5saty_theme', next ? 'dark' : 'light');
       localStorage.setItem('app_mode_dark', next ? 'dark' : 'light');
       if (next) {
         document.documentElement.classList.add('dark');
@@ -185,7 +185,7 @@ const AuthHeader = () => {
     const newLang = isArabic ? 'en' : 'ar';
     i18next.changeLanguage(newLang);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('mola5saty-lang', newLang);
+      localStorage.setItem('mol5saty-lang', newLang);
     }
   };
 
@@ -199,7 +199,7 @@ const AuthHeader = () => {
         </div>
         <div className="flex flex-col">
           <span className="font-extrabold text-lg sm:text-xl tracking-tight text-[#0f172a] dark:text-white">
-            {isArabic ? 'ملخصاتي' : 'Mola5saty'}
+            {isArabic ? 'ملخصاتي' : 'Mol5saty'}
           </span>
           <span className="text-[9px] text-[#2563eb] dark:text-blue-400 font-bold tracking-wider uppercase">
             {isArabic ? 'تسجيل طالب جامعي' : 'COLLEGE REGISTRATION'}
@@ -435,7 +435,7 @@ export default function StudentSignupPage() {
       while (!userCred && attempts < 5) {
         attempts++;
         barcodeId = Math.floor(10000 + Math.random() * 90000).toString();
-        const studentEmail = `${barcodeId}@mola5saty.student`;
+        const studentEmail = `${barcodeId}@mol5saty.student`;
         try {
           userCred = await createUserWithEmailAndPassword(auth, studentEmail, password);
         } catch (err: any) {
@@ -486,7 +486,7 @@ export default function StudentSignupPage() {
       await setDoc(doc(firestore, 'users', studentId), {
         id: studentId,
         name,
-        email: `${barcodeId}@mola5saty.student`,
+        email: `${barcodeId}@mol5saty.student`,
         role: 'student',
         barcodeId,
         governorate: governorateName,
@@ -504,7 +504,7 @@ export default function StudentSignupPage() {
       localStorage.setItem('studentBarcodeId', barcodeId);
       localStorage.setItem('studentCode', barcodeId);
       localStorage.setItem('cached_student_profile_' + studentId, JSON.stringify(studentData));
-      localStorage.setItem('mola5saty_active_student_profile', JSON.stringify(studentData));
+      localStorage.setItem('mol5saty_active_student_profile', JSON.stringify(studentData));
       localStorage.setItem('student_logged_in', 'true');
 
       if (matchedProfessor) {
@@ -513,7 +513,7 @@ export default function StudentSignupPage() {
       }
 
       toast({
-        title: isArabic ? 'مرحباً بك في ملخصاتي! 🎉' : 'Welcome to Mola5saty! 🎉',
+        title: isArabic ? 'مرحباً بك في ملخصاتي! 🎉' : 'Welcome to Mol5saty! 🎉',
         description: isArabic 
           ? `تم إنشاء حسابك الجامعي بنجاح. كود الطالب الخاص بك هو [ ${barcodeId} ]. احفظ هذا الكود لتسجيل الدخول به دائماً.` 
           : `Your student account has been created. Your Student Code is [ ${barcodeId} ]. Save this code to sign in anytime.`,
@@ -845,7 +845,7 @@ export default function StudentSignupPage() {
 
       {/* Footer */}
       <footer className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#070b14] text-xs max-w-2xl mx-auto w-full text-center text-slate-500 font-mono transition-colors">
-        MOLA5SATY // COLLEGE_STUDENT_ENROLLMENT_2026
+        MOL5SATY // COLLEGE_STUDENT_ENROLLMENT_2026
       </footer>
 
     </div>

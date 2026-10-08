@@ -19,7 +19,7 @@ export function Logo({
 }: LogoProps) {
   return (
     <div className={`flex items-center gap-2.5 select-none ${className}`}>
-      {/* Mola5saty Emblem: Glowing Deep Navy / Blue Gradient with Open Academic Book */}
+      {/* Mol5saty Emblem: Glowing Deep Navy / Blue Gradient with Open Academic Book */}
       <div 
         className="rounded-xl bg-gradient-to-br from-[#2563eb] to-[#1e3a8a] p-0.5 shadow-md shadow-blue-500/25 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105"
         style={{ width: `${width}px`, height: `${height}px` }}
@@ -43,7 +43,7 @@ export function Logo({
             </span>
           </div>
           <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 font-mono tracking-wider transition-colors">
-            MOLA5SATY
+            MOL5SATY
           </span>
         </div>
       )}

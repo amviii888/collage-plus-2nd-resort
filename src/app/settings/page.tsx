@@ -692,7 +692,7 @@ export default function SettingsPage() {
 
         toast({
             title: isArabic ? 'تم تسجيل الخروج بنجاح' : 'Logged Out Successfully',
-            description: isArabic ? 'نراك قريباً في ملخصاتي!' : 'See you soon on Mola5saty!',
+            description: isArabic ? 'نراك قريباً في ملخصاتي!' : 'See you soon on Mol5saty!',
         });
 
         // Use window.location.href to perform a clean state refresh upon signout
@@ -888,7 +888,7 @@ export default function SettingsPage() {
             )}
 
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="text-center pt-8">
-                <p className="text-xs text-muted-foreground">{isArabic ? 'منصة ملخصاتي الجامعية — الإصدار 4.0' : 'Mola5saty University Platform — v4.0'}</p>
+                <p className="text-xs text-muted-foreground">{isArabic ? 'منصة ملخصاتي الجامعية — الإصدار 4.0' : 'Mol5saty University Platform — v4.0'}</p>
             </motion.div>
         </div>
     );

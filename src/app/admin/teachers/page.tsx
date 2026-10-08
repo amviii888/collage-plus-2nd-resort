@@ -196,7 +196,7 @@ export default function AdminTeacherManagementPage() {
                 list.push({
                     id: p.id || p.code || String(Math.random()),
                     name: p.name || 'أستاذ مادة',
-                    email: `${codeSlug}@faculty.mola5saty.com`,
+                    email: `${codeSlug}@faculty.mol5saty.com`,
                     pfp: p.avatarUrl || '',
                     hero: p.heroImageUrl || '',
                     subject: p.subjectAr || 'عام'
@@ -848,8 +848,9 @@ export default function AdminTeacherManagementPage() {
                                 onChange={(e) => setMappingAssignedThemeId(e.target.value)}
                                 className="h-11 text-xs w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-3 text-slate-900 dark:text-white font-sans"
                             >
-                                <option value="default">{t('Mola5saty Royal Blue (Default)')}</option>
-                                <option value="theme_emerald">{t('Academic Emerald Green (Default)')}</option>
+                                <option value="prof_custom">⭐ {t("Professor's Own Custom Theme (ثيم الأستاذ المخصص - يصممه بنفسه)")}</option>
+                                <option value="default">{t('Mol5saty Royal Blue (Global Default)')}</option>
+                                <option value="theme_emerald">{t('Academic Emerald Green (Global Default)')}</option>
                                 {libraryThemes.map((theme) => (
                                     <option key={theme.id} value={theme.themeClass || theme.id}>
                                         {theme.themeTitle || theme.title || theme.id} ({theme.themeClass || theme.id})

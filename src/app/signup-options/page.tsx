@@ -13,7 +13,7 @@ export default function SignUpOptionsPage() {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('mola5saty_theme') || localStorage.getItem('app_mode_dark');
+      const saved = localStorage.getItem('mol5saty_theme') || localStorage.getItem('app_mode_dark');
       if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
         setIsDarkMode(true);
         document.documentElement.classList.add('dark');
@@ -28,7 +28,7 @@ export default function SignUpOptionsPage() {
     const next = !isDarkMode;
     setIsDarkMode(next);
     try {
-      localStorage.setItem('mola5saty_theme', next ? 'dark' : 'light');
+      localStorage.setItem('mol5saty_theme', next ? 'dark' : 'light');
       localStorage.setItem('app_mode_dark', next ? 'dark' : 'light');
       if (next) {
         document.documentElement.classList.add('dark');
@@ -43,7 +43,7 @@ export default function SignUpOptionsPage() {
     const nextLang = isArabic ? 'en' : 'ar';
     i18n.changeLanguage(nextLang);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('mola5saty-lang', nextLang);
+      localStorage.setItem('mol5saty-lang', nextLang);
     }
   };
 
@@ -107,7 +107,7 @@ export default function SignUpOptionsPage() {
           </div>
           <div className="flex flex-col">
             <span className="font-extrabold text-lg sm:text-xl tracking-tight text-[#0f172a] dark:text-white">
-              {isArabic ? 'ملخصاتي' : 'Mola5saty'}
+              {isArabic ? 'ملخصاتي' : 'Mol5saty'}
             </span>
             <span className="text-[9px] text-[#2563eb] dark:text-blue-400 font-bold tracking-wider uppercase">
               {isArabic ? 'بوابة الكليات' : 'COLLEGE PORTAL'}
@@ -230,7 +230,7 @@ export default function SignUpOptionsPage() {
       {/* Footer */}
       <footer className="px-6 py-6 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#070b14] text-xs max-w-5xl mx-auto w-full flex flex-col sm:flex-row justify-between items-center gap-3 text-slate-500 dark:text-slate-400">
         <div className="font-mono text-[11px]">
-          MOLA5SATY // COLLEGE_SYS_2026
+          MOL5SATY // COLLEGE_SYS_2026
         </div>
         
         <div className="flex items-center gap-1.5 text-sm">

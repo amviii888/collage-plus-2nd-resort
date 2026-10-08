@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 export type ThemeColor = 'blue' | 'green';
 export type ThemeMode = 'light' | 'dark';
 
-export const getMola5satyStyles = (theme: ThemeColor, mode: ThemeMode): React.CSSProperties => {
+export const getMol5satyStyles = (theme: ThemeColor, mode: ThemeMode): React.CSSProperties => {
   if (theme === 'green') {
     if (mode === 'dark') {
       return {
@@ -71,7 +71,7 @@ export const getMola5satyStyles = (theme: ThemeColor, mode: ThemeMode): React.CS
   } as React.CSSProperties;
 };
 
-export function useMola5satyTheme() {
+export function useMol5satyTheme() {
   const [theme, setThemeState] = useState<ThemeColor>('blue');
   const [mode, setModeState] = useState<ThemeMode>('light');
 
@@ -79,8 +79,8 @@ export function useMola5satyTheme() {
     if (typeof window === 'undefined') return;
 
     const readStored = () => {
-      const storedTheme = (localStorage.getItem('mola5saty_theme') as ThemeColor) || 'blue';
-      const storedMode = (localStorage.getItem('mola5saty_mode') as ThemeMode) || 'light';
+      const storedTheme = (localStorage.getItem('mol5saty_theme') as ThemeColor) || 'blue';
+      const storedMode = (localStorage.getItem('mol5saty_mode') as ThemeMode) || 'light';
       setThemeState(storedTheme === 'green' ? 'green' : 'blue');
       setModeState(storedMode === 'dark' ? 'dark' : 'light');
 
@@ -92,11 +92,11 @@ export function useMola5satyTheme() {
     };
 
     readStored();
-    window.addEventListener('mola5saty_theme_change', readStored);
+    window.addEventListener('mol5saty_theme_change', readStored);
     window.addEventListener('storage', readStored);
 
     return () => {
-      window.removeEventListener('mola5saty_theme_change', readStored);
+      window.removeEventListener('mol5saty_theme_change', readStored);
       window.removeEventListener('storage', readStored);
     };
   }, []);
@@ -104,21 +104,21 @@ export function useMola5satyTheme() {
   const setTheme = useCallback((newTheme: ThemeColor) => {
     setThemeState(newTheme);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('mola5saty_theme', newTheme);
-      window.dispatchEvent(new Event('mola5saty_theme_change'));
+      localStorage.setItem('mol5saty_theme', newTheme);
+      window.dispatchEvent(new Event('mol5saty_theme_change'));
     }
   }, []);
 
   const setMode = useCallback((newMode: ThemeMode) => {
     setModeState(newMode);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('mola5saty_mode', newMode);
+      localStorage.setItem('mol5saty_mode', newMode);
       if (newMode === 'dark') {
         document.documentElement.classList.add('dark');
       } else {
         document.documentElement.classList.remove('dark');
       }
-      window.dispatchEvent(new Event('mola5saty_theme_change'));
+      window.dispatchEvent(new Event('mol5saty_theme_change'));
     }
   }, []);
 
@@ -127,7 +127,7 @@ export function useMola5satyTheme() {
     setMode(nextMode);
   }, [mode, setMode]);
 
-  const styles = getMola5satyStyles(theme, mode);
+  const styles = getMol5satyStyles(theme, mode);
 
   return {
     theme,

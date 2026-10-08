@@ -38,7 +38,7 @@ const AuthHeader = () => {
 
     useEffect(() => {
       try {
-        const saved = localStorage.getItem('mola5saty_theme') || localStorage.getItem('app_mode_dark');
+        const saved = localStorage.getItem('mol5saty_theme') || localStorage.getItem('app_mode_dark');
         if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
           setIsDarkMode(true);
           document.documentElement.classList.add('dark');
@@ -53,7 +53,7 @@ const AuthHeader = () => {
       const next = !isDarkMode;
       setIsDarkMode(next);
       try {
-        localStorage.setItem('mola5saty_theme', next ? 'dark' : 'light');
+        localStorage.setItem('mol5saty_theme', next ? 'dark' : 'light');
         localStorage.setItem('app_mode_dark', next ? 'dark' : 'light');
         if (next) {
           document.documentElement.classList.add('dark');
@@ -68,7 +68,7 @@ const AuthHeader = () => {
       const newLang = isArabic ? 'en' : 'ar';
       i18n.changeLanguage(newLang);
       if (typeof window !== 'undefined') {
-          localStorage.setItem('mola5saty-lang', newLang);
+          localStorage.setItem('mol5saty-lang', newLang);
       }
     };
   
@@ -82,7 +82,7 @@ const AuthHeader = () => {
           </div>
           <div className="flex flex-col">
             <span className="font-extrabold text-lg sm:text-xl tracking-tight text-[#0f172a] dark:text-white">
-              {isArabic ? 'ملخصاتي' : 'Mola5saty'}
+              {isArabic ? 'ملخصاتي' : 'Mol5saty'}
             </span>
             <span className="text-[9px] text-[#2563eb] dark:text-blue-400 font-bold tracking-wider uppercase">
               {isArabic ? 'بوابة الكليات والجامعات' : 'COLLEGE PORTAL'}
@@ -235,7 +235,7 @@ function LoginFormContent() {
 
             if (isStudentAttempt) {
                 try {
-                    userCredential = await signInWithEmailAndPassword(auth, `${identifier.trim()}@mola5saty.student`, password);
+                    userCredential = await signInWithEmailAndPassword(auth, `${identifier.trim()}@mol5saty.student`, password);
                 } catch (err: any) {
                     userCredential = await signInWithEmailAndPassword(auth, `${identifier.trim()}@universe.student`, password);
                 }
@@ -260,9 +260,9 @@ function LoginFormContent() {
 
             const isStudent = isStudentAttempt || 
                               detectedRole === 'student' ||
-                              identifier.trim().toLowerCase().endsWith('@mola5saty.student') || 
+                              identifier.trim().toLowerCase().endsWith('@mol5saty.student') || 
                               identifier.trim().toLowerCase().endsWith('@universe.student') ||
-                              userCredential.user.email?.toLowerCase().endsWith('@mola5saty.student') ||
+                              userCredential.user.email?.toLowerCase().endsWith('@mol5saty.student') ||
                               userCredential.user.email?.toLowerCase().endsWith('@universe.student');
 
             const isAdmin = detectedRole === 'admin' || 
@@ -305,7 +305,7 @@ function LoginFormContent() {
                     } else {
                         const sData = { id: userCredential.user.uid, ...studentSnap.data() };
                         localStorage.setItem('cached_student_profile_' + userCredential.user.uid, JSON.stringify(sData));
-                        localStorage.setItem('mola5saty_active_student_profile', JSON.stringify(sData));
+                        localStorage.setItem('mol5saty_active_student_profile', JSON.stringify(sData));
                         localStorage.setItem('student_logged_in', 'true');
                     }
                 }
@@ -467,7 +467,7 @@ function LoginFormContent() {
 
           {/* Footer */}
           <footer className="py-4 text-center text-xs text-slate-500 dark:text-slate-500 border-t border-slate-100 dark:border-slate-800">
-            <span>© {new Date().getFullYear()} Mola5saty Academic Portal • المنظومة الأكاديمية للكليات</span>
+            <span>© {new Date().getFullYear()} Mol5saty Academic Portal • المنظومة الأكاديمية للكليات</span>
           </footer>
         </div>
     );

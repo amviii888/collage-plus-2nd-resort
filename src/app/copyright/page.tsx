@@ -35,7 +35,7 @@ export default function CopyrightPage() {
                                 {isArabic ? 'حقوق الملكية الفكرية، قوانين النشر واتفاقية الملاك © 2026' : 'Copyright, Intellectual Property & Ownership Agreement © 2026'}
                             </CardTitle>
                             <p className="text-xs text-blue-500 font-mono mt-1">
-                                {isArabic ? 'منصة ملخصاتي الجامعية (Mola5saty) — الحماية القانونية الشاملة' : 'Mola5saty University Academic Platform — Comprehensive Legal Protection'}
+                                {isArabic ? 'منصة ملخصاتي الجامعية (Mol5saty) — الحماية القانونية الشاملة' : 'Mol5saty University Academic Platform — Comprehensive Legal Protection'}
                             </p>
                         </div>
                     </div>
@@ -53,8 +53,8 @@ export default function CopyrightPage() {
                             </h2>
                             <p>
                                 {isArabic 
-                                    ? 'تم تأسيس وقيادة منصة ملخصاتي الجامعية (Mola5saty) بواسطة الشركاء المؤسسين المعتمدين والمدرجين رسمياً في المنصة:'
-                                    : 'Mola5saty University Academic Platform is founded and directed by the official co-founders listed on our primary portal:'}
+                                    ? 'تم تأسيس وقيادة منصة ملخصاتي الجامعية (Mol5saty) بواسطة الشركاء المؤسسين المعتمدين والمدرجين رسمياً في المنصة:'
+                                    : 'Mol5saty University Academic Platform is founded and directed by the official co-founders listed on our primary portal:'}
                             </p>
                             
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-4 not-prose">

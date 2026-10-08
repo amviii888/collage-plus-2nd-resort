@@ -35,7 +35,7 @@ export default function LandingPage() {
     if (typeof window !== 'undefined') {
       return !!(
         localStorage.getItem('viewingStudentId') ||
-        localStorage.getItem('mola5saty_active_student_profile') ||
+        localStorage.getItem('mol5saty_active_student_profile') ||
         localStorage.getItem('student_logged_in') ||
         localStorage.getItem('assistantTeacherName') ||
         localStorage.getItem('admin-session')
@@ -49,7 +49,7 @@ export default function LandingPage() {
     if (typeof window === 'undefined') return;
 
     const viewingStudentId = localStorage.getItem('viewingStudentId');
-    const hasStudentProfile = localStorage.getItem('mola5saty_active_student_profile');
+    const hasStudentProfile = localStorage.getItem('mol5saty_active_student_profile');
     const assistant = localStorage.getItem('assistantTeacherName');
     const admin = localStorage.getItem('admin-session');
 
@@ -81,7 +81,7 @@ export default function LandingPage() {
 
   useEffect(() => {
     try {
-      const savedTheme = localStorage.getItem('mola5saty_theme');
+      const savedTheme = localStorage.getItem('mol5saty_theme');
       if (savedTheme === 'dark') {
         setIsDarkMode(true);
       }
@@ -94,7 +94,7 @@ export default function LandingPage() {
     setIsDarkMode(prev => {
       const next = !prev;
       try {
-        localStorage.setItem('mola5saty_theme', next ? 'dark' : 'light');
+        localStorage.setItem('mol5saty_theme', next ? 'dark' : 'light');
       } catch (e) {
         console.error(e);
       }
@@ -221,10 +221,10 @@ export default function LandingPage() {
 
   const faqItems = [
     {
-      qAr: 'ما هي منصة ملخصاتي (Mola5saty)؟',
-      qEn: 'What is Mola5saty?',
+      qAr: 'ما هي منصة ملخصاتي (Mol5saty)؟',
+      qEn: 'What is Mol5saty?',
       aAr: 'ملخصاتي هي المنصة الجامعية المتطورة المخصصة لطلاب الكليات وأساتذة الجامعات، حيث توفر ملخصات كبسولية للمحاضرات، تسجيلات آمنة، بنوك أسئلة تدريبية، وتواصلاً مباشراً مع الأساتذة والمساعدين.',
-      aEn: 'Mola5saty is the modern university academic hub connecting college students with professors, offering high-yield lecture summaries, protected video streaming, question banks, and direct course requests.'
+      aEn: 'Mol5saty is the modern university academic hub connecting college students with professors, offering high-yield lecture summaries, protected video streaming, question banks, and direct course requests.'
     },
     {
       qAr: 'كيف يمكن للطالب الانضمام لمقرر دراسي أو ملخص معين؟',
@@ -240,7 +240,7 @@ export default function LandingPage() {
     },
     {
       qAr: 'كيف تضمن المنصة حماية فيديوهات ومذكرات الدكاترة من التسريب؟',
-      qEn: 'How does Mola5saty protect professor videos and lecture handouts?',
+      qEn: 'How does Mol5saty protect professor videos and lecture handouts?',
       aAr: 'نطبق نظام حماية متعدد الطبقات يشمل علامات مائية عائمة برقم الطالب ورمز جهازه، بجانب منع التقاط الشاشة وحظر التحميل غير المصرح به.',
       aEn: 'We deploy a multi-layered DRM system including floating dynamic student watermarks, native screenshot blanking, and tokenized playback.'
     }
@@ -269,7 +269,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-2 mt-2">
             <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
             <span className="text-[11px] font-mono text-blue-400">
-              {isArabic ? 'مرحباً بعودتك إلى ملخصاتي' : 'Welcome back to Mola5saty'}
+              {isArabic ? 'مرحباً بعودتك إلى ملخصاتي' : 'Welcome back to Mol5saty'}
             </span>
           </div>
         </div>
@@ -294,7 +294,7 @@ export default function LandingPage() {
           : 'bg-[#f0f4f9] text-[#0f172a]'
       }`} 
       dir={isArabic ? 'rtl' : 'ltr'}
-      id="mola5saty-landing"
+      id="mol5saty-landing"
     >
       {/* Background Soft Ambiance: Rich Navy Blue & Sky Accents */}
       <div 
@@ -335,7 +335,7 @@ export default function LandingPage() {
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5">
                 <span className={`font-extrabold text-xl sm:text-2xl tracking-tight ${isDarkMode ? 'text-white' : 'text-[#0f172a]'}`}>
-                  {isArabic ? 'ملخصاتي' : 'Mola5saty'}
+                  {isArabic ? 'ملخصاتي' : 'Mol5saty'}
                 </span>
                 <span className="w-2 h-2 rounded-full bg-[#2563eb] animate-pulse" />
               </div>
@@ -472,7 +472,7 @@ export default function LandingPage() {
             </>
           ) : (
             <>
-              Master Every Lecture with <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#2563eb] via-[#1d4ed8] to-[#1e3a8a]">Mola5saty</span>
+              Master Every Lecture with <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#2563eb] via-[#1d4ed8] to-[#1e3a8a]">Mol5saty</span>
             </>
           )}
         </motion.h1>
@@ -860,7 +860,7 @@ export default function LandingPage() {
                   <BookOpen className="w-4 h-4" />
                 </div>
                 <span className="text-xl font-black text-white tracking-tight">
-                  {isArabic ? 'ملخصاتي' : 'Mola5saty'}
+                  {isArabic ? 'ملخصاتي' : 'Mol5saty'}
                 </span>
               </div>
               <p className="text-slate-400 text-xs sm:text-sm leading-relaxed max-w-md mb-4">
@@ -926,9 +926,9 @@ export default function LandingPage() {
 
           <div className="mt-12 pt-6 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-slate-400">
             <div>
-              © 2026 {isArabic ? 'ملخصاتي (Mola5saty) — جميع الحقوق محفوظة' : 'MOLA5SATY // ALL RIGHTS RESERVED'}
+              © 2026 {isArabic ? 'ملخصاتي (Mol5saty) — جميع الحقوق محفوظة' : 'MOL5SATY // ALL RIGHTS RESERVED'}
             </div>
-            <div>[MOLA5SATY_V2.0_COLLEGE_SYS]</div>
+            <div>[MOL5SATY_V2.0_COLLEGE_SYS]</div>
           </div>
         </div>
       </footer>

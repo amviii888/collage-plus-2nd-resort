@@ -10,12 +10,12 @@ const spaceMono = Space_Mono({ subsets: ['latin'], variable: '--font-mono', weig
 
 export const metadata: Metadata = {
   title: {
-    default: 'Mola5saty | ملخصاتي - المنصة الجامعية وتلخيص المحاضرات',
-    template: '%s | Mola5saty (ملخصاتي)',
+    default: 'Mol5saty | ملخصاتي - المنصة الجامعية وتلخيص المحاضرات',
+    template: '%s | Mol5saty (ملخصاتي)',
   },
-  description: 'ملخصاتي (Mola5saty) — المنصة الأكاديمية الرائدة لطلاب الكليات وأساتذة الجامعات لتلخيص المحاضرات، بنوك الأسئلة الإكلينيكية، وبث الفيديوهات الآمن.',
+  description: 'ملخصاتي (Mol5saty) — المنصة الأكاديمية الرائدة لطلاب الكليات وأساتذة الجامعات لتلخيص المحاضرات، بنوك الأسئلة الإكلينيكية، وبث الفيديوهات الآمن.',
   keywords: [
-    'Mola5saty',
+    'Mol5saty',
     'ملخصاتي',
     'منصة ملخصاتي',
     'ملخصات جامعية',
@@ -29,9 +29,9 @@ export const metadata: Metadata = {
     'Medical Lecture Summaries',
     'High-Yield Summaries',
     'Egypt Universities',
-    'Mola5saty App'
+    'Mol5saty App'
   ],
-  authors: [{ name: 'amviii8 & Ahmed (Mola5saty Architecture Team)' }],
+  authors: [{ name: 'amviii8 & Ahmed (Mol5saty Architecture Team)' }],
   manifest: '/manifest.json',
   icons: {
     icon: [
@@ -77,20 +77,20 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Mola5saty (ملخصاتي)',
+    title: 'Mol5saty (ملخصاتي)',
   },
   metadataBase: new URL('https://universeacademy.site'),
   openGraph: {
-    title: 'Mola5saty | ملخصاتي - المنصة الجامعية وتلخيص المحاضرات',
-    description: 'ملخصاتي (Mola5saty) — المنصة الأكاديمية الرائدة لطلاب الكليات وأساتذة الجامعات لتلخيص المحاضرات، بنوك الأسئلة الإكلينيكية، وبث الفيديوهات الآمن.',
+    title: 'Mol5saty | ملخصاتي - المنصة الجامعية وتلخيص المحاضرات',
+    description: 'ملخصاتي (Mol5saty) — المنصة الأكاديمية الرائدة لطلاب الكليات وأساتذة الجامعات لتلخيص المحاضرات، بنوك الأسئلة الإكلينيكية، وبث الفيديوهات الآمن.',
     url: 'https://universeacademy.site',
-    siteName: 'Mola5saty | ملخصاتي',
+    siteName: 'Mol5saty | ملخصاتي',
     images: [
       {
         url: '/icon.png',
         width: 512,
         height: 512,
-        alt: 'Mola5saty Logo',
+        alt: 'Mol5saty Logo',
       },
     ],
     locale: 'ar_EG',
@@ -99,8 +99,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Mola5saty | ملخصاتي',
-    description: 'ملخصاتي (Mola5saty) — المنصة الأكاديمية الرائدة لطلاب الكليات وأساتذة الجامعات لتلخيص المحاضرات، بنوك الأسئلة الإكلينيكية، وبث الفيديوهات الآمن.',
+    title: 'Mol5saty | ملخصاتي',
+    description: 'ملخصاتي (Mol5saty) — المنصة الأكاديمية الرائدة لطلاب الكليات وأساتذة الجامعات لتلخيص المحاضرات، بنوك الأسئلة الإكلينيكية، وبث الفيديوهات الآمن.',
     images: ['/icon.png'],
   },
   robots: {
@@ -120,11 +120,11 @@ const jsonLd = [
   {
     '@context': 'https://schema.org',
     '@type': 'EducationalOrganization',
-    name: 'Mola5saty',
+    name: 'Mol5saty',
     alternateName: 'ملخصاتي',
     url: 'https://universeacademy.site',
     logo: 'https://universeacademy.site/icon.png',
-    description: 'ملخصاتي (Mola5saty) — المنصة الأكاديمية الرائدة لطلاب الكليات وأساتذة الجامعات لتلخيص المحاضرات، بنوك الأسئلة الإكلينيكية، وبث الفيديوهات الآمن.',
+    description: 'ملخصاتي (Mol5saty) — المنصة الأكاديمية الرائدة لطلاب الكليات وأساتذة الجامعات لتلخيص المحاضرات، بنوك الأسئلة الإكلينيكية، وبث الفيديوهات الآمن.',
     sameAs: [
       'https://instagram.com/amviii_8',
     ],
@@ -132,7 +132,7 @@ const jsonLd = [
   {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
-    name: 'Mola5saty | ملخصاتي',
+    name: 'Mol5saty | ملخصاتي',
     url: 'https://universeacademy.site',
     potentialAction: {
       '@type': 'SearchAction',

@@ -185,7 +185,7 @@ export function ClientLayoutWrapper({ children }: { children: React.ReactNode })
             </div>
             <div className="space-y-1">
               <p className="font-sans font-bold text-base tracking-widest text-white uppercase">
-                MOLA5SATY <span className="text-blue-500">UNI</span>
+                MOL5SATY <span className="text-blue-500">UNI</span>
               </p>
               <p className="text-[11px] font-mono text-slate-400 tracking-wider">
                 VERIFYING_SECURITY_SESSION...

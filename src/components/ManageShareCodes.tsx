@@ -328,7 +328,9 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
   const handleGrantAccess = async (req: CourseRequest, explicitLimit?: number) => {
     if (!firestore || !req.studentId) return;
     setGrantingRequestId(req.id);
-    const chosenLimit = explicitLimit !== undefined ? explicitLimit : (requestViewLimits[req.id] ?? 3);
+    // User constraint: Maximum views allowed is 3. Unlimited (0) is strictly disabled.
+    const rawLimit = explicitLimit !== undefined ? explicitLimit : (requestViewLimits[req.id] ?? 3);
+    const chosenLimit = Math.min(3, Math.max(1, rawLimit));
 
     try {
       const batch = writeBatch(firestore);
@@ -344,6 +346,16 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
       try {
         const altReqRef = doc(firestore, `teachers/${teacherId}/access_requests`, req.id);
         batch.set(altReqRef, {
+          status: 'granted',
+          grantedAt: serverTimestamp(),
+          viewLimit: chosenLimit,
+        }, { merge: true });
+      } catch (e) {}
+
+      // 1.1 Also update student's own course_requests subcollection for real-time profile sync
+      try {
+        const studentReqRef = doc(firestore, `students/${req.studentId}/course_requests`, req.id);
+        batch.set(studentReqRef, {
           status: 'granted',
           grantedAt: serverTimestamp(),
           viewLimit: chosenLimit,
@@ -380,17 +392,26 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
         
         if (req.requestType === 'unit' && req.unitId) {
           // Grant specific unit access
-          batch.set(courseAccessRef, {
+          const unitAccessPayload = {
             courseId: req.courseId,
             teacherId: teacherId,
             unlockedUnitIds: arrayUnion(req.unitId),
             unlockedAt: serverTimestamp(),
+            viewCount: 0,
             viewLimit: chosenLimit,
             grantedVia: 'request',
-          }, { merge: true });
+          };
+          batch.set(courseAccessRef, unitAccessPayload, { merge: true });
+
+          // Also sync to auth UID if different
+          const authUid = (req as any).studentAuthUid;
+          if (authUid && authUid !== req.studentId) {
+            const altAccessRef = doc(firestore, `students/${authUid}/courseAccess`, req.courseId);
+            batch.set(altAccessRef, unitAccessPayload, { merge: true });
+          }
         } else {
           // Grant full course access
-          batch.set(courseAccessRef, {
+          const fullAccessPayload = {
             courseId: req.courseId,
             teacherId: teacherId,
             fullAccess: true,
@@ -398,14 +419,39 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
             viewCount: 0,
             viewLimit: chosenLimit,
             grantedVia: 'request',
-          }, { merge: true });
+          };
+          batch.set(courseAccessRef, fullAccessPayload, { merge: true });
+
+          // Also sync to auth UID if different
+          const authUid = (req as any).studentAuthUid;
+          if (authUid && authUid !== req.studentId) {
+            const altAccessRef = doc(firestore, `students/${authUid}/courseAccess`, req.courseId);
+            batch.set(altAccessRef, fullAccessPayload, { merge: true });
+          }
         }
       }
 
       await batch.commit();
+
+      // Mirror locally for instant reactive updates in student UI
+      if (typeof window !== 'undefined' && req.courseId) {
+        try {
+          const cachedAccess = {
+            courseId: req.courseId,
+            teacherId: teacherId,
+            fullAccess: req.requestType !== 'unit',
+            unlockedUnitIds: req.requestType === 'unit' && req.unitId ? [req.unitId] : [],
+            viewLimit: chosenLimit,
+            viewCount: 0,
+            unlockedAt: new Date().toISOString()
+          };
+          localStorage.setItem(`student_course_access_${req.courseId}`, JSON.stringify(cachedAccess));
+          localStorage.setItem(`student_req_status_${req.id}`, 'granted');
+        } catch (e) {}
+      }
       toast({
         title: "✅ Access Granted Successfully!",
-        description: `Unlocked ${req.requestType === 'unit' ? `Unit (${req.unitTitle || 'Unit'})` : req.courseTitle || 'Content'} with ${chosenLimit > 0 ? `${chosenLimit} views` : 'unlimited views'} for ${req.studentName}.`,
+        description: `Unlocked ${req.requestType === 'unit' ? `Unit (${req.unitTitle || 'Unit'})` : req.courseTitle || 'Content'} with ${chosenLimit} views (Max 3) for ${req.studentName}.`,
       });
     } catch (e: any) {
       console.error("Grant access error:", e);
@@ -423,18 +469,27 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
   const handleRejectRequest = async (req: CourseRequest) => {
     if (!firestore) return;
     try {
+      const batch = writeBatch(firestore);
       const reqRef = doc(firestore, `teachers/${teacherId}/course_requests`, req.id);
-      await updateDoc(reqRef, {
+      batch.update(reqRef, {
         status: 'rejected',
         updatedAt: serverTimestamp(),
       });
       try {
         const altReqRef = doc(firestore, `teachers/${teacherId}/access_requests`, req.id);
-        await updateDoc(altReqRef, {
+        batch.set(altReqRef, {
           status: 'rejected',
           updatedAt: serverTimestamp(),
-        }).catch(() => {});
+        }, { merge: true });
       } catch (e) {}
+      try {
+        const studentReqRef = doc(firestore, `students/${req.studentId}/course_requests`, req.id);
+        batch.set(studentReqRef, {
+          status: 'rejected',
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      } catch (e) {}
+      await batch.commit();
       toast({ title: "Request Marked as Rejected" });
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Error', description: e.message });
@@ -571,16 +626,16 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
                         )}
 
                         {req.requestType === 'unit' ? (
-                          <Badge className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs flex items-center gap-1 font-semibold">
-                            <Layers className="w-3 h-3" /> Unit Request
+                          <Badge className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-xs flex items-center gap-1 font-bold px-2.5 py-0.5">
+                            <Layers className="w-3.5 h-3.5" /> طلب فتح وحدة: {req.unitTitle || (req.unitIndex ? `الوحدة ${req.unitIndex}` : 'وحدة دراسية')}
                           </Badge>
                         ) : req.requestType === 'collection' ? (
                           <Badge className="bg-purple-500/20 text-purple-400 border border-purple-500/30 text-xs flex items-center gap-1 font-semibold">
-                            <Library className="w-3 h-3" /> Collection
+                            <Library className="w-3 h-3" /> باقة مقررات (Collection)
                           </Badge>
                         ) : (
                           <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs flex items-center gap-1 font-semibold">
-                            <BookOpen className="w-3 h-3" /> Full Course
+                            <BookOpen className="w-3 h-3" /> الكورس كاملاً (Full Course)
                           </Badge>
                         )}
 
@@ -607,7 +662,7 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
                           <BookOpen className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                           <span className="text-zinc-200 font-medium truncate">
                             {req.requestType === 'unit' 
-                              ? `${req.unitTitle || 'Unit'} (${req.courseTitle || 'Course'})`
+                              ? `الوحدة: ${req.unitTitle || 'Unit'} — من كورس: (${req.courseTitle || 'الكورس'})`
                               : req.requestType === 'collection'
                               ? req.collectionTitle || 'Course Collection'
                               : req.courseTitle || 'Academic Course'
@@ -645,19 +700,18 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
                       {isPending ? (
                         <>
                           <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-2 py-1 rounded-xl">
-                            <span className="text-[10px] text-zinc-400 font-medium">Views:</span>
+                            <span className="text-[10px] text-zinc-400 font-medium">مشاهدات (أقصى 3):</span>
                             <Select
-                              value={String(requestViewLimits[req.id] ?? 3)}
-                              onValueChange={(val) => setRequestViewLimits(prev => ({ ...prev, [req.id]: Number(val) }))}
+                              value={String(Math.min(3, Math.max(1, requestViewLimits[req.id] ?? 3)))}
+                              onValueChange={(val) => setRequestViewLimits(prev => ({ ...prev, [req.id]: Math.min(3, Math.max(1, Number(val))) }))}
                             >
-                              <SelectTrigger className="h-7 w-[78px] bg-zinc-950 border-zinc-700 text-[11px] text-emerald-400 font-bold rounded-lg px-2">
+                              <SelectTrigger className="h-7 w-[86px] bg-zinc-950 border-zinc-700 text-[11px] text-emerald-400 font-bold rounded-lg px-2">
                                 <SelectValue placeholder="Views" />
                               </SelectTrigger>
                               <SelectContent className="bg-zinc-950 border-zinc-800 text-white text-xs">
-                                <SelectItem value="1">1 View</SelectItem>
-                                <SelectItem value="2">2 Views</SelectItem>
-                                <SelectItem value="3">3 Views</SelectItem>
-                                <SelectItem value="0">Unlimited</SelectItem>
+                                <SelectItem value="1">مشاهدة 1</SelectItem>
+                                <SelectItem value="2">مشاهدتان (2)</SelectItem>
+                                <SelectItem value="3">3 مشاهدات (الحد الأقصى)</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>

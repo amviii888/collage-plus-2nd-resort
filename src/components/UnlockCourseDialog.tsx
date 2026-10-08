@@ -224,8 +224,13 @@ export function UnlockCourseDialog({ isOpen, setIsOpen, courseId, teacherId, tar
 
       const requestsCollection = collection(firestore, `teachers/${teacherId}/course_requests`);
       
+      const effectiveStudentId = profile?.id || 
+        (typeof window !== 'undefined' ? localStorage.getItem('viewingStudentId') : null) || 
+        uid;
+
       const newRequestData: any = {
-        studentId: uid,
+        studentId: effectiveStudentId,
+        studentAuthUid: uid,
         name: studentName.trim(),
         studentName: studentName.trim(),
         phoneNumber: studentPhone.trim(),
@@ -252,12 +257,38 @@ export function UnlockCourseDialog({ isOpen, setIsOpen, courseId, teacherId, tar
         if (uIdx !== -1) newRequestData.unitIndex = uIdx + 1;
       }
 
-      await addDoc(requestsCollection, newRequestData);
+      const addedReq = await addDoc(requestsCollection, newRequestData);
+      const reqId = addedReq.id;
+
       // Also sync to access_requests subcollection
       try {
         const accessReqCol = collection(firestore, `teachers/${teacherId}/access_requests`);
-        await addDoc(accessReqCol, newRequestData);
+        await setDoc(doc(accessReqCol, reqId), newRequestData);
       } catch (e) {}
+
+      // Critical: Also sync to student's own subcollection so student profile immediately displays this pending request!
+      try {
+        const studentReqRef = doc(firestore, `students/${effectiveStudentId}/course_requests`, reqId);
+        await setDoc(studentReqRef, { ...newRequestData, id: reqId });
+        if (uid !== effectiveStudentId) {
+          const authStudentReqRef = doc(firestore, `students/${uid}/course_requests`, reqId);
+          await setDoc(authStudentReqRef, { ...newRequestData, id: reqId });
+        }
+      } catch (e) {}
+
+      // Cache locally for instant UI update on student profile
+      if (typeof window !== 'undefined') {
+        try {
+          const localReqsKey = `student_local_course_requests_${effectiveStudentId}`;
+          const existing = JSON.parse(localStorage.getItem(localReqsKey) || '[]');
+          const item = {
+            ...newRequestData,
+            id: reqId,
+            createdAt: new Date().toISOString()
+          };
+          localStorage.setItem(localReqsKey, JSON.stringify([item, ...existing.filter((x: any) => x.id !== reqId)]));
+        } catch (e) {}
+      }
 
       setIsRequestSent(true);
       toast({

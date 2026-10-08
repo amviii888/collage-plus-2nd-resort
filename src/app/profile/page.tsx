@@ -2,6 +2,7 @@
 import './profile.css';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   BookOpen,
@@ -595,6 +596,7 @@ function TeacherDashboard({ teacherId }: { teacherId: string }) {
     { href: '/teacher/tests', icon: FileText, title: 'الاختبارات والامتحانات', desc: 'إنشاء ومتابعة الامتحانات وتصحيح نتائج الطلاب', badge: 'Exams', color: 'from-pink-600 to-rose-600', iconColor: 'text-pink-500' },
     { href: '/teacher/calendar', icon: Calendar, title: 'الجدول والمواعيد', desc: 'تنظيم المواعيد والمحاضرات الأسبوعية وقاعات الحضور', badge: 'Schedule', color: 'from-sky-600 to-cyan-600', iconColor: 'text-sky-500' },
     { href: '/teacher/codes', icon: KeySquare, title: 'أكواد وبطاقات الوصول', desc: 'توليد ومشاركة أكواد المحاضرات والاشتراكات', badge: 'Keys', color: 'from-cyan-600 to-blue-600', iconColor: 'text-cyan-500' },
+    { href: '/teacher/theme', icon: Palette, title: 'استوديو ثيم وهوية الأستاذ', desc: 'تصميم مظهر وألوان المنصة المخصصة لجميع طلابك', badge: 'Theme Studio', color: 'from-purple-600 to-indigo-600', iconColor: 'text-purple-400' },
     { href: '/teacher/profile-edit', icon: Edit, title: 'تعديل الملف الأكاديمي', desc: 'تحديث النبذة التعريفية والمواد والبيانات الشخصية', badge: 'Profile', color: 'from-slate-600 to-zinc-600', iconColor: 'text-slate-400' },
   ];
 
@@ -965,7 +967,7 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
                     }
                 }
             }
-            const fallback = localStorage.getItem('mola5saty_active_student_profile');
+            const fallback = localStorage.getItem('mol5saty_active_student_profile');
             if (fallback) {
                 try {
                     return JSON.parse(fallback);
@@ -991,7 +993,7 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
                 }
             }
             if (typeof window !== 'undefined') {
-                const fallback = localStorage.getItem('mola5saty_active_student_profile');
+                const fallback = localStorage.getItem('mol5saty_active_student_profile');
                 if (fallback) {
                     try {
                         setLocalStudent(JSON.parse(fallback));
@@ -1013,7 +1015,7 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
     // Cache student profile locally when fetched successfully from the cloud
     useEffect(() => {
         if (student) {
-            localStorage.setItem('mola5saty_active_student_profile', JSON.stringify(student));
+            localStorage.setItem('mol5saty_active_student_profile', JSON.stringify(student));
             if (student.barcodeId) {
                 localStorage.setItem('studentBarcode', student.barcodeId);
                 localStorage.setItem('studentBarcodeId', student.barcodeId);
@@ -1025,7 +1027,7 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
         }
         if (cloudStudent && activeStudentId && typeof activeStudentId === 'string' && !activeStudentId.startsWith('offline_')) {
             localStorage.setItem('cached_student_profile_' + activeStudentId, JSON.stringify(cloudStudent));
-            localStorage.setItem('mola5saty_active_student_profile', JSON.stringify(cloudStudent));
+            localStorage.setItem('mol5saty_active_student_profile', JSON.stringify(cloudStudent));
         }
     }, [student, cloudStudent, activeStudentId]);
 
@@ -1132,7 +1134,7 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
             {
                 id: 'default',
                 titleAr: 'أيقونة ملخصاتي الرسمية',
-                titleEn: 'Mola5saty Official Icon',
+                titleEn: 'Mol5saty Official Icon',
                 subtitleAr: 'الشعار الأكاديمي الأساسي (ورقة ملخصاتي الخضراء)',
                 subtitleEn: 'Default platform academic emblem',
                 iconEmoji: '🍃',
@@ -1203,7 +1205,7 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
         const isDark = mode === 'dark';
         setIsDarkMode(isDark);
         try {
-            localStorage.setItem('mola5saty_theme', mode);
+            localStorage.setItem('mol5saty_theme', mode);
             localStorage.setItem('app_mode_dark', mode);
             if (isDark) {
                 document.documentElement.classList.add('dark');
@@ -1310,7 +1312,7 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
         const checkDarkMode = () => {
             if (typeof window !== 'undefined') {
                 const isDark = document.documentElement.classList.contains('dark') ||
-                               localStorage.getItem('mola5saty_theme') === 'dark' ||
+                               localStorage.getItem('mol5saty_theme') === 'dark' ||
                                localStorage.getItem('app_mode_dark') === 'dark';
                 setIsDarkMode(prev => (prev !== isDark ? isDark : prev));
             }
@@ -1413,6 +1415,18 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
                 });
                 if (loaded.length > 0) {
                     setLibraryThemesList(loaded);
+                    // If no explicit student theme is equipped, default to connected professor's theme
+                    const currentEquipped = localStorage.getItem('student-equipped-theme-' + activeStudentId);
+                    if (!currentEquipped) {
+                        const profTheme = loaded.find(t => 
+                            t.themeClass?.startsWith('prof_theme_') || 
+                            t.id?.startsWith('prof_theme_') || 
+                            Boolean(t.teacherId)
+                        );
+                        if (profTheme) {
+                            setEquippedTheme(profTheme.themeClass || profTheme.id);
+                        }
+                    }
                 }
             } catch (err) {
                 console.error("Failed to fetch cloud themes:", err);
@@ -1470,7 +1484,7 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
         {
             id: 'default',
             nameAr: 'ملخصاتي رويال (الأزرق الجامعي)',
-            nameEn: 'Mola5saty Royal Blue (Primary)',
+            nameEn: 'Mol5saty Royal Blue (Primary)',
             accent: '#2563eb',
             previewBg: '#070b14',
             previewCard: '#0e172a',
@@ -1652,7 +1666,7 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
                         <div className="space-y-2 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
                                 <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30">
-                                    🎓 MOLA5SATY // SCHOLAR
+                                    🎓 MOL5SATY // SCHOLAR
                                 </span>
                                 {student.governorate && (
                                     <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-wider bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-white/10 flex items-center gap-1">
@@ -2214,31 +2228,125 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
                                     </div>
                                 </div>
 
-                                {/* 2. Teacher Enforced Theme System Notice */}
-                                <div className="p-4 rounded-2xl border border-blue-500/30 bg-blue-50/60 dark:bg-blue-950/20 space-y-2.5">
+                                {/* 2. Connected Professor & Official Themes Switcher */}
+                                <div className="space-y-4 pt-2">
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 font-bold text-xs">
-                                            <Lock className="w-4 h-4 shrink-0 text-blue-600 dark:text-blue-400" />
-                                            <span>{isArabic ? 'نظام ثيمات المعلم الإلزامية (الربط الأكاديمي)' : 'Teacher Enforced Branding System'}</span>
+                                        <div className="flex items-center gap-2">
+                                            <Palette className="w-4 h-4 text-purple-400" />
+                                            <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                                                {isArabic ? 'ثيمات وهوية الأساتذة المعتمدين' : 'Connected Professor Themes'}
+                                            </h4>
                                         </div>
-                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-200 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
-                                            {isArabic ? 'إلزامي وتلقائي' : 'Enforced'}
-                                        </span>
+                                        <Badge className="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px]">
+                                            {isArabic ? 'مفتوح لطلابك' : 'Unlocked'}
+                                        </Badge>
                                     </div>
 
-                                    <p className="text-[11px] text-slate-600 dark:text-zinc-400 leading-relaxed">
-                                        {isArabic 
-                                            ? 'تم إلغاء اختيار الألوان العشوائية للمنصة. يتم تحديد ألوان وهوية التطبيق تلقائياً وبشكل إلزامي بواسطة أستاذ أو دكتور المادة المرتبط بحسابك. تحكمك الأكاديمي يقتصر على التبديل الحر بين النمط الليلي (الأسود) والنمط النهاري (الأبيض).'
-                                            : 'Custom palette picking has been removed. Platform accent branding is strictly enforced by your connected professor. You only control the toggle between Black/Dark and White/Light mode.'
-                                        }
-                                    </p>
+                                    {/* List Professor Themes */}
+                                    {(() => {
+                                        const profThemes = libraryThemesList.filter(t => 
+                                            t.themeClass?.startsWith('prof_theme_') || 
+                                            t.id?.startsWith('prof_theme_') || 
+                                            Boolean(t.teacherId)
+                                        );
 
-                                    <div className="flex items-center justify-between pt-1 border-t border-blue-200/60 dark:border-blue-900/40 text-[10px] text-slate-500 dark:text-zinc-400">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                            <span>{isArabic ? 'حالة التزامن: مربوط بهوية الأستاذ الأكاديمية' : 'Sync Status: Linked to Professor Portal'}</span>
+                                        if (profThemes.length === 0) {
+                                            return (
+                                                <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/20 text-xs text-purple-300/90 flex items-center gap-2">
+                                                    <Sparkles className="w-4 h-4 shrink-0 text-purple-400" />
+                                                    <span>{isArabic ? 'عند قيام أستاذك بتصميم ثيمه الخاص، سيظهر لك هنا تلقائياً ويكون هو المظهر الافتراضي.' : 'When your connected professor creates a custom theme, it will appear here automatically as your default.'}</span>
+                                                </div>
+                                            );
+                                        }
+
+                                        return (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {profThemes.map((pTheme) => {
+                                                    const isEquipped = equippedTheme === pTheme.themeClass || equippedTheme === pTheme.id;
+                                                    const accent = pTheme.accentColor || '#a855f7';
+                                                    return (
+                                                        <div
+                                                            key={pTheme.id}
+                                                            onClick={() => handleEquipTheme(pTheme.themeClass || pTheme.id)}
+                                                            className={cn(
+                                                                "p-3.5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden select-none space-y-2.5",
+                                                                isEquipped 
+                                                                    ? "border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/10 ring-2 ring-purple-500/40"
+                                                                    : "border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/60 hover:border-purple-400"
+                                                            )}
+                                                        >
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs" style={{ backgroundColor: `${accent}25`, color: accent }}>
+                                                                        🎓
+                                                                    </div>
+                                                                    <div>
+                                                                        <h5 className="font-bold text-xs text-slate-900 dark:text-white truncate max-w-[150px]">
+                                                                            {pTheme.themeTitle || pTheme.title || 'ثيم الأستاذ'}
+                                                                        </h5>
+                                                                        <span className="text-[10px] text-slate-500 dark:text-zinc-400">
+                                                                            {pTheme.teacherName ? `أستاذ المادة: ${pTheme.teacherName}` : 'ثيم الأستاذ المخصص'}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                {isEquipped && (
+                                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-500 text-white">
+                                                                        {isArabic ? 'المفعل' : 'Equipped'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="flex items-center gap-1.5 p-1 rounded-lg bg-black/40 border border-white/5">
+                                                                <div className="w-5 h-2.5 rounded-xs" style={{ backgroundColor: pTheme.bgStartColor || '#070b14' }} />
+                                                                <div className="w-5 h-2.5 rounded-xs" style={{ backgroundColor: pTheme.cardBgColor || '#0e172a' }} />
+                                                                <div className="w-5 h-2.5 rounded-xs" style={{ backgroundColor: accent }} />
+                                                                <span className="text-[9px] text-zinc-400 mr-auto font-mono">{accent}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Builtin Platform Themes */}
+                                    <div className="pt-2 space-y-2">
+                                        <h4 className="text-xs font-bold text-slate-700 dark:text-zinc-400 uppercase tracking-wider">
+                                            {isArabic ? 'ثيمات منصة ملخصاتي الرسمية' : 'Mol5saty Official Themes'}
+                                        </h4>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {BUILTIN_THEMES.map((bTheme) => {
+                                                const isEquipped = equippedTheme === bTheme.id;
+                                                return (
+                                                    <div
+                                                        key={bTheme.id}
+                                                        onClick={() => handleEquipTheme(bTheme.id)}
+                                                        className={cn(
+                                                            "p-3 rounded-2xl border transition-all cursor-pointer relative select-none space-y-2",
+                                                            isEquipped 
+                                                                ? "border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/40"
+                                                                : "border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/60 hover:border-blue-400"
+                                                        )}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs" style={{ backgroundColor: `${bTheme.accent}20`, color: bTheme.accent }}>
+                                                                    🏛️
+                                                                </div>
+                                                                <span className="font-bold text-xs text-slate-900 dark:text-white">
+                                                                    {isArabic ? bTheme.nameAr : bTheme.nameEn}
+                                                                </span>
+                                                            </div>
+                                                            {isEquipped && (
+                                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-500 text-white">
+                                                                    {isArabic ? 'المفعل' : 'Active'}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
-                                        <span className="font-mono text-[9px] opacity-75">v2.4 Auto-Sync</span>
                                     </div>
                                 </div>
                             </div>
@@ -2500,7 +2608,7 @@ export default function ProfilePage() {
       return <SAdminProfile userId={user.uid} />;
   }
 
-  // Robust Student Role Check: checks mola5saty.student, universe.student, or local student sessions
+  // Robust Student Role Check: checks mol5saty.student, universe.student, or local student sessions
   const hasLocalStudent = typeof window !== 'undefined' && (
       !!localStorage.getItem('cached_student_profile_' + user.uid) ||
       !!localStorage.getItem('student_profile_offline_' + user.uid) ||

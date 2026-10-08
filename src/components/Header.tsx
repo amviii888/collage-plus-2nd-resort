@@ -119,7 +119,7 @@ function UserProfile() {
         name = student?.name || (user?.email ? `Student [${getStudentBarcodeFromEmail(user.email)}]` : 'University Scholar');
         const faculty = student?.facultyLabel || student?.facultyCategory;
         const uni = student?.university;
-        detail = faculty ? `${faculty}` : (uni ? `${uni}` : 'Mola5saty Scholar');
+        detail = faculty ? `${faculty}` : (uni ? `${uni}` : 'Mol5saty Scholar');
     } else if (isTeacher) {
         name = teacher?.name || 'Professor';
         detail = teacher?.email || 'Faculty Account';
@@ -257,7 +257,7 @@ export function Header() {
 
     useEffect(() => {
         try {
-            const saved = localStorage.getItem('mola5saty_theme') || localStorage.getItem('app_mode_dark');
+            const saved = localStorage.getItem('mol5saty_theme') || localStorage.getItem('app_mode_dark');
             if (saved === 'dark') {
                 setIsDarkMode(true);
                 document.documentElement.classList.add('dark');
@@ -274,7 +274,7 @@ export function Header() {
         const next = !isDarkMode;
         setIsDarkMode(next);
         try {
-            localStorage.setItem('mola5saty_theme', next ? 'dark' : 'light');
+            localStorage.setItem('mol5saty_theme', next ? 'dark' : 'light');
             localStorage.setItem('app_mode_dark', next ? 'dark' : 'light');
             if (next) {
                 document.documentElement.classList.add('dark');

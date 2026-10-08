@@ -29,7 +29,7 @@ const AuthHeader = () => {
         </div>
         <div className="flex flex-col">
           <span className="font-extrabold text-lg sm:text-xl tracking-tight text-[#0f172a]">
-            {isArabic ? 'ملخصاتي' : 'Mola5saty'}
+            {isArabic ? 'ملخصاتي' : 'Mol5saty'}
           </span>
           <span className="text-[9px] text-[#2563eb] font-bold tracking-wider uppercase">
             {isArabic ? 'بوابة الأساتذة والدكاترة' : 'FACULTY ONBOARDING'}
@@ -111,7 +111,7 @@ export default function TeacherSignupContactPage() {
       </div>
 
       <footer className="px-6 py-4 border-t border-slate-200 bg-white text-xs max-w-xl mx-auto w-full text-center text-slate-500 font-mono">
-        MOLA5SATY // FACULTY_ONBOARDING_2026
+        MOL5SATY // FACULTY_ONBOARDING_2026
       </footer>
     </div>
   );

@@ -3,7 +3,7 @@
 
 import { useMemo, memo } from 'react';
 import Image from 'next/image';
-import { Lock, PlayCircle, Star, Eye, CheckCircle } from 'lucide-react';
+import { Lock, PlayCircle, Star, Eye, CheckCircle, Layers } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Course, Teacher } from '@/lib/types';
@@ -29,25 +29,45 @@ const CourseCardComponent = ({ course, teacher, progress }: CourseCardProps) => 
 
   const isOwner = user && !user.isAnonymous && user.uid === course.teacherId;
 
+  const activeStudentId = typeof window !== 'undefined' ? (localStorage.getItem('viewingStudentId') || user?.uid) : user?.uid;
+
   const accessRef = useMemoFirebase(() => {
-    if (!user || !user.isAnonymous) return null;
-    return doc(firestore, `students/${user.uid}/courseAccess`, course.id);
-  }, [user, course.id, firestore]);
+    const targetUid = activeStudentId || user?.uid;
+    if (!firestore || !targetUid) return null;
+    return doc(firestore, `students/${targetUid}/courseAccess`, course.id);
+  }, [firestore, user?.uid, activeStudentId, course.id]);
 
   const { data: courseAccessDoc, isLoading: isAccessLoading } = useDoc(accessRef);
 
+  // Also check local cache for immediate feedback
+  const localAccess = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(`student_course_access_${course.id}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }, [course.id]);
+
+  const effectiveAccess = courseAccessDoc || localAccess;
+
   const hasAccess = useMemo(() => {
-    if (isAccessLoading || !user) return false;
     if (isOwner || !course.locked) return true;
-    if (courseAccessDoc) {
-      if (courseAccessDoc.fullAccess) return true;
-      if (courseAccessDoc.unlockedUnitIds && courseAccessDoc.unlockedUnitIds.length > 0) return true;
-      const limit = courseAccessDoc.viewLimit ?? 0;
+    if (effectiveAccess) {
+      if (effectiveAccess.fullAccess) return true;
+      if (effectiveAccess.unlockedUnitIds && effectiveAccess.unlockedUnitIds.length > 0) return true;
+      const limit = effectiveAccess.viewLimit ?? 3;
       if (limit === 0) return true;
-      return (courseAccessDoc.viewCount ?? 0) < limit;
+      return (effectiveAccess.viewCount ?? 0) < limit;
     }
     return false;
-  }, [user, isOwner, course.locked, courseAccessDoc, isAccessLoading]);
+  }, [isOwner, course.locked, effectiveAccess]);
+
+  const hasOnlyUnitAccess = useMemo(() => {
+    if (isOwner || !course.locked) return false;
+    return !!(effectiveAccess && !effectiveAccess.fullAccess && effectiveAccess.unlockedUnitIds && effectiveAccess.unlockedUnitIds.length > 0);
+  }, [isOwner, course.locked, effectiveAccess]);
 
   const isLockedForUser = course.locked && !hasAccess;
   const isCompleted = progress !== undefined && progress >= 95;
@@ -170,6 +190,11 @@ const CourseCardComponent = ({ course, teacher, progress }: CourseCardProps) => 
                     ? `شراء أو طلب فتح الكورس (${course.price} EGP)` 
                     : 'طلب فتح الكورس (Request Access)'}
                 </span>
+              </div>
+            ) : hasOnlyUnitAccess ? (
+              <div className="w-full text-center py-2.5 font-bold text-xs rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/25 group-hover:scale-[1.01]">
+                <Layers className="w-3.5 h-3.5" />
+                <span>مشاهدة الوحدات المفتوحة (View Unlocked Units)</span>
               </div>
             ) : (
               <div className="w-full text-center py-2.5 font-bold text-xs rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-all flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/25 group-hover:scale-[1.01]">

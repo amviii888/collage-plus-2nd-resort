@@ -43,7 +43,7 @@ export default function AdminFeatureManagementPage() {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('mola5saty_feature_flags');
+      const stored = localStorage.getItem('mol5saty_feature_flags');
       if (stored) {
         setToggles(JSON.parse(stored));
       }
@@ -63,7 +63,7 @@ export default function AdminFeatureManagementPage() {
   const saveFlags = () => {
     setIsSaving(true);
     try {
-      localStorage.setItem('mola5saty_feature_flags', JSON.stringify(toggles));
+      localStorage.setItem('mol5saty_feature_flags', JSON.stringify(toggles));
       toast({ title: 'Feature flags saved successfully!' });
       setHasChanges(false);
     } catch (e) {

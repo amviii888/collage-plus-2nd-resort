@@ -17,7 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { CourseCard } from '@/components/CourseCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Briefcase, BookOpen, Calendar, Shield, Info, Edit, Settings, Star, Eye, ArrowLeft, Library, FileText, Clock, HelpCircle, Copy, Check, Share2, Award, Sparkles, GraduationCap } from 'lucide-react';
+import { Briefcase, BookOpen, Calendar, Shield, Info, Edit, Settings, Star, Eye, ArrowLeft, Library, FileText, Clock, HelpCircle, Copy, Check, Share2, Award, Sparkles, GraduationCap, Palette } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -376,7 +376,7 @@ export default function TeacherProfilePage() {
             return {
                 id: matchedProf.id || teacherId!,
                 name: matchedProf.name,
-                email: `${matchedProf.code.toLowerCase()}@faculty.mola5saty.com`,
+                email: `${matchedProf.code.toLowerCase()}@faculty.mol5saty.com`,
                 bio: matchedProf.descriptionAr || matchedProf.descriptionEn || 'الأستاذ الجامعي المعتمد بالمنصة.',
                 profilePictureUrl: matchedProf.avatarUrl,
                 heroImageUrl: matchedProf.heroImageUrl,
@@ -466,17 +466,28 @@ export default function TeacherProfilePage() {
                         <span>العودة لدليل الأساتذة (Discover)</span>
                     </Link>
 
-                    {doctorCode && (
-                        <button
-                            type="button"
-                            onClick={handleCopyDoctorCode}
-                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/80 text-blue-700 dark:text-blue-300 font-mono text-xs font-bold hover:scale-105 active:scale-95 transition-all shadow-xs cursor-pointer"
-                            title="نسخ كود الدكتور"
-                        >
-                            {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                            <span>كود الدكتور: [{doctorCode}]</span>
-                        </button>
-                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {isOwner && (
+                            <Button asChild size="sm" variant="outline" className="rounded-2xl border-purple-500/40 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 text-xs font-bold gap-2">
+                                <Link href={`/teacher/theme?id=${teacher.id}`}>
+                                    <Palette className="w-3.5 h-3.5" />
+                                    <span>استوديو الثيم المخصص</span>
+                                </Link>
+                            </Button>
+                        )}
+
+                        {doctorCode && (
+                            <button
+                                type="button"
+                                onClick={handleCopyDoctorCode}
+                                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/80 text-blue-700 dark:text-blue-300 font-mono text-xs font-bold hover:scale-105 active:scale-95 transition-all shadow-xs cursor-pointer"
+                                title="نسخ كود الدكتور"
+                            >
+                                {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                <span>كود الدكتور: [{doctorCode}]</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
                 
                 {/* Clean Modern Academic Profile Header */}

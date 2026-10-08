@@ -1,17 +1,17 @@
 /**
- * Mola5saty Unified Authentication & Role Helpers
+ * Mol5saty Unified Authentication & Role Helpers
  */
 
 export const isStudentEmail = (email?: string | null): boolean => {
   if (!email) return false;
   const clean = email.toLowerCase().trim();
-  return clean.endsWith('@mola5saty.student') || clean.endsWith('@universe.student');
+  return clean.endsWith('@mol5saty.student') || clean.endsWith('@mola5saty.student') || clean.endsWith('@universe.student');
 };
 
 export const getStudentBarcodeFromEmail = (email?: string | null): string => {
   if (!email) return '';
   const clean = email.toLowerCase().trim();
-  if (clean.endsWith('@mola5saty.student') || clean.endsWith('@universe.student')) {
+  if (clean.endsWith('@mol5saty.student') || clean.endsWith('@mola5saty.student') || clean.endsWith('@universe.student')) {
     return clean.split('@')[0];
   }
   return '';
@@ -46,6 +46,7 @@ export const clearAllStudentAuthSessions = () => {
       'offline_student_id',
       'app_student_auth_session',
       'student_logged_in',
+      'mol5saty_active_student_profile',
       'mola5saty_active_student_profile',
       'parentForStudentBarcode',
       'parentPhoneNumber',

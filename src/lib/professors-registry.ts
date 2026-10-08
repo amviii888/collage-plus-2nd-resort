@@ -145,9 +145,9 @@ export const BUILTIN_APP_ICONS: BuiltinAppIcon[] = [
     category: 'التجارة والاقتصاد'
   },
   {
-    id: 'mola5saty_default',
+    id: 'mol5saty_default',
     nameAr: 'شعار ملخصاتي الرسمي',
-    nameEn: 'Official Mola5saty Emblem',
+    nameEn: 'Official Mol5saty Emblem',
     emoji: '🍃',
     iconPath: '/favicon.ico',
     color: '#22c55e',

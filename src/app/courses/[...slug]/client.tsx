@@ -5,7 +5,7 @@ import { doc, runTransaction, serverTimestamp, setDoc, arrayUnion, Timestamp, in
 import type { Course, CourseRating, Teacher, WatchHistory, Video, CourseAccess, Unit, CourseRequest } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useMemo, useEffect, lazy, Suspense, useRef } from 'react';
-import { Star, Download, FileText, Info, User, BookOpen, Clock, CheckCircle, ArrowLeft, Lock, ClipboardList, ShoppingCart, KeyRound, Play } from 'lucide-react';
+import { Star, Download, FileText, Info, User, BookOpen, Clock, CheckCircle, ArrowLeft, Lock, ClipboardList, ShoppingCart, KeyRound, Play, Layers } from 'lucide-react';
 import { cn, toJsDate } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -245,7 +245,7 @@ const CourseContentList = ({
                                                         setCurrentVideoId(video.id);
                                                     }
                                                 }}
-                                                className={cn("w-full text-left flex items-start gap-3", isActive ? "font-bold text-primary" : "text-foreground")}
+                                                className={cn("w-full text-left flex items-start gap-3 cursor-pointer", isActive ? "font-bold text-primary" : "text-foreground")}
                                             >
                                                 <span className="text-sm font-mono mt-1">{String(videoIndex + 1).padStart(2, '0')}</span>
                                                 <span className="flex-grow flex items-center gap-1.5">
@@ -255,8 +255,16 @@ const CourseContentList = ({
                                             </button>
                                             {isUnitUnlocked && (
                                                 <div className="pl-8 mt-2">
-                                                    <Button size="sm" variant={isWatched ? 'secondary' : 'outline'} className="h-8 w-full" onClick={() => handleMarkAsComplete(video.id)}>
-                                                        <CheckCircle className={cn("mr-2 h-4 w-4", isWatched ? "text-green-500" : "text-muted-foreground")} />
+                                                    <Button 
+                                                        size="sm" 
+                                                        variant={isWatched ? 'secondary' : 'outline'} 
+                                                        className="h-8 w-full cursor-pointer" 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleMarkAsComplete(video.id);
+                                                        }}
+                                                    >
+                                                        <CheckCircle className={cn("mr-2 h-4 w-4", isWatched ? "text-emerald-500" : "text-muted-foreground")} />
                                                         {isWatched ? t('Completed', {lng: 'ar'}) : t('Mark as Complete', {lng: 'ar'})}
                                                     </Button>
                                                 </div>
@@ -354,21 +362,40 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
         return doc(firestore, `teachers`, teacherId);
     }, [firestore, teacherId]));
 
+    const activeStudentId = typeof window !== 'undefined' 
+        ? (localStorage.getItem('viewingStudentId') || user?.uid) 
+        : user?.uid;
+
     const { data: courseAccess, isLoading: isAccessLoading } = useDoc<CourseAccess>(useMemoFirebase(() => {
-        if (!firestore || !user?.uid) return null;
-        return doc(firestore, `students/${user.uid}/courseAccess/${courseId}`);
-    }, [firestore, user, courseId]));
+        const targetId = activeStudentId || user?.uid;
+        if (!firestore || !targetId || !courseId) return null;
+        return doc(firestore, `students/${targetId}/courseAccess/${courseId}`);
+    }, [firestore, activeStudentId, user?.uid, courseId]));
+
+    // Check local storage fallback for immediate client response
+    const localCachedAccess = useMemo(() => {
+        if (typeof window === 'undefined') return null;
+        try {
+            const raw = localStorage.getItem(`student_course_access_${courseId}`);
+            return raw ? JSON.parse(raw) : null;
+        } catch(e) {
+            return null;
+        }
+    }, [courseId]);
+
+    const effectiveCourseAccess = courseAccess || localCachedAccess;
 
     // Query pending requests for this student and course
     const studentRequestsQuery = useMemoFirebase(() => {
-        if (!firestore || !teacherId || !user?.uid || !courseId) return null;
+        const targetId = activeStudentId || user?.uid;
+        if (!firestore || !teacherId || !targetId || !courseId) return null;
         return query(
             collection(firestore, `teachers/${teacherId}/course_requests`),
-            where('studentId', '==', user.uid),
+            where('studentId', '==', targetId),
             where('courseId', '==', courseId),
             where('status', '==', 'pending')
         );
-    }, [firestore, teacherId, user?.uid, courseId]);
+    }, [firestore, teacherId, activeStudentId, user?.uid, courseId]);
     const { data: pendingRequests } = useCollection<CourseRequest>(studentRequestsQuery);
 
     const isFullCoursePending = useMemo(() => {
@@ -394,51 +421,70 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
     const flatVideos = useMemo(() => units.flatMap(unit => unit.videos), [units]);
     const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
 
-    useEffect(() => {
-        // Set the initial video only when the videos are loaded and no video is currently selected.
-        if (!currentVideoId && flatVideos.length > 0) {
-            setCurrentVideoId(flatVideos[0].id);
-        }
-    }, [flatVideos, currentVideoId]);
-
-    const currentVideo = useMemo(() => flatVideos.find(v => v.id === currentVideoId) || flatVideos[0] || null, [flatVideos, currentVideoId]);
-    const embedUrl = getVideoEmbedUrl(currentVideo?.url || '');
-
-    const { data: history, isLoading: isHistoryLoading } = useDoc<WatchHistory>(useMemoFirebase(() => {
-        if (!firestore || !user?.uid) return null;
-        return doc(firestore, `students/${user.uid}/watchHistory`, courseId);
-    }, [firestore, user?.uid, courseId]));
-
-    const watchedVideoIds = useMemo(() => new Set(history?.watchedVideoIds || []), [history]);
-
     const isOwner = user && !user.isAnonymous && user.uid === teacherId;
     const [selectedUnitForUnlock, setSelectedUnitForUnlock] = useState<string | undefined>(undefined);
     
     // Check if user has full access to the entire course
     const hasFullAccess = useMemo(() => {
         const currentCourse = course;
-        if (isUserLoading || isAccessLoading || !currentCourse) return false;
+        if (!currentCourse) return false;
         if (isOwner || !currentCourse?.locked) return true;
         
-        if (user && !isOwner && courseAccess) {
-            if (courseAccess.fullAccess) return true;
-            // Legacy access or full code redemption
-            if (!courseAccess.unlockedUnitIds || courseAccess.unlockedUnitIds.length === 0) {
-                const limit = courseAccess.viewLimit ?? 0;
+        if (effectiveCourseAccess) {
+            if (effectiveCourseAccess.fullAccess || effectiveCourseAccess.granted) {
+                const limit = effectiveCourseAccess.viewLimit ?? 3;
                 if (limit === 0) return true;
-                return (courseAccess.viewCount ?? 0) < limit;
+                return (effectiveCourseAccess.viewCount ?? 0) < limit;
             }
         }
         return false;
-    }, [isUserLoading, isAccessLoading, course, user, isOwner, courseAccess]);
+    }, [course, isOwner, effectiveCourseAccess]);
 
     // Unlocked unit IDs
     const unlockedUnitIdsSet = useMemo(() => {
         if (hasFullAccess || !course?.locked) {
             return new Set((units || []).map(u => u.id));
         }
-        return new Set(courseAccess?.unlockedUnitIds || []);
-    }, [hasFullAccess, course, units, courseAccess]);
+        const uIds = effectiveCourseAccess?.unlockedUnitIds || [];
+        return new Set(uIds);
+    }, [hasFullAccess, course, units, effectiveCourseAccess]);
+
+    // Initialize or adapt current video to an unlocked unit video
+    useEffect(() => {
+        if (flatVideos.length > 0) {
+            if (!currentVideoId) {
+                // If user has specific unlocked units, pick the first video from an unlocked unit!
+                const firstUnlockedVideo = flatVideos.find(v => {
+                    const u = units.find(unit => unit.videos.some(vid => vid.id === v.id));
+                    return u && (hasFullAccess || unlockedUnitIdsSet.has(u.id));
+                });
+                setCurrentVideoId(firstUnlockedVideo ? firstUnlockedVideo.id : flatVideos[0].id);
+            } else {
+                // If current video is from a locked unit, but user has another unlocked unit, auto-switch to unlocked unit
+                const currentUnit = units.find(u => u.videos.some(v => v.id === currentVideoId));
+                if (currentUnit && !hasFullAccess && !unlockedUnitIdsSet.has(currentUnit.id) && unlockedUnitIdsSet.size > 0) {
+                    const availableVideo = flatVideos.find(v => {
+                        const u = units.find(unit => unit.videos.some(vid => vid.id === v.id));
+                        return u && unlockedUnitIdsSet.has(u.id);
+                    });
+                    if (availableVideo) {
+                        setCurrentVideoId(availableVideo.id);
+                    }
+                }
+            }
+        }
+    }, [flatVideos, currentVideoId, units, hasFullAccess, unlockedUnitIdsSet]);
+
+    const currentVideo = useMemo(() => flatVideos.find(v => v.id === currentVideoId) || flatVideos[0] || null, [flatVideos, currentVideoId]);
+    const embedUrl = getVideoEmbedUrl(currentVideo?.url || '');
+
+    const { data: history, isLoading: isHistoryLoading } = useDoc<WatchHistory>(useMemoFirebase(() => {
+        const targetId = activeStudentId || user?.uid;
+        if (!firestore || !targetId) return null;
+        return doc(firestore, `students/${targetId}/watchHistory`, courseId);
+    }, [firestore, activeStudentId, user?.uid, courseId]));
+
+    const watchedVideoIds = useMemo(() => new Set(history?.watchedVideoIds || []), [history]);
 
     // Check which unit the current video belongs to
     const activeVideoUnit = useMemo(() => {
@@ -457,12 +503,26 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
         setUnlockOpen(true);
     };
 
+    const handleSwitchToUnlockedUnits = () => {
+        const availableVideo = flatVideos.find(v => {
+            const u = units.find(unit => unit.videos.some(vid => vid.id === v.id));
+            return u && unlockedUnitIdsSet.has(u.id);
+        });
+        if (availableVideo) {
+            setCurrentVideoId(availableVideo.id);
+            setUnlockOpen(false);
+        }
+    };
+
     useEffect(() => {
         const currentCourse = course;
-        if (!isCourseLoading && !isAccessLoading && currentCourse?.locked && !hasAccess) {
-             // If user is not the owner of the course, show unlock dialog
-            if (user && !isOwner) {
+        if (!isCourseLoading && !isAccessLoading && currentCourse?.locked) {
+            // Only auto-open if student has ZERO access (neither full nor any unit)
+            const hasAnyAccess = hasFullAccess || unlockedUnitIdsSet.size > 0;
+            if (!hasAnyAccess && user && !isOwner) {
                 setUnlockOpen(true);
+            } else {
+                setUnlockOpen(false);
             }
         } else {
             setUnlockOpen(false);
@@ -575,10 +635,11 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
     }, [hasAccess, course, user, firestore, courseId]);
 
     const handleMarkAsComplete = async (videoId: string) => {
-        if (!firestore || !user?.uid || !courseId) return;
+        const targetStudentId = activeStudentId || user?.uid;
+        if (!firestore || !targetStudentId || !courseId) return;
         const isAlreadyWatched = watchedVideoIds.has(videoId);
 
-        const historyRef = doc(firestore, `students/${user.uid}/watchHistory`, courseId);
+        const historyRef = doc(firestore, `students/${targetStudentId}/watchHistory`, courseId);
 
         try {
             await setDoc(historyRef, { 
@@ -590,7 +651,7 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
             }, { merge: true });
 
             if (teacherId) {
-                const viewerRef = doc(firestore, `teachers/${teacherId}/courses/${courseId}/viewers`, user.uid);
+                const viewerRef = doc(firestore, `teachers/${teacherId}/courses/${courseId}/viewers`, targetStudentId);
                 const updatedList = isAlreadyWatched 
                     ? Array.from(watchedVideoIds).filter(id => id !== videoId)
                     : Array.from(new Set([...Array.from(watchedVideoIds), videoId]));
@@ -665,6 +726,15 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                 Request access to this specific unit or the whole course directly from your professor, or redeem a share code.
                             </p>
                              <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
+                                {unlockedUnitIdsSet.size > 0 && (
+                                    <Button 
+                                        onClick={handleSwitchToUnlockedUnits}
+                                        className="font-bold text-xs sm:text-sm h-11 px-5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-black shadow-lg shadow-emerald-500/20 flex items-center gap-2"
+                                    >
+                                        <Layers className="w-4 h-4" />
+                                        <span>مشاهدة الوحدات المفتوحة لك (View Unlocked Units)</span>
+                                    </Button>
+                                )}
                                 {activeVideoUnit && (
                                     <Button 
                                         onClick={() => { setSelectedUnitForUnlock(activeVideoUnit.id); setUnlockOpen(true); }}
@@ -673,14 +743,14 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                             "font-bold text-xs sm:text-sm h-11 px-5 rounded-xl shadow-lg",
                                             isUnitPending(activeVideoUnit.id)
                                                 ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 cursor-not-allowed"
-                                                : "bg-emerald-500 hover:bg-emerald-600 text-black"
+                                                : "bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700"
                                         )}
                                     >
                                         <Lock className="w-4 h-4 mr-1.5" />
                                         {isUnitPending(activeVideoUnit.id) ? (
                                             'طلب الوحدة قيد المراجعة'
                                         ) : (
-                                            `فتح الوحدة: ${activeVideoUnit.title}`
+                                            `طلب فتح هذه الوحدة: ${activeVideoUnit.title}`
                                         )}
                                     </Button>
                                 )}
@@ -723,7 +793,7 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                 </div>
                                 {displayCourse.price && displayCourse.price > 0 ? (
                                     <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 font-mono text-[10px]">
-                                        {hasFullAccess ? 'مفتوح بالكامل' : 'وحدة مفعّلة'}
+                                        {hasFullAccess ? 'مفتوح بالكامل (Full Access)' : `وحدة مفعلة (${activeVideoUnit?.title || 'Unit'})`}
                                     </Badge>
                                 ) : (
                                     <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 font-mono text-[10px]">
@@ -753,12 +823,12 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                         </div>
                     )}
 
-                    {hasAccess && displayCourse.locked && user?.isAnonymous && courseAccess && (courseAccess.viewLimit ?? 0) > 0 && (
+                    {hasAccess && displayCourse.locked && effectiveCourseAccess && (effectiveCourseAccess.viewLimit ?? 0) > 0 && (
                         <Alert className="m-4 md:m-6 bg-primary/10 border-primary/30">
                             <Info className="h-4 w-4 !text-primary" />
-                            <AlertTitle>Limited Views</AlertTitle>
+                            <AlertTitle>مشاهدات محدودة (Max 3 Views)</AlertTitle>
                             <AlertDescription>
-                                You have {courseAccess.viewLimit - (courseAccess.viewCount || 0)} views remaining for this course. Closing or refreshing the page will use another view.
+                                لديك {Math.max(0, (effectiveCourseAccess.viewLimit || 3) - (effectiveCourseAccess.viewCount || 0))} مشاهدات متبقية من أصل {effectiveCourseAccess.viewLimit || 3} لهذا المحتوى.
                             </AlertDescription>
                         </Alert>
                     )}

@@ -2635,7 +2635,7 @@ export default function AdminSeasonsPage() {
                           <div className="space-y-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="px-2 py-0.5 rounded-full text-[8px] font-bold tracking-wider uppercase border" style={{ color: themeAccentInput, borderColor: `${themeAccentInput}30`, backgroundColor: `${themeAccentInput}10` }}>
-                                🎓 MOLA5SATY // SCHOLAR
+                                🎓 MOL5SATY // SCHOLAR
                               </span>
                             </div>
                             <h2 className="text-sm sm:text-base font-extrabold tracking-tight text-white flex items-center gap-2">
