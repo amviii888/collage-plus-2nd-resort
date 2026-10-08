@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%; /* Soft clean slate/white #f8fafc */
+    --foreground: 222 47% 11%; /* Deep navy text #0f172a */
+    
+    --card: 0 0% 100%; /* Pure crisp white #ffffff */
+    --card-foreground: 222 47% 11%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    
+    --primary: 221 83% 53%; /* Royal Navy Blue #2563eb */
+    --primary-foreground: 210 40% 98%;
+    
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222 47% 11%;
+    
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    
+    --accent: 221 83% 53%;
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 214 32% 91%; /* #e2e8f0 */
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+    --radius: 1.25rem;
+    
+    --brand-gold: 45 100% 50%;
+    --success: 142 76% 45%;
+
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+  }
+
+  .dark {
+    --background: 224 71% 4%; /* Deep dark space #070b14 */
+    --foreground: 210 40% 98%; /* Bright off-white */
+    
+    --card: 222 47% 8%; /* Deep navy card #0e172a */
+    --card-foreground: 210 40% 98%;
+    
+    --popover: 222 47% 8%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 217 91% 60%; /* Electric Blue #3b82f6 */
+    --primary-foreground: 224 71% 4%;
+    
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    
+    --accent: 217 91% 60%;
+    --accent-foreground: 224 71% 4%;
+    
+    --border: 217 33% 17%; /* #1e293b */
+    --input: 217 33% 17%;
+    --ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html, body {
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    background-color: hsl(var(--background));
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+}
+
+@layer components {
+    .glass-card {
+      @apply bg-card/90 backdrop-blur-xl border border-border/80 shadow-lg rounded-2xl transition-colors duration-200;
+    }
+}
+
+/* Anti-Print & Protection Styles */
+@media print {
+  html, body {
+    display: none !important;
+    visibility: hidden !important;
+  }
+}
+
+.screen-protected {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Allow users and developers to copy errors, alerts, codes, and inputs */
+.screen-protected pre,
+.screen-protected code,
+.screen-protected [data-error],
+.screen-protected [role="alert"],
+.screen-protected [data-radix-toast-announce],
+.screen-protected .toaster,
+.screen-protected .toast,
+.screen-protected input,
+.screen-protected textarea,
+.screen-protected [data-selectable],
+.screen-protected .selectable-text,
+.screen-protected .font-mono,
+pre,
+code,
+[role="alert"],
+[data-error] {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
+}
+

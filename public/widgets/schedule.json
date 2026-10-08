@@ -1,0 +1,73 @@
+{
+  "type": "AdaptiveCard",
+  "version": "1.4",
+  "body": [
+    {
+      "type": "Container",
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "Universe Academy",
+          "weight": "Bolder",
+          "size": "Medium",
+          "color": "Good"
+        },
+        {
+          "type": "TextBlock",
+          "text": "Today's Schedule & Attendance",
+          "isSubtle": true,
+          "spacing": "None"
+        }
+      ]
+    },
+    {
+      "type": "ColumnSet",
+      "columns": [
+        {
+          "type": "Column",
+          "width": "stretch",
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "98.4%",
+              "size": "ExtraLarge",
+              "weight": "Bolder",
+              "color": "Good"
+            },
+            {
+              "type": "TextBlock",
+              "text": "Attendance",
+              "isSubtle": true,
+              "spacing": "None"
+            }
+          ]
+        },
+        {
+          "type": "Column",
+          "width": "stretch",
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "1,248",
+              "size": "ExtraLarge",
+              "weight": "Bolder"
+            },
+            {
+              "type": "TextBlock",
+              "text": "Students",
+              "isSubtle": true,
+              "spacing": "None"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.OpenUrl",
+      "title": "Open Dashboard",
+      "url": "https://ais-pre-asvbtoo7iu7nvgvs2zbwby-739993943153.europe-west2.run.app/teacher"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+src/components/teacher/TestFormModal.tsx:212:    } catch(e: any) {
+src/components/teacher/ManageCollections.tsx:146:        } catch(e: any) {
+src/components/teacher/TeacherAttendance.tsx:118:        }, { merge: true }).catch(e => console.error("Sync failed:", e));
+src/components/teacher/ManageTests.tsx:56:        } catch(e: any) {
+src/components/teacher/ManageHomework.tsx:81:    } catch (e: any) {
+src/components/teacher/ManageHomework.tsx:183:        } catch(e: any) {
+src/components/teacher/teacher-login-form.tsx:45:            } catch (e) {
+src/components/teacher/teacher-login-form.tsx:104:    } catch (error: any) {
+src/components/teacher/StudentActionModal.tsx:70:    } catch (e) {
+src/components/teacher/TeacherAnalyticsDashboard.tsx:114:      } catch (error) {
+src/components/teacher/TestResultsModal.tsx:63:      } catch (e: any) {
+src/components/ManageCalendar.tsx:93:    } catch (error: any) {
+src/components/ManageCalendar.tsx:243:        } catch (e: any) {
+src/components/admin/education/Calculator.tsx:23:      } catch (error) {
+src/components/admin/education/CameraBarcodeScanner.tsx:55:      } catch (err: any) {
+src/components/admin/education/BiometricManager.tsx:73:        } catch (error: any) {
+src/components/admin/education/StudentHistoryModal.tsx:62:      } catch (error) {
+src/components/admin/education/StudentsList.tsx:149:    } catch (e: any) {
+src/components/admin/education/StudentsList.tsx:201:    } catch(e: any) {
+src/components/admin/education/StudentsList.tsx:226:    } catch(e: any) {
+src/components/admin/education/StudentsList.tsx:255:    } catch (e: any) {
+src/components/admin/education/ManagementPage.tsx:135:        } catch (e) {
+src/components/admin/education/ManagementPage.tsx:377:        } catch (error) {
+src/components/admin/education/ManagementPage.tsx:449:    } catch (e) {
+src/components/admin/education/ManagementPage.tsx:461:      } catch (e) {
+src/components/admin/education/ManagementPage.tsx:478:    } catch (e) {
+src/components/admin/education/CheckInPage.tsx:179:      } catch (e) {
+src/components/admin/education/CheckInPage.tsx:337:    } catch (e) {
+src/components/TeacherProfileForm.tsx:90:    } catch (error: any) {
+src/components/ClientLayoutWrapper.tsx:57:    } catch(e) {
+src/components/ClientLayoutWrapper.tsx:85:            }).catch(error => {
+src/components/UnlockCourseDialog.tsx:98:    } catch (e: any) {
+src/components/CourseComments.tsx:95:          } catch (error) {
+src/components/CourseComments.tsx:134:        } catch (error) {
+src/components/CourseComments.tsx:185:        } catch (error) {
+src/components/CourseComments.tsx:205:        } catch (error: any) {
+src/components/Header.tsx:28:        } catch(e) {
+src/components/BottomNav.tsx:29:    } catch(e) {
+src/components/student/student-signup-form.tsx:115:    } catch (error: any) {
+src/components/ManageShareCodes.tsx:164:    } catch (error: any) {
+src/components/ManageShareCodes.tsx:189:    } catch (e: any) {
+src/components/ManageCourses.tsx:166:    } catch (error: any) {
+src/components/ManageCourses.tsx:422:        } catch (e: any) {
+src/components/ManageCourses.tsx:458:    } catch (e: any) {

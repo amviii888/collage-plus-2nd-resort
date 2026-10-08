@@ -1,0 +1,41 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgBlueMask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00a8f7"/>
+      <stop offset="100%" stop-color="#008ecc"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background (Full 100% bleeding for maskable PWA icon) -->
+  <rect width="512" height="512" fill="url(#bgBlueMask)"/>
+
+  <!-- Safe Zone Graphic (scaled to 80% inside center) -->
+  <g transform="translate(51.2, 51.2) scale(0.8)">
+    <!-- Soaring Bird / Dove -->
+    <path d="M256 95 C256 95 285 75 320 85 C335 89 310 102 328 108 C310 115 295 118 285 130 C275 142 270 160 256 182 C242 160 237 142 227 130 C217 118 202 115 184 108 C202 102 177 89 192 85 C227 75 256 95 256 95 Z" fill="#ffffff"/>
+    <path d="M256 125 C265 110 290 98 335 110 C300 125 285 145 272 170 C265 155 256 142 256 125 Z" fill="#ffffff"/>
+    <path d="M256 125 C247 110 222 98 177 110 C212 125 227 145 240 170 C247 155 256 142 256 125 Z" fill="#ffffff"/>
+
+    <!-- Lightbulb Emblem -->
+    <circle cx="256" cy="195" r="16" fill="none" stroke="#ffffff" stroke-width="5"/>
+    <path d="M250 213 L262 213 M252 218 L260 218" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+    <path d="M256 186 L256 198" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+
+    <!-- Open Book Pages (Left & Right) -->
+    <path d="M256 270 C215 240 160 248 140 255 L140 160 C165 153 215 145 256 175 C297 145 347 153 372 160 L372 255 C352 248 297 240 256 270 Z" fill="none" stroke="#ffffff" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
+    
+    <path d="M125 268 C155 260 210 255 256 282 C302 255 357 260 387 268" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+    <path d="M110 282 C145 273 205 270 256 295 C307 270 367 273 402 282" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+
+    <path d="M165 180 L165 242" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+    <path d="M190 195 L190 247" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+    <path d="M347 180 L347 242" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+    <path d="M322 195 L322 247" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+
+    <!-- Mol5saty Typography -->
+    <text x="256" y="375" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="52" letter-spacing="-0.5">Mol5saty</text>
+    
+    <!-- Arabic Calligraphy Typography -->
+    <text x="256" y="445" text-anchor="middle" fill="#ffffff" font-family="'Cairo', 'Almarai', 'Tajawal', system-ui, sans-serif" font-weight="900" font-size="56" letter-spacing="0">ملخصاتي</text>
+  </g>
+</svg>

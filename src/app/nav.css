@@ -1,0 +1,157 @@
+
+/* ================= ROOT ================= */
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --purple-glow: hsl(var(--primary));
+  --text-main: hsl(var(--foreground));
+  --text-muted: hsl(var(--muted-foreground));
+  --nav-icon-size: 20px;
+  --nav-item-size: 48px;
+}
+
+.dark {
+  --glass-bg: hsla(250, 25%, 12%, 0.6);
+  --glass-border: hsla(250, 20%, 22%, 0.5);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
+}
+
+/* ================= GLASS BASE ================= */
+.glass-nav {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px) saturate(1.5);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  color: var(--text-main);
+  z-index: 50;
+  overflow: hidden; /* Hide overflow from glows */
+}
+
+/* ================= TOP NAV (SLIMMER) ================= */
+.top-nav {
+  top: 12px;
+  height: 56px;
+  width: calc(100% - 24px);
+  max-width: 1200px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+}
+
+/* ================= BOTTOM NAV (BUBBLE) ================= */
+.bottom-nav {
+  bottom: 12px;
+  height: 60px; /* Thinner */
+  border-radius: 9999px; /* More rounded */
+  display: flex;
+  justify-content: center; /* Center the items */
+  align-items: center;
+  padding: 0 8px;
+  width: auto;
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Glow effects for bottom nav */
+.bottom-nav::before,
+.bottom-nav::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 150px;
+    z-index: -1;
+    border-radius: inherit;
+    filter: blur(40px);
+}
+
+.bottom-nav::before {
+    left: -50px;
+    background-image: radial-gradient(circle, hsl(var(--violet)) 0%, transparent 70%);
+    animation: nav-glow-1 10s ease-in-out infinite;
+}
+
+.bottom-nav::after {
+    right: -50px;
+    background-image: radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%);
+    animation: nav-glow-2 12s ease-in-out infinite;
+}
+
+
+.bottom-item {
+  position: relative;
+  height: var(--nav-item-size);
+  width: var(--nav-item-size); /* Default collapsed width */
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px; /* Pill shape */
+  padding: 0; /* No padding when collapsed */
+  gap: 0.5rem;
+  overflow: hidden;
+}
+
+.bottom-item > svg {
+  width: var(--nav-icon-size);
+  height: var(--nav-icon-size);
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.bottom-item:hover {
+  color: var(--text-main);
+  background-color: hsla(var(--primary), 0.1);
+}
+
+.nav-item-label {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    opacity: 0;
+    max-width: 0;
+    transition: opacity 0.2s ease, max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Active State: Item expands to show label */
+.bottom-item.active {
+  width: auto;
+  padding: 0 1rem;
+  color: hsl(var(--primary));
+  background-color: hsla(var(--primary), 0.15);
+  box-shadow: 0 0 20px hsla(var(--primary), 0.3), 0 0 40px hsla(var(--primary), 0.2);
+}
+
+.bottom-item.active .nav-item-label {
+    opacity: 1;
+    max-width: 100px;
+    transition: opacity 0.3s 0.1s ease, max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bottom-item.active > svg {
+  filter: drop-shadow(0 0 8px hsl(var(--primary) / 0.8));
+  transform: scale(1.1);
+}
+
+@keyframes nav-glow-1 {
+  0% { transform: translateY(0px) scale(1); opacity: 0.5; }
+  50% { transform: translateY(-10px) scale(1.1); opacity: 0.7; }
+  100% { transform: translateY(0px) scale(1); opacity: 0.5; }
+}
+
+@keyframes nav-glow-2 {
+  0% { transform: translateY(0px) scale(1); opacity: 0.5; }
+  50% { transform: translateY(10px) scale(1.1); opacity: 0.7; }
+  100% { transform: translateY(0px) scale(1); opacity: 0.5; }
+}

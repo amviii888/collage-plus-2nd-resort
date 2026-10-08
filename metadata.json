@@ -1,0 +1,7 @@
+{
+  "name": "CollagePlus",
+  "description": "Academic College & University Medical Portal",
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

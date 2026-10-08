@@ -1,0 +1,211 @@
+{
+  "id": "/",
+  "name": "Mol5saty | ملخصاتي",
+  "short_name": "Mol5saty | ملخصاتي",
+  "description": "منصة ملخصاتي (Mol5saty) — المنصة الأكاديمية الرائدة لطلاب الكليات وأساتذة الجامعات لتلخيص المحاضرات وبنوك الأسئلة وبث الفيديوهات.",
+  "lang": "ar",
+  "dir": "auto",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui",
+    "browser"
+  ],
+  "orientation": "any",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "categories": [
+    "education",
+    "productivity",
+    "utilities"
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "iarc_rating_id": "",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop-1.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Universe Academy Teacher Dashboard on Desktop"
+    },
+    {
+      "src": "/screenshots/mobile-1.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Universe Academy Mobile Student & Attendance Portal"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Teacher Dashboard",
+      "short_name": "Teacher",
+      "description": "Access classroom management, attendance scanner, and grade rosters",
+      "url": "/teacher",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Student Portal",
+      "short_name": "Portal",
+      "description": "View active courses, assignments, and academic performance",
+      "url": "/student-login",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Discover Courses",
+      "short_name": "Courses",
+      "description": "Explore available academy educational curriculum",
+      "url": "/discover",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Support & Help",
+      "short_name": "Support",
+      "description": "Get help with your Universe Academy account",
+      "url": "/support",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/teacher",
+      "name": "Universe Academy Student Rosters & Spreadsheets",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "accept": {
+        "application/json": [".json"],
+        "text/csv": [".csv"],
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"]
+      }
+    }
+  ],
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+universe",
+      "url": "/teacher?action=%s"
+    }
+  ],
+  "share_target": {
+    "action": "/teacher",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "widgets": [
+    {
+      "name": "Today's Schedule & Attendance",
+      "short_name": "Schedule",
+      "description": "Quick view of active academy batches and student attendance",
+      "tag": "universe-schedule-widget",
+      "template": "widget-schedule",
+      "ms_ac_template": "/widgets/schedule.json",
+      "data": "/api/widget/data",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "/screenshots/mobile-1.png",
+          "sizes": "750x1334",
+          "label": "Universe Academy Schedule Widget"
+        }
+      ],
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "auth": false,
+      "update": 3600
+    }
+  ],
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "note_taking": {
+    "new_note_url": "/teacher"
+  },
+  "scope_extensions": [
+    {
+      "origin": "https://www.universeacademy.site"
+    }
+  ]
+}

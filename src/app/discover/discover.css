@@ -1,0 +1,315 @@
+/* Universe Academy - Discovery Design Theme */
+:root {
+    --bg-discovery: #0c0c0e;
+    --surface-discovery: #16161a;
+    --ink-discovery: #f8f7f4;
+    --accent-discovery: #a8e063;
+    --accent-soft-discovery: rgba(168, 224, 99, 0.15);
+    --border-discovery: rgba(248, 247, 244, 0.1);
+    --card-bg-discovery: rgba(255, 255, 255, 0.03);
+}
+
+.discovery-container {
+    background-color: var(--bg-discovery);
+    color: var(--ink-discovery);
+    min-height: 100vh;
+    font-family: 'Inter', sans-serif;
+}
+
+/* Custom fonts custom injection */
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@800&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+/* Header styling */
+.mockup-header {
+    padding: 1.25rem 0;
+    border-bottom: 1px solid var(--border-discovery);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: transparent;
+    z-index: 100;
+}
+
+.user-block {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--accent-soft-discovery);
+    border: 1px solid var(--accent-discovery);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: var(--accent-discovery);
+    text-transform: uppercase;
+}
+
+.meta-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    opacity: 0.6;
+}
+
+/* Sticky Search container style */
+.search-container {
+    position: sticky;
+    top: 4rem;
+    background-color: var(--bg-discovery);
+    padding-bottom: 1.5rem;
+    z-index: 40;
+}
+
+.search-bar {
+    background: var(--surface-discovery);
+    border: 1.5px solid var(--border-discovery);
+    border-radius: 100px;
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: border-color 0.2s ease;
+}
+
+.search-bar:focus-within {
+    border-color: var(--accent-discovery);
+}
+
+/* Scrolling category pills row */
+.pill-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.pill-row::-webkit-scrollbar {
+    display: none;
+}
+
+.pill {
+    white-space: nowrap;
+    padding: 0.5rem 1.25rem;
+    border-radius: 100px;
+    background: var(--surface-discovery);
+    border: 1px solid var(--border-discovery);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: rgba(248, 247, 244, 0.6);
+    transition: all 0.2s ease;
+}
+
+.pill:hover {
+    color: var(--ink-discovery);
+    border-color: rgba(248, 247, 244, 0.3);
+}
+
+.pill.active {
+    background: var(--accent-discovery);
+    color: var(--bg-discovery);
+    border-color: var(--accent-discovery);
+    opacity: 1;
+}
+
+/* Quest Card Styling */
+.quest-card {
+    background: linear-gradient(145deg, #121226, #06060c);
+    border: 1.5px solid rgba(139, 123, 255, 0.3);
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    margin-bottom: 2.5rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.quest-card::after {
+    content: '';
+    position: absolute;
+    top: -20%;
+    right: -10%;
+    width: 150px;
+    height: 150px;
+    background: rgba(139, 123, 255, 0.12);
+    filter: blur(40px);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.quest-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.quest-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.25rem;
+    margin: 0;
+    font-weight: 800;
+}
+
+.reward-tag {
+    font-family: 'Space Mono', monospace;
+    background: rgba(139, 123, 255, 0.2);
+    color: #b69cff;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.quest-action {
+    margin-top: 1.5rem;
+    background: #8b7bff;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 12px;
+    font-weight: 700;
+    width: 100%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.quest-action:hover:not(:disabled) {
+    background: #7966f7;
+    transform: translateY(-1px);
+}
+
+.quest-action:disabled {
+    background: rgba(139, 123, 255, 0.1);
+    color: rgba(255, 255, 255, 0.35);
+    cursor: default;
+}
+
+/* Teacher Card Grid */
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.section-header h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.5rem;
+    margin: 0;
+    letter-spacing: -0.02em;
+    font-weight: 800;
+}
+
+.teacher-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1.5rem;
+}
+
+.teacher-card {
+    background: var(--card-bg-discovery);
+    border: 1px solid var(--border-discovery);
+    border-radius: 1.25rem;
+    overflow: hidden;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.teacher-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--accent-discovery);
+    box-shadow: 0 12px 30px -15px rgba(168, 224, 99, 0.15);
+}
+
+.card-image {
+    height: 120px;
+    background: #1a1a1e;
+    position: relative;
+    overflow: hidden;
+}
+
+.card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.75;
+    transition: transform 0.3s ease;
+}
+
+.teacher-card:hover .card-image img {
+    transform: scale(1.05);
+}
+
+.card-content {
+    padding: 2.5rem 1rem 1.5rem;
+    text-align: center;
+    position: relative;
+}
+
+.card-avatar {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: 4px solid var(--bg-discovery);
+    position: absolute;
+    top: -35px;
+    left: 50%;
+    transform: translateX(-50%);
+    overflow: hidden;
+    background: var(--surface-discovery);
+}
+
+.card-stats {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.stat-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: rgba(255,255,255,0.05);
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+@media (max-width: 640px) {
+    .card-content {
+        padding: 1.75rem 0.35rem 0.75rem !important;
+    }
+    .card-avatar {
+        width: 48px !important;
+        height: 48px !important;
+        top: -24px !important;
+    }
+    .card-content .text-lg {
+        font-size: 0.85rem !important;
+    }
+    .meta-label {
+        font-size: 0.5rem !important;
+    }
+    .card-stats {
+        gap: 0.35rem !important;
+        margin-top: 0.5rem !important;
+    }
+    .stat-badge {
+        font-size: 0.6rem !important;
+        padding: 0.15rem 0.3rem !important;
+        gap: 0.15rem !important;
+    }
+    .card-image {
+        height: 80px !important;
+    }
+}
