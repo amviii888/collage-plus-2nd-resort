@@ -78,19 +78,44 @@ const CourseCardComponent = ({ course, teacher, progress }: CourseCardProps) => 
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
           
-          <div className="absolute top-3 right-3 flex items-center gap-2 z-10">
-            {isLockedForUser && (
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-white/20">
-                <Lock className="h-4 w-4 text-white" />
-              </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+          
+          {/* Top-Left: Price Badge */}
+          <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5">
+            {course.price && course.price > 0 ? (
+              <Badge className="bg-emerald-500 hover:bg-emerald-600 text-black font-mono font-black text-[11px] shadow-lg shadow-black/50 px-2.5 py-0.5 rounded-lg border border-emerald-400">
+                {course.price} EGP
+              </Badge>
+            ) : (
+              <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-[10px] backdrop-blur-md px-2 py-0.5 rounded-lg">
+                مجاني Free
+              </Badge>
             )}
+          </div>
+
+          {/* Top-Right: Lock Status & Rating Badge */}
+          <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
+            {course.locked ? (
+              <Badge className="bg-amber-500 hover:bg-amber-600 text-black font-bold text-[10px] flex items-center gap-1 shadow-md px-2 py-0.5 rounded-lg">
+                <Lock className="w-3 h-3" />
+                <span>
+                  {course.lockMode === 'requests_only' 
+                    ? 'طلبات فقط' 
+                    : course.lockMode === 'codes_only' 
+                    ? 'كود فقط' 
+                    : 'محمي'}
+                </span>
+              </Badge>
+            ) : (
+              <Badge className="bg-emerald-500/30 text-emerald-200 border border-emerald-400/30 font-semibold text-[10px] backdrop-blur-sm px-2 py-0.5 rounded-lg">
+                مفتوح
+              </Badge>
+            )}
+
             {course.averageRating && course.averageRating > 0 && (
-              <div className="flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-xs font-bold text-white border border-white/20 backdrop-blur-sm">
+              <div className="flex items-center gap-1 rounded-lg bg-black/60 px-2 py-0.5 text-xs font-bold text-white border border-white/20 backdrop-blur-sm">
                 <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
                 <span>{course.averageRating.toFixed(1)}</span>
-                {course.ratingCount && course.ratingCount > 0 && (
-                  <span className="text-zinc-300 font-normal">({course.ratingCount})</span>
-                )}
               </div>
             )}
           </div>
@@ -131,9 +156,27 @@ const CourseCardComponent = ({ course, teacher, progress }: CourseCardProps) => 
                 </Badge>
               )}
             </div>
-            <div className="w-full text-center py-2 font-bold text-xs rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-all group-hover:shadow-md group-hover:scale-[1.02]">
-                {t('courseCard.watchNow')}
-            </div>
+            {/* Action Button: Watch Now or Unlock & Buy */}
+            {isOwner ? (
+              <div className="w-full text-center py-2.5 font-bold text-xs rounded-xl bg-slate-800 hover:bg-slate-700 text-white transition-all flex items-center justify-center gap-1.5 border border-slate-700 shadow-sm">
+                <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                <span>معاينة وإدارة الكورس</span>
+              </div>
+            ) : isLockedForUser ? (
+              <div className="w-full text-center py-2.5 font-bold text-xs rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black transition-all flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/25">
+                <Lock className="w-3.5 h-3.5" />
+                <span>
+                  {course.price && course.price > 0 
+                    ? `شراء أو طلب فتح الكورس (${course.price} EGP)` 
+                    : 'طلب فتح الكورس (Request Access)'}
+                </span>
+              </div>
+            ) : (
+              <div className="w-full text-center py-2.5 font-bold text-xs rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-all flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/25 group-hover:scale-[1.01]">
+                <PlayCircle className="w-3.5 h-3.5" />
+                <span>مشاهدة المحاضرات الآن (Watch Now)</span>
+              </div>
+            )}
         </CardFooter>
       </Card>
     </Link>

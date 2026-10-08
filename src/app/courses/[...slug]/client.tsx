@@ -5,7 +5,7 @@ import { doc, runTransaction, serverTimestamp, setDoc, arrayUnion, Timestamp, in
 import type { Course, CourseRating, Teacher, WatchHistory, Video, CourseAccess, Unit, CourseRequest } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useMemo, useEffect, lazy, Suspense, useRef } from 'react';
-import { Star, Download, FileText, Info, User, BookOpen, Clock, CheckCircle, ArrowLeft, Lock, ClipboardList } from 'lucide-react';
+import { Star, Download, FileText, Info, User, BookOpen, Clock, CheckCircle, ArrowLeft, Lock, ClipboardList, ShoppingCart, KeyRound, Play } from 'lucide-react';
 import { cn, toJsDate } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -333,6 +333,7 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
     const { student: currentStudentProfile } = useStudent(user?.uid);
 
     const [isUnlockOpen, setUnlockOpen] = useState(false);
+    const [isHomeworkOpen, setIsHomeworkOpen] = useState(false);
     const viewCountIncremented = useRef(false);
     
     // Realtime data hooks
@@ -340,6 +341,13 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
         if (!firestore) return null;
         return doc(firestore, `teachers/${teacherId}/courses/${courseId}`);
     }, [firestore, teacherId, courseId]));
+
+    // Homework Hook
+    const homeworkRef = useMemoFirebase(() => {
+        if (!firestore || !teacherId || !course?.homeworkId) return null;
+        return doc(firestore, `teachers/${teacherId}/homework`, course.homeworkId);
+    }, [firestore, teacherId, course?.homeworkId]);
+    const { data: homework } = useDoc<any>(homeworkRef);
     
     const { data: teacher, isLoading: isTeacherLoading } = useDoc<Teacher>(useMemoFirebase(() => {
         if (!firestore) return null;
@@ -662,57 +670,86 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                         onClick={() => { setSelectedUnitForUnlock(activeVideoUnit.id); setUnlockOpen(true); }}
                                         disabled={isUnitPending(activeVideoUnit.id) || isFullCoursePending}
                                         className={cn(
-                                            "font-bold text-xs sm:text-sm h-10 px-4 rounded-xl",
+                                            "font-bold text-xs sm:text-sm h-11 px-5 rounded-xl shadow-lg",
                                             isUnitPending(activeVideoUnit.id)
                                                 ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 cursor-not-allowed"
                                                 : "bg-emerald-500 hover:bg-emerald-600 text-black"
                                         )}
                                     >
+                                        <Lock className="w-4 h-4 mr-1.5" />
                                         {isUnitPending(activeVideoUnit.id) ? (
-                                            'Unit Request Pending (قيد المراجعة)'
+                                            'طلب الوحدة قيد المراجعة'
                                         ) : (
-                                            `Unlock Unit: ${activeVideoUnit.title}`
+                                            `فتح الوحدة: ${activeVideoUnit.title}`
                                         )}
                                     </Button>
                                 )}
                                 <Button 
                                     onClick={() => { setSelectedUnitForUnlock(undefined); setUnlockOpen(true); }} 
                                     disabled={isFullCoursePending}
-                                    variant={activeVideoUnit ? "outline" : "default"}
                                     className={cn(
-                                        "font-bold text-xs sm:text-sm h-10 px-4 rounded-xl",
+                                        "font-bold text-xs sm:text-sm h-11 px-6 rounded-xl shadow-lg flex items-center gap-2",
                                         isFullCoursePending 
                                             ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 cursor-not-allowed" 
-                                            : (!activeVideoUnit ? "bg-emerald-500 hover:bg-emerald-600 text-black" : "border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10")
+                                            : "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-black shadow-emerald-500/20"
                                     )}
                                 >
+                                    <ShoppingCart className="w-4 h-4" />
                                     {isFullCoursePending ? (
-                                        'Full Course Pending (قيد المراجعة)'
+                                        'طلب الكورس قيد المراجعة (Pending)'
                                     ) : (
-                                        displayCourse.price ? `Unlock Entire Course (${displayCourse.price} EGP)` : 'Unlock Entire Course'
+                                        displayCourse.price ? `شراء / طلب فتح الكورس كاملاً (${displayCourse.price} EGP)` : 'شراء / فتح الكورس كاملاً'
                                     )}
+                                </Button>
+                                <Button 
+                                    onClick={() => { setSelectedUnitForUnlock(undefined); setUnlockOpen(true); }}
+                                    variant="outline"
+                                    className="font-bold text-xs sm:text-sm h-11 px-5 rounded-xl border-zinc-700 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200 flex items-center gap-2"
+                                >
+                                    <KeyRound className="w-4 h-4 text-amber-400" />
+                                    <span>إدخال كود الوصول (Redeem Code)</span>
                                 </Button>
                              </div>
                         </div>
                     ) : (
-                        <div className="relative w-full aspect-video bg-black flex-shrink-0 overflow-hidden">
-                            {embedUrl ? (
-                                <>
-                                    <iframe
-                                        className="relative z-0"
-                                        width="100%"
-                                        height="100%"
-                                        src={embedUrl}
-                                        title={title}
-                                        frameBorder="0"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        allowFullScreen
-                                    ></iframe>
-                                    {user?.uid && <VideoWatermark studentId={user.uid} />}
-                                </>
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-destructive-foreground bg-destructive">Invalid Video URL</div>
-                            )}
+                        <div className="flex flex-col">
+                            {/* Watch Now Bar */}
+                            <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-950 border-b border-zinc-800 text-xs text-zinc-300">
+                                <div className="flex items-center gap-2">
+                                    <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="font-bold text-emerald-400">مشاهدة المحاضرة الآن (Watch Now)</span>
+                                    <span className="text-zinc-600">|</span>
+                                    <span className="font-medium text-white truncate max-w-[200px] sm:max-w-md">{currentVideo?.title}</span>
+                                </div>
+                                {displayCourse.price && displayCourse.price > 0 ? (
+                                    <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 font-mono text-[10px]">
+                                        {hasFullAccess ? 'مفتوح بالكامل' : 'وحدة مفعّلة'}
+                                    </Badge>
+                                ) : (
+                                    <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 font-mono text-[10px]">
+                                        مجاني Free
+                                    </Badge>
+                                )}
+                            </div>
+                            <div className="relative w-full aspect-video bg-black flex-shrink-0 overflow-hidden">
+                                {embedUrl ? (
+                                    <>
+                                        <iframe
+                                            className="relative z-0"
+                                            width="100%"
+                                            height="100%"
+                                            src={embedUrl}
+                                            title={title}
+                                            frameBorder="0"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                            allowFullScreen
+                                        ></iframe>
+                                        {user?.uid && <VideoWatermark studentId={user.uid} />}
+                                    </>
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-destructive-foreground bg-destructive">Invalid Video URL</div>
+                                )}
+                            </div>
                         </div>
                     )}
 

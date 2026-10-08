@@ -29,42 +29,92 @@ export function StudentQuestionsBankView({ teacherId }: { teacherId: string }) {
   const firestore = useFirestore();
 
   const [selectedGrade, setSelectedGrade] = useState<string>('all');
-
   const [allQuestions, setAllQuestions] = useState<QuestionBankItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Direct safe client-side Firestore query with API fallback
   const fetchQuestions = async () => {
-    if (!teacherId) return;
+    if (!teacherId) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
-    try {
-      const response = await fetch(`/api/questions-bank?teacherId=${teacherId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch question banks');
-      }
-      const json = await response.json();
-      
-      const items = (json.data || []).map((item: any) => {
-        const mapped = { ...item };
-        if (mapped.createdAt && typeof mapped.createdAt.seconds === 'number') {
-          mapped.createdAt = {
-            seconds: mapped.createdAt.seconds,
-            nanoseconds: mapped.createdAt.nanoseconds || 0,
-            toDate: () => new Date(mapped.createdAt.seconds * 1000),
-          };
-        }
-        if (mapped.updatedAt && typeof mapped.updatedAt.seconds === 'number') {
-          mapped.updatedAt = {
-            seconds: mapped.updatedAt.seconds,
-            nanoseconds: mapped.updatedAt.nanoseconds || 0,
-            toDate: () => new Date(mapped.updatedAt.seconds * 1000),
-          };
-        }
-        return mapped;
-      });
 
-      setAllQuestions(items);
+    const safeParseDate = (raw: any): { seconds: number; nanoseconds: number; toDate: () => Date } | null => {
+      if (!raw) return null;
+      try {
+        if (typeof raw.toDate === 'function') {
+          const d = raw.toDate();
+          return { seconds: Math.floor(d.getTime() / 1000), nanoseconds: 0, toDate: () => d };
+        }
+        if (raw instanceof Date) {
+          return { seconds: Math.floor(raw.getTime() / 1000), nanoseconds: 0, toDate: () => raw };
+        }
+        if (typeof raw.seconds === 'number') {
+          const d = new Date(raw.seconds * 1000);
+          return { seconds: raw.seconds, nanoseconds: raw.nanoseconds || 0, toDate: () => d };
+        }
+        if (typeof raw._seconds === 'number') {
+          const d = new Date(raw._seconds * 1000);
+          return { seconds: raw._seconds, nanoseconds: raw._nanoseconds || 0, toDate: () => d };
+        }
+        if (typeof raw === 'string' || typeof raw === 'number') {
+          const d = new Date(raw);
+          if (!isNaN(d.getTime())) {
+            return { seconds: Math.floor(d.getTime() / 1000), nanoseconds: 0, toDate: () => d };
+          }
+        }
+      } catch (err) {
+        // Safe fallback
+      }
+      return null;
+    };
+
+    try {
+      if (firestore) {
+        const { getDocs, collection, query, where } = await import('firebase/firestore');
+        const q = query(collection(firestore, 'questionBanks'), where('teacherId', '==', teacherId));
+        const snap = await getDocs(q);
+        const docs = snap.docs.map(d => {
+          try {
+            const data = d.data() || {};
+            const parsedDate = safeParseDate(data.createdAt);
+            return {
+              id: d.id,
+              ...data,
+              createdAt: parsedDate
+            } as QuestionBankItem;
+          } catch (itemErr) {
+            return {
+              id: d.id,
+              teacherId,
+              title: 'بنك أسئلة جامعي',
+              description: '',
+              grade: 'Year 1' as any,
+              fileUrl: '',
+              createdAt: null
+            } as QuestionBankItem;
+          }
+        });
+        setAllQuestions(docs);
+        setIsLoading(false);
+        return;
+      }
+
+      const response = await fetch(`/api/questions-bank?teacherId=${teacherId}`);
+      if (response.ok) {
+        const json = await response.json();
+        const items = (json.data || []).map((item: any) => ({
+          ...item,
+          createdAt: safeParseDate(item.createdAt)
+        }));
+        setAllQuestions(items);
+      } else {
+        setAllQuestions([]);
+      }
     } catch (e: any) {
-      console.error(e);
+      console.warn('Could not load question banks:', e);
+      setAllQuestions([]);
     } finally {
       setIsLoading(false);
     }
@@ -72,7 +122,7 @@ export function StudentQuestionsBankView({ teacherId }: { teacherId: string }) {
 
   useEffect(() => {
     fetchQuestions();
-  }, [teacherId]);
+  }, [teacherId, firestore]);
 
   // Determine which grades actually have content for helpful filtering
   const availableGradesWithContent = useMemo(() => {

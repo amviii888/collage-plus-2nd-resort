@@ -1,8 +1,8 @@
 # Custom Instructions
 
-- **CRITICAL FILE DELETION RULE**: Never delete any files from the workspace without explicitly stopping and asking the user for permission first. The user has expressly forbidden the deletion of files without manual confirmation.
-- **NO MASS DELETION**: Absolutely NO mass deletion of files. 
-- **NO WIPING CONTENT**: Never wipe out entire files or app-related content folders. Do not delete full, content-filled app-related files.
+- **CRITICAL FILE & FOLDER DELETION RULE (ZERO MASS DELETION)**: Absolutely NEVER delete files or entire folders without explicit, manual permission and confirmation from the user for that specific file. Mass deletion of files or directories (`delete_file`, `delete_dir`, `rm -rf`, wiping folders) is STRICTLY FORBIDDEN. You may edit code within files, but you must NEVER delete full existing files or directories.
+- **NO MASS DELETION**: Absolutely NO mass deletion or wiping of files, routes, or assets.
+- **NO WIPING CONTENT**: Never wipe out entire files, components, or app-related content folders. Keep historical and working files intact.
 - **NEVER RESET WORKSPACE**: If making structural changes, migrate carefully. Do NOT delete and recreate from scratch in a way that wipes history.
 - **ABSOLUTELY NO AUTOMATIC BUILDS (NEVER BUILD AUTONOMOUSLY)**: You are STRICTLY FORBIDDEN from calling the build/compile system (`compile_applet`) automatically. ONLY run `compile_applet` when the user explicitly asks you to build, or when it is absolutely critical at the very end of a complex series of manual tests. Do not build between edits!
 - **NO UNNECESSARY BUILDS**: Do NOT build the applet after every small change. ONLY build when it is critical or explicitly requested.

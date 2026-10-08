@@ -51,8 +51,8 @@ export function BottomNav() {
         ];
     }
     
-    // Explicit teacher role check:
-    const isTeacher = user && !user.isAnonymous && user.email && !isStudentEmail(user.email) && !isStudentSession;
+    // Explicit teacher role check: Authenticated teacher account always overrides stale student session
+    const isTeacher = !!(user && !user.isAnonymous && user.email && !isStudentEmail(user.email));
 
     if (isTeacher) {
        return [

@@ -237,6 +237,8 @@ function CourseForm({
         subjects: courseToEdit.subjects || [],
         grades: courseToEdit.grades || [],
         locked: courseToEdit.locked || false,
+        lockMode: courseToEdit.lockMode || 'both',
+        price: courseToEdit.price ?? 0,
         viewLimit: courseToEdit.viewLimit ?? 3,
         units:
           courseToEdit.units ||
@@ -259,6 +261,8 @@ function CourseForm({
         grades: ['Year 1 (First Year)'],
         subjects: ['Computer Science'],
         locked: false,
+        lockMode: 'both',
+        price: 0,
         viewLimit: 3,
         testId: 'none',
       };
@@ -281,6 +285,8 @@ function CourseForm({
         subjects: courseToEdit.subjects || [],
         grades: courseToEdit.grades || [],
         locked: courseToEdit.locked || false,
+        lockMode: courseToEdit.lockMode || 'both',
+        price: courseToEdit.price ?? 0,
         viewLimit: courseToEdit.viewLimit ?? 3,
         units:
           courseToEdit.units ||
@@ -507,7 +513,13 @@ function CourseForm({
                 : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
             }`}
           >
-            <Lock className="w-3.5 h-3.5" /> Access & Testing
+            <Lock className="w-3.5 h-3.5 text-amber-400" />
+            <span>Locking, Pricing & Modes (القفل والأسعار)</span>
+            {isLocked && (
+              <span className="text-[10px] bg-amber-400 text-black font-bold px-1.5 py-0.2 rounded-md">
+                Locked
+              </span>
+            )}
           </button>
 
           <Button
@@ -1167,19 +1179,48 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
                 <CardHeader className="p-0">
                   <div className="aspect-video w-full overflow-hidden relative bg-zinc-900">
                     <Image src={course.thumbnailUrl} alt={course.title} fill className="object-cover" />
-                    {course.locked && (
-                      <Badge className="absolute top-3 right-3 z-10 bg-amber-500/90 text-black font-bold">
-                        <Lock className="w-3 h-3 mr-1" /> Locked
-                      </Badge>
-                    )}
+                    
+                    {/* Top-Left: Price Badge */}
+                    <div className="absolute top-3 left-3 z-10">
+                      {course.price && course.price > 0 ? (
+                        <Badge className="bg-emerald-500 hover:bg-emerald-600 text-black font-mono font-black text-xs shadow-lg shadow-black/50 px-2.5 py-0.5 border border-emerald-400">
+                          {course.price} EGP
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold text-[11px] backdrop-blur-md px-2 py-0.5">
+                          مجاني Free
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Top-Right: Lock Status & Mode Badge */}
+                    <div className="absolute top-3 right-3 z-10">
+                      {course.locked ? (
+                        <Badge className="bg-amber-500 hover:bg-amber-600 text-black font-bold text-[11px] flex items-center gap-1 shadow-lg shadow-black/50 px-2.5 py-0.5">
+                          <Lock className="w-3 h-3" />
+                          <span>
+                            {course.lockMode === 'requests_only'
+                              ? 'Locked: طلبات فقط'
+                              : course.lockMode === 'codes_only'
+                              ? 'Locked: كود فقط'
+                              : 'Locked: كود أو طلب'}
+                          </span>
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 font-bold text-[11px] backdrop-blur-md px-2 py-0.5">
+                          مفتوح للجميع (Public)
+                        </Badge>
+                      )}
+                    </div>
+
                     {course.isFeatured && (
-                      <Badge className="absolute top-3 left-3 z-10 bg-emerald-500 text-black font-bold">
+                      <Badge className="absolute bottom-3 left-3 z-10 bg-blue-500 text-white font-bold text-[10px]">
                         Featured
                       </Badge>
                     )}
                   </div>
                 </CardHeader>
-                <CardContent className="flex-grow p-5 space-y-2">
+                <CardContent className="flex-grow p-5 space-y-2.5">
                   <div className="flex flex-wrap gap-1.5 mb-1">
                     {course.grades?.slice(0, 2).map((g) => (
                       <Badge key={g} variant="outline" className="text-[10px] text-zinc-400 border-zinc-800">
@@ -1192,15 +1233,36 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
                       </Badge>
                     ))}
                   </div>
+
                   <h3 className="font-bold text-base text-white line-clamp-2">{course.title}</h3>
                   <p className="text-xs text-zinc-400 line-clamp-2">{course.description}</p>
+
+                  {/* Course Status Summary Strip */}
+                  <div className="pt-2 border-t border-zinc-900 flex items-center justify-between text-[11px] text-zinc-400 font-mono">
+                    <span className="text-emerald-400 font-bold">
+                      {course.price && course.price > 0 ? `${course.price} EGP` : 'مجاني (0 EGP)'}
+                    </span>
+                    <span className="text-zinc-500">|</span>
+                    <span className={course.locked ? 'text-amber-400 font-semibold' : 'text-emerald-400'}>
+                      {course.locked ? (course.lockMode === 'requests_only' ? 'طلبات وصول' : course.lockMode === 'codes_only' ? 'أكواد وصول' : 'كود + طلبات') : 'متاح للجميع'}
+                    </span>
+                    <span className="text-zinc-500">|</span>
+                    <span>{course.units?.length || 1} وحدات</span>
+                  </div>
                 </CardContent>
                 <CardFooter className="flex items-center justify-between p-4 pt-0 border-t border-zinc-900">
-                  <Button asChild variant="ghost" size="sm" className="text-zinc-400 hover:text-emerald-400 text-xs">
-                    <Link href={`/teacher/courses/analytics?courseId=${course.id}`}>
-                      <BarChart3 className="mr-1 h-3.5 w-3.5 text-emerald-400" /> Analytics
-                    </Link>
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button asChild variant="ghost" size="sm" className="text-zinc-400 hover:text-emerald-400 text-xs px-2">
+                      <Link href={`/teacher/courses/analytics?courseId=${course.id}`}>
+                        <BarChart3 className="mr-1 h-3.5 w-3.5 text-emerald-400" /> Analytics
+                      </Link>
+                    </Button>
+                    <Button asChild variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300 text-xs px-2">
+                      <Link href={`/courses/${teacherId}/${course.id}`} target="_blank">
+                        <ExternalLink className="mr-1 h-3.5 w-3.5" /> معاينة كطالب
+                      </Link>
+                    </Button>
+                  </div>
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"

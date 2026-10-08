@@ -45,11 +45,27 @@ function UserProfile() {
         }
     }, [user]);
 
-    const isAssistant = !!assistantTeacherName;
-    const isStudentUser = user && (user.isAnonymous || isStudentEmail(user.email));
-    const isLegacyStudent = !user && !!studentId;
-    const isStudent = (isStudentUser || isLegacyStudent || !!studentId) && !isAssistant;
-    const isTeacher = user && !isStudent && !isAssistant;
+    const isFirebaseTeacher = !!(user && !user.isAnonymous && user.email && !isStudentEmail(user.email));
+    const isFirebaseStudent = !!(user && (user.isAnonymous || isStudentEmail(user.email)));
+
+    // Strict priority hierarchy: Real teacher account always overrides stale student localStorage
+    const isTeacher = isFirebaseTeacher;
+    const isAssistant = !isTeacher && !!assistantTeacherName;
+    const isStudent = !isTeacher && !isAssistant && (isFirebaseStudent || !!studentId);
+    
+    // Purge stale student/assistant localStorage keys if actively authenticated as a teacher
+    useEffect(() => {
+        if (isTeacher && typeof window !== 'undefined') {
+            try {
+                localStorage.removeItem('viewingStudentId');
+                localStorage.removeItem('student_barcode');
+                localStorage.removeItem('offline_student_id');
+                localStorage.removeItem('app_student_auth_session');
+                setStudentId(null);
+                setCachedStudent(null);
+            } catch (e) {}
+        }
+    }, [isTeacher]);
     
     const userId = user?.uid || studentId;
 
@@ -184,8 +200,9 @@ export function Header() {
         }
     }, [pathname, user]);
 
-    const isStudentUser = user && (user.isAnonymous || isStudentEmail(user.email));
-    const isTeacher = user && !user.isAnonymous && user.email && !isStudentEmail(user.email) && !isStudentSession && !isAssistantSession;
+    const isTeacher = !!(user && !user.isAnonymous && user.email && !isStudentEmail(user.email));
+    const isStudentUser = !isTeacher && !!(user && (user.isAnonymous || isStudentEmail(user.email)));
+    const isStudent = !isTeacher && (isStudentUser || isStudentSession);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {

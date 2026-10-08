@@ -126,6 +126,8 @@ export type Course = {
   grades: Grade[];
   subjects: string[]; // Added subjects to course
   locked: boolean;
+  lockMode?: 'requests_only' | 'codes_only' | 'both';
+  price?: number;
   viewLimit?: number; // The number of times a student can open the course after unlocking it. 0 or undefined means unlimited views.
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
