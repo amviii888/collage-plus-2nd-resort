@@ -23,6 +23,8 @@ import { CldUploadButton } from 'next-cloudinary';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { UploadCloud } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { saveTeacherCodeMappingToCloudAndLocal } from '@/lib/professors-registry';
+import { Key, Sparkles, CheckCircle, ShieldCheck } from 'lucide-react';
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -45,6 +47,12 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
   const { user } = useUser();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Doctor 2-4 Letter Code State
+  const initialDoctorCode = (teacher as any).code || (teacher as any).teacherCode || (teacher.id && teacher.id.length <= 4 ? teacher.id.toUpperCase() : '');
+  const [doctorCodeInput, setDoctorCodeInput] = useState(initialDoctorCode);
+  const [isSavingDoctorCode, setIsSavingDoctorCode] = useState(false);
+  const [doctorCodeSaved, setDoctorCodeSaved] = useState(false);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -59,6 +67,81 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
     },
     mode: 'onChange',
   });
+
+  // Handle explicit doctor code save
+  const handleSaveDoctorCode = async () => {
+    const cleanCode = (doctorCodeInput || '').trim().toUpperCase();
+    if (!cleanCode || cleanCode.length < 2 || cleanCode.length > 4) {
+      toast({
+        variant: 'destructive',
+        title: 'كود الدكتور غير صالح',
+        description: 'يجب أن يتكون كود الدكتور من 2 إلى 4 أحرف إنجليزية كبيرة (مثل VV أو PHYS أو MATH).',
+      });
+      return;
+    }
+
+    if (!user || !firestore) {
+      toast({
+        variant: 'destructive',
+        title: 'غير مسجل',
+        description: 'يجب تسجيل الدخول لحفظ كود الدكتور.',
+      });
+      return;
+    }
+
+    setIsSavingDoctorCode(true);
+
+    try {
+      const teacherName = form.getValues('name') || teacher.name || 'أستاذ المادة';
+      const teacherSubject = form.getValues('subjects')?.[0] || teacher.subjects?.[0] || 'المقررات الجامعية';
+      const teacherAvatar = form.getValues('profilePictureUrl') || teacher.profilePictureUrl || '';
+      const teacherHero = form.getValues('heroImageUrl') || teacher.heroImageUrl || '';
+      const teacherThemeId = (teacher as any).assignedThemeId || (teacher as any).customTheme?.themeClass || 'default';
+
+      await saveTeacherCodeMappingToCloudAndLocal({
+        id: user.uid,
+        code: cleanCode,
+        name: teacherName,
+        titleAr: `أستاذ ${teacherSubject}`,
+        titleEn: `Professor of ${teacherSubject}`,
+        subjectAr: teacherSubject,
+        subjectEn: 'University Courses',
+        facultyAr: 'الجامعة والكلية',
+        facultyEn: 'Faculty & University',
+        avatarUrl: teacherAvatar,
+        heroImageUrl: teacherHero,
+        appIconPath: (teacher as any).appIconPath || '/icons/professors/vv.svg',
+        appIconEmoji: (teacher as any).appIconEmoji || '⚡',
+        appNameAr: `منصة ${teacherName} [${cleanCode}]`,
+        appNameEn: `${teacherName} Portal [${cleanCode}]`,
+        themeColor: (teacher as any).themeColor || '#2563eb',
+        coursesCount: 4,
+        studentsCount: 200,
+        descriptionAr: form.getValues('bio') || teacher.bio || `البوابة الأكاديمية الرسمية لمحاضرات ${teacherName}.`,
+        descriptionEn: `Official academic portal for ${teacherName}.`,
+        assignedThemeId: teacherThemeId,
+      }, firestore);
+
+      AppCache.clear(`doc_teachers/${user.uid}`);
+      setDoctorCodeSaved(true);
+
+      toast({
+        title: '🎉 تم حفظ واعتماد كود الدكتور بنجاح!',
+        description: `تم ربط حسابك بالكود [ ${cleanCode} ] في السحابة. يستطيع أي طالب الآن كتابة هذا الكود عند التسجيل وسيتم ربطه بك وتفعيل ثيمك فوراً.`,
+      });
+
+      setTimeout(() => setDoctorCodeSaved(false), 5000);
+    } catch (err: any) {
+      console.error('Error saving doctor code:', err);
+      toast({
+        variant: 'destructive',
+        title: 'فشل حفظ الكود',
+        description: err.message || 'حدث خطأ أثناء حفظ كود الدكتور في السحابة.',
+      });
+    } finally {
+      setIsSavingDoctorCode(false);
+    }
+  };
 
   const onSubmit = async (data: ProfileFormValues) => {
     if (!user || !firestore) {
@@ -120,6 +203,60 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Doctor 2-4 Letter Code Section */}
+        <div className="mb-6 p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-blue-600/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+                <Key className="w-4 h-4" />
+              </div>
+              <div>
+                <Label className="text-sm font-bold text-slate-900 dark:text-white">
+                  كود الدكتور الأكاديمي للطلاب (من 2 إلى 4 أحرف)
+                </Label>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  الكود الذي يكتبه طلابك عند إنشاء حساباتهم لربطهم بمنصتك تلقائياً وتفعيل ثيمك المخصص.
+                </p>
+              </div>
+            </div>
+            {initialDoctorCode && (
+              <span className="text-xs font-mono font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 px-2.5 py-1 rounded-xl self-start sm:self-auto">
+                الكود المعتمد: [{initialDoctorCode}]
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+            <Input 
+              value={doctorCodeInput}
+              onChange={(e) => setDoctorCodeInput(e.target.value.toUpperCase())}
+              placeholder="مثال: VV أو PHYS أو MATH"
+              maxLength={4}
+              className="h-11 rounded-xl font-mono font-black text-sm uppercase tracking-widest text-center sm:text-right bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+            />
+            <Button
+              type="button"
+              onClick={handleSaveDoctorCode}
+              disabled={isSavingDoctorCode || !doctorCodeInput.trim()}
+              className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shrink-0 flex items-center gap-2 px-5 shadow-md shadow-blue-600/20"
+            >
+              {doctorCodeSaved ? (
+                <>
+                  <CheckCircle className="w-4 h-4 text-emerald-300" />
+                  <span>تم الحفظ والاعتماد السحابي!</span>
+                </>
+              ) : isSavingDoctorCode ? (
+                <span>جارٍ الحفظ في السحابة...</span>
+              ) : (
+                <>
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>حفظ واعتماد كود الدكتور</span>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
         <FormProvider {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

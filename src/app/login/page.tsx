@@ -229,18 +229,53 @@ function LoginFormContent() {
                 }
             }
 
-            // Universal Login logic (supports 5-6 digit student code, email, etc.)
-            const isStudentAttempt = /^\d{5,6}$/.test(identifier.trim());
+            // Universal Login logic (supports verified phone number, 5-6 digit student code, email, etc.)
+            const trimmedIdentifier = identifier.trim();
+            const cleanPhone = trimmedIdentifier.replace(/[\s\-\(\)]/g, '');
+            const isPhoneAttempt = /^(\+?20)?0?1\d{9}$/.test(cleanPhone);
+            let resolvedIdentifier = trimmedIdentifier;
+            let isStudentAttempt = /^\d{5,6}$/.test(trimmedIdentifier);
+
+            if (isPhoneAttempt && firestore) {
+                try {
+                    const { collection, query, where, getDocs, limit } = await import('firebase/firestore');
+                    const localPhone = cleanPhone.startsWith('+20')
+                        ? '0' + cleanPhone.slice(3)
+                        : (cleanPhone.startsWith('20') ? '0' + cleanPhone.slice(2) : cleanPhone);
+                    const intlPhone = localPhone.startsWith('0') ? '+20' + localPhone.slice(1) : ('+20' + localPhone);
+
+                    const qStudents = query(collection(firestore, 'students'), where('phoneNumber', 'in', [localPhone, intlPhone]), limit(1));
+                    let studentSnaps = await getDocs(qStudents);
+
+                    if (studentSnaps.empty) {
+                        const qUsers = query(collection(firestore, 'users'), where('phoneNumber', 'in', [localPhone, intlPhone]), limit(1));
+                        studentSnaps = await getDocs(qUsers);
+                    }
+
+                    if (!studentSnaps.empty) {
+                        const sData = studentSnaps.docs[0].data();
+                        if (sData?.barcodeId) {
+                            resolvedIdentifier = sData.barcodeId;
+                            isStudentAttempt = true;
+                        } else if (sData?.email) {
+                            resolvedIdentifier = sData.email;
+                        }
+                    }
+                } catch (phoneLookupErr) {
+                    console.warn("Phone login lookup notice:", phoneLookupErr);
+                }
+            }
+
             let userCredential: any = null;
 
             if (isStudentAttempt) {
                 try {
-                    userCredential = await signInWithEmailAndPassword(auth, `${identifier.trim()}@mol5saty.student`, password);
+                    userCredential = await signInWithEmailAndPassword(auth, `${resolvedIdentifier}@mol5saty.student`, password);
                 } catch (err: any) {
-                    userCredential = await signInWithEmailAndPassword(auth, `${identifier.trim()}@universe.student`, password);
+                    userCredential = await signInWithEmailAndPassword(auth, `${resolvedIdentifier}@universe.student`, password);
                 }
             } else {
-                userCredential = await signInWithEmailAndPassword(auth, identifier.trim(), password);
+                userCredential = await signInWithEmailAndPassword(auth, resolvedIdentifier, password);
             }
 
             // Check if user is Admin in Firestore
@@ -307,6 +342,25 @@ function LoginFormContent() {
                         localStorage.setItem('cached_student_profile_' + userCredential.user.uid, JSON.stringify(sData));
                         localStorage.setItem('mol5saty_active_student_profile', JSON.stringify(sData));
                         localStorage.setItem('student_logged_in', 'true');
+
+                        // Automatically apply connected professor branding and theme as default
+                        const profCode = (sData as any).activeProfessorCode || (sData as any).professorCode || ((sData as any).connectedProfessors && (sData as any).connectedProfessors[0]);
+                        if (profCode) {
+                            try {
+                                const { resolveProfessorFromCloudOrLocal, setActiveProfessorBranding } = await import('@/lib/professors-registry');
+                                const prof = await resolveProfessorFromCloudOrLocal(profCode, firestore);
+                                if (prof) {
+                                    setActiveProfessorBranding(prof, userCredential.user.uid);
+                                    const profTheme = prof.assignedThemeId || 'default';
+                                    if (profTheme && profTheme !== 'default') {
+                                        localStorage.setItem('student-equipped-theme-' + userCredential.user.uid, profTheme);
+                                        localStorage.setItem('app_active_global_theme', profTheme);
+                                    }
+                                }
+                            } catch (profErr) {
+                                console.warn('Could not auto-apply professor branding on login:', profErr);
+                            }
+                        }
                     }
                 }
             } else {
@@ -315,6 +369,14 @@ function LoginFormContent() {
             }
 
             resetFailedAttempts('universal');
+
+            const emailLower = (userCredential.user.email || identifier).toLowerCase();
+            if (emailLower.includes('librarian')) {
+                localStorage.setItem('is_librarian', 'true');
+                window.location.href = '/librarian';
+                return;
+            }
+
             window.location.href = '/profile';
         } catch (err: any) {
              incrementFailedAttempts('universal');
@@ -377,8 +439,8 @@ function LoginFormContent() {
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="universal-id" className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
-                    <span>{isArabic ? 'كود الطالب أو البريد الإلكتروني' : 'Student Code or Email'}</span>
-                    <span className="text-[10px] text-blue-600 font-mono">{isArabic ? 'كود 5-6 أرقام أو بريد' : '5-6 Digits or Email'}</span>
+                    <span>{isArabic ? 'كود الطالب، رقم الهاتف أو البريد الإلكتروني' : 'Student Code, Phone, or Email'}</span>
+                    <span className="text-[10px] text-blue-600 font-mono">{isArabic ? 'كود أو هاتف أو بريد' : 'Code, Phone or Email'}</span>
                   </Label>
                   <div className="relative">
                     <Input 
@@ -386,7 +448,7 @@ function LoginFormContent() {
                       required 
                       value={identifier} 
                       onChange={(e) => setIdentifier(e.target.value)} 
-                      placeholder={isArabic ? 'مثال: 10425 أو dr.name@college.edu' : 'e.g. 10425 or dr.name@college.edu'} 
+                      placeholder={isArabic ? 'مثال: 10425 أو 01012345678 أو name@college.edu' : 'e.g. 10425, 01012345678, or name@college.edu'} 
                       maxLength={100}
                       className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 focus:border-blue-600 focus:ring-blue-600/20 text-[#0f172a] dark:text-white placeholder:text-slate-400 rounded-2xl h-12 text-sm font-medium"
                     />

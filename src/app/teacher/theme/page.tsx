@@ -26,7 +26,19 @@ import {
   GraduationCap,
   Save,
   CheckCircle2,
-  ShieldCheck
+  ShieldCheck,
+  BookOpen,
+  Library,
+  HelpCircle,
+  Calendar,
+  FileText,
+  Info,
+  Copy,
+  ExternalLink,
+  Lock,
+  PlayCircle,
+  Download,
+  Star
 } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -68,6 +80,8 @@ export default function TeacherThemeEditorPage() {
 
   // Preview Mode
   const [previewMode, setPreviewMode] = useState<'dark' | 'light'>('dark');
+  const [previewTab, setPreviewTab] = useState<'courses' | 'collections' | 'questions' | 'calendar' | 'about'>('courses');
+  const [copiedDoctorCode, setCopiedDoctorCode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Load existing saved custom theme if present
@@ -339,8 +353,8 @@ export default function TeacherThemeEditorPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Customization Controls (7 Cols) */}
-        <div className="lg:col-span-7 space-y-6">
+        {/* Left: Customization Controls (6 Cols) */}
+        <div className="lg:col-span-6 space-y-6">
           {/* 1. Presets Toolbar */}
           <Card className="bg-zinc-900/80 border-zinc-800 text-white rounded-3xl">
             <CardHeader className="pb-3">
@@ -623,13 +637,13 @@ export default function TeacherThemeEditorPage() {
           </Card>
         </div>
 
-        {/* Right: Live Interactive Student Preview (5 Cols) */}
-        <div className="lg:col-span-5 space-y-4">
+        {/* Right: Live Interactive Student Preview (6 Cols) */}
+        <div className="lg:col-span-6 space-y-4">
           <div className="sticky top-6 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
                 <Eye className="w-4 h-4 text-purple-400" />
-                <span>معاينة حية لواجهة الطالب (Live Preview)</span>
+                <span>معاينة حية للملف الأكاديمي الشامل (Full Profile Preview)</span>
               </span>
 
               {/* Toggle Dark / Light preview */}
@@ -659,106 +673,419 @@ export default function TeacherThemeEditorPage() {
               </div>
             </div>
 
-            {/* Simulated Student Portal Canvas */}
+            {/* Simulated Full Doctor Profile Canvas */}
             <div 
-              className="rounded-3xl border p-5 transition-all duration-300 relative overflow-hidden shadow-2xl"
+              className="rounded-3xl border p-4 sm:p-5 transition-all duration-300 relative overflow-hidden shadow-2xl space-y-4 max-h-[80vh] overflow-y-auto"
               style={previewCanvasStyle}
             >
-              {/* Top Mini Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              {/* 1. Top Bar: Breadcrumb & Doctor Code */}
+              <div className="flex items-center justify-between pb-3 border-b border-white/10 dark:border-white/10 text-xs">
+                <div className="flex items-center gap-1.5 opacity-80 text-[11px] font-bold">
+                  <ArrowLeft className="w-3.5 h-3.5 rtl:rotate-180" />
+                  <span>دليل الأساتذة</span>
+                </div>
+
                 <div className="flex items-center gap-2">
-                  <div 
-                    className="w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs shadow-md"
-                    style={{ backgroundColor: themeAccent, color: '#ffffff' }}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCopiedDoctorCode(true);
+                      setTimeout(() => setCopiedDoctorCode(false), 2000);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl font-mono text-[11px] font-bold border transition-all cursor-pointer shadow-xs"
+                    style={{ 
+                      backgroundColor: `${themeAccent}18`, 
+                      borderColor: `${themeAccent}40`, 
+                      color: themeAccent 
+                    }}
+                    title="كود الدكتور للطلاب"
                   >
-                    🎓
+                    {copiedDoctorCode ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                    <span>كود الدكتور: [{(teacherData as any)?.code || (teacherId && teacherId.length <= 4 ? teacherId : 'DOC4')}]</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. Academic Doctor Hero Header Card */}
+              <div 
+                className="rounded-2xl border p-4 transition-all shadow-md flex items-center gap-3.5 relative overflow-hidden"
+                style={{ 
+                  backgroundColor: previewMode === 'dark' ? themeCardBgColor : '#ffffff', 
+                  borderColor: previewMode === 'dark' ? themeBorderColor : '#e2e8f0' 
+                }}
+              >
+                {/* Doctor Avatar */}
+                <div className="relative shrink-0">
+                  <div 
+                    className="w-14 h-14 rounded-2xl overflow-hidden border-2 flex items-center justify-center font-bold text-xl shadow-md bg-slate-100 dark:bg-slate-800"
+                    style={{ borderColor: themeAccent }}
+                  >
+                    {teacherData?.profilePictureUrl ? (
+                      <img 
+                        src={teacherData.profilePictureUrl} 
+                        alt="Doctor" 
+                        className="w-full h-full object-cover" 
+                      />
+                    ) : (
+                      <span>👨‍🏫</span>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-xs font-bold block">{teacherData?.name || 'الأستاذ'}</span>
-                    <span className="text-[10px] opacity-70">بوابة الطالب المعتمدة</span>
+                  <div 
+                    className="absolute -bottom-1 -left-1 px-1.5 py-0.2 rounded-md text-[9px] font-black text-white shadow-xs"
+                    style={{ backgroundColor: themeAccent }}
+                  >
+                    معتمد
                   </div>
                 </div>
 
-                <Badge 
-                  className="text-[10px] font-bold"
-                  style={{ backgroundColor: `${themeAccent}20`, color: themeAccent, borderColor: `${themeAccent}40` }}
-                >
-                  ثيم مفعل
-                </Badge>
-              </div>
-
-              {/* Student Course Card Mock */}
-              <div className="mt-4 space-y-3">
-                <div 
-                  className="rounded-2xl border p-4 transition-all space-y-3 relative overflow-hidden shadow-md"
-                  style={{ backgroundColor: themeCardBgColor, borderColor: themeBorderColor }}
-                >
-                  <div className="flex items-center justify-between">
+                {/* Doctor Meta */}
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-black text-sm sm:text-base leading-snug truncate">
+                      {teacherData?.name || 'أ.د. أحمد عبد الرحمن'}
+                    </h3>
                     <Badge 
-                      className="text-[9px] font-bold"
-                      style={{ backgroundColor: themeAccent, color: '#ffffff' }}
+                      className="text-[9px] font-bold py-0 h-4"
+                      style={{ backgroundColor: `${themeAccent}25`, color: themeAccent, borderColor: `${themeAccent}40` }}
                     >
-                      كورس دراسي معتمد
+                      {themeTitle}
                     </Badge>
-                    <span className="text-[10px] font-mono opacity-80">3 وحدات مفعّلة</span>
                   </div>
 
-                  <h3 className="font-extrabold text-sm sm:text-base leading-snug">
-                    مقرر المحاضرات والتدريبات المتقدمة
-                  </h3>
-
-                  <p className="text-xs opacity-70 line-clamp-2">
-                    المحاضرات والشروحات التفاعلية مع بنوك الأسئلة والاختبارات الفصلية
+                  <p className="text-[11px] opacity-75 truncate">
+                    أستاذ المادة والمنظومة الأكاديمية • قسم علوم الحاسب
                   </p>
 
-                  <div className="pt-2 flex items-center justify-between border-t border-white/10 text-xs">
-                    <span className="font-mono text-[11px] font-bold" style={{ color: themeAccent }}>
-                      المشاهدات: 3 من 3 متبقية
+                  <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                    <span 
+                      className="text-[9px] font-bold px-2 py-0.5 rounded-md border"
+                      style={{ 
+                        backgroundColor: previewMode === 'dark' ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
+                        borderColor: previewMode === 'dark' ? themeBorderColor : '#e2e8f0',
+                        color: previewMode === 'dark' ? themeTextColor : '#334155'
+                      }}
+                    >
+                      نظم التشغيل والبرمجة
                     </span>
+                    <span 
+                      className="text-[9px] font-bold px-2 py-0.5 rounded-md border"
+                      style={{ 
+                        backgroundColor: previewMode === 'dark' ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
+                        borderColor: previewMode === 'dark' ? themeBorderColor : '#e2e8f0',
+                        color: previewMode === 'dark' ? themeTextColor : '#334155'
+                      }}
+                    >
+                      الخوارزميات وهياكل البيانات
+                    </span>
+                  </div>
+                </div>
+
+                {/* Rating & Metric badge */}
+                <div 
+                  className="hidden sm:flex flex-col items-center justify-center p-2 rounded-xl border shrink-0 text-center"
+                  style={{ 
+                    backgroundColor: previewMode === 'dark' ? 'rgba(255,255,255,0.04)' : '#f8fafc',
+                    borderColor: previewMode === 'dark' ? themeBorderColor : '#e2e8f0' 
+                  }}
+                >
+                  <span className="text-sm font-black flex items-center gap-0.5" style={{ color: themeAccent }}>
+                    <Star className="w-3.5 h-3.5 fill-current" /> 4.9
+                  </span>
+                  <span className="text-[9px] opacity-70">120 طالب</span>
+                </div>
+              </div>
+
+              {/* 3. Interactive Profile Navigation Tabs Bar */}
+              <div 
+                className="p-1 rounded-2xl border flex items-center gap-1 overflow-x-auto"
+                style={{ 
+                  backgroundColor: previewMode === 'dark' ? `${themeCardBgColor}bb` : '#f1f5f9',
+                  borderColor: previewMode === 'dark' ? themeBorderColor : '#e2e8f0' 
+                }}
+              >
+                {[
+                  { id: 'courses', label: 'المقررات (Courses)', icon: BookOpen },
+                  { id: 'collections', label: 'السلاسل (Collections)', icon: Library },
+                  { id: 'questions', label: 'بنك الأسئلة', icon: HelpCircle },
+                  { id: 'calendar', label: 'الجدول', icon: Calendar },
+                  { id: 'about', label: 'نبذة والتقييم', icon: Info },
+                ].map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = previewTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setPreviewTab(tab.id as any)}
+                      className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 whitespace-nowrap transition-all shrink-0 cursor-pointer"
+                      style={
+                        isActive
+                          ? { backgroundColor: themeAccent, color: '#ffffff', boxShadow: `0 4px 12px ${themeAccent}35` }
+                          : { opacity: 0.75 }
+                      }
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 4. Tab Content Panels */}
+              {previewTab === 'courses' && (
+                <div className="space-y-3 animate-in fade-in duration-200">
+                  {/* Course Card 1 */}
+                  <div 
+                    className="rounded-2xl border p-3.5 transition-all space-y-2.5 relative overflow-hidden shadow-sm"
+                    style={{ 
+                      backgroundColor: previewMode === 'dark' ? themeCardBgColor : '#ffffff', 
+                      borderColor: previewMode === 'dark' ? themeBorderColor : '#e2e8f0' 
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span 
+                        className="text-[9px] font-extrabold px-2 py-0.5 rounded-md text-white shadow-xs flex items-center gap-1"
+                        style={{ backgroundColor: themeAccent }}
+                      >
+                        <PlayCircle className="w-3 h-3" /> 12 محاضرة • 4 وحدات
+                      </span>
+                      <span className="text-[10px] font-bold opacity-80">الفرقة الثالثة</span>
+                    </div>
+
+                    <h4 className="font-black text-xs sm:text-sm leading-snug">
+                      مقرر البرمجة المتقدمة وهياكل البيانات 2026
+                    </h4>
+                    <p className="text-[11px] opacity-70 line-clamp-2">
+                      شرح عملي ومكثف لجميع المفاهيم مع حلول الامتحانات والتطبيقات البرمجية
+                    </p>
+
+                    <div className="pt-2 flex items-center justify-between border-t border-white/10 dark:border-white/10 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span 
+                          className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md"
+                          style={{ backgroundColor: `${themeAccent}18`, color: themeAccent }}
+                        >
+                          250 EGP
+                        </span>
+                        <span className="text-[10px] opacity-70">متاح لجميع الطلاب</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="px-3 py-1.5 rounded-xl font-bold text-xs text-white shadow-sm transition-all hover:opacity-90 flex items-center gap-1"
+                        style={{ backgroundColor: themeAccent }}
+                      >
+                        <span>دخول المحاضرات</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Course Card 2 */}
+                  <div 
+                    className="rounded-2xl border p-3.5 transition-all space-y-2.5 relative overflow-hidden shadow-sm"
+                    style={{ 
+                      backgroundColor: previewMode === 'dark' ? themeCardBgColor : '#ffffff', 
+                      borderColor: previewMode === 'dark' ? themeBorderColor : '#e2e8f0' 
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span 
+                        className="text-[9px] font-extrabold px-2 py-0.5 rounded-md border flex items-center gap-1"
+                        style={{ 
+                          backgroundColor: `${themeAccent}15`, 
+                          borderColor: `${themeAccent}30`,
+                          color: themeAccent 
+                        }}
+                      >
+                        <Lock className="w-3 h-3" /> كود وصول مطلوب
+                      </span>
+                      <span className="text-[10px] font-bold opacity-80">8 محاضرات • 3 وحدات</span>
+                    </div>
+
+                    <h4 className="font-black text-xs sm:text-sm leading-snug">
+                      نظم قواعد البيانات الموزعة والحوسبة السحابية
+                    </h4>
+                    <p className="text-[11px] opacity-70 line-clamp-1">
+                      محاضرات تفاعلية مصورة ومحمية بتقنية Bunny Stream DRM
+                    </p>
+
+                    <div className="pt-2 flex items-center justify-between border-t border-white/10 dark:border-white/10 text-xs">
+                      <span className="text-[10px] opacity-70">المشاهدات: 3 من 3 متبقية</span>
+                      <button
+                        type="button"
+                        className="px-3 py-1.5 rounded-xl font-bold text-xs text-white shadow-sm transition-all hover:opacity-90"
+                        style={{ backgroundColor: themeAccent }}
+                      >
+                        طلب وصول / كود
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {previewTab === 'collections' && (
+                <div className="space-y-3 animate-in fade-in duration-200">
+                  <div 
+                    className="rounded-2xl border p-3.5 transition-all space-y-2.5 relative overflow-hidden shadow-sm"
+                    style={{ 
+                      backgroundColor: previewMode === 'dark' ? themeCardBgColor : '#ffffff', 
+                      borderColor: previewMode === 'dark' ? themeBorderColor : '#e2e8f0' 
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span 
+                        className="text-[9px] font-extrabold px-2 py-0.5 rounded-md text-white shadow-xs"
+                        style={{ backgroundColor: themeAccent }}
+                      >
+                        حزمة شاملة (Bundle)
+                      </span>
+                      <span 
+                        className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md"
+                        style={{ backgroundColor: `${themeAccent}20`, color: themeAccent }}
+                      >
+                        400 EGP
+                      </span>
+                    </div>
+
+                    <h4 className="font-black text-xs sm:text-sm leading-snug">
+                      سلسلة التفوق الأكاديمي الشاملة (Calculus & Physics)
+                    </h4>
+                    <p className="text-[11px] opacity-70">
+                      تتضمن 2 كورس كامل + 4 ملفات ملخصات PDF + بنك أسئلة شامل
+                    </p>
+
+                    <div className="pt-2 flex items-center justify-between border-t border-white/10 dark:border-white/10 text-xs">
+                      <span className="text-[10px] opacity-70">محتوى مجمع وموفر</span>
+                      <button
+                        type="button"
+                        className="px-3 py-1.5 rounded-xl font-bold text-xs text-white shadow-sm transition-all hover:opacity-90"
+                        style={{ backgroundColor: themeAccent }}
+                      >
+                        عرض محتويات السلسلة
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {previewTab === 'questions' && (
+                <div className="space-y-3 animate-in fade-in duration-200">
+                  <div 
+                    className="rounded-2xl border p-3.5 transition-all space-y-2 relative overflow-hidden shadow-sm flex items-center justify-between gap-3"
+                    style={{ 
+                      backgroundColor: previewMode === 'dark' ? themeCardBgColor : '#ffffff', 
+                      borderColor: previewMode === 'dark' ? themeBorderColor : '#e2e8f0' 
+                    }}
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <span 
+                        className="text-[9px] font-bold px-2 py-0.5 rounded-md border inline-block"
+                        style={{ 
+                          backgroundColor: `${themeAccent}15`, 
+                          borderColor: `${themeAccent}30`,
+                          color: themeAccent 
+                        }}
+                      >
+                        PDF • الفرقة الثالثة
+                      </span>
+                      <h4 className="font-bold text-xs truncate">
+                        بنك أسئلة منتصف الفصل الدراسي مع نموذج الإجابة
+                      </h4>
+                      <p className="text-[10px] opacity-65 truncate">
+                        مرجع رسمي معتمد لامتحانات السنوات السابقة
+                      </p>
+                    </div>
+
                     <button
                       type="button"
-                      className="px-3 py-1.5 rounded-xl font-bold text-xs text-white shadow-md transition-all hover:opacity-90"
+                      className="px-3 py-1.5 rounded-xl font-bold text-xs text-white shadow-sm shrink-0 flex items-center gap-1"
                       style={{ backgroundColor: themeAccent }}
                     >
-                      مشاهدة المحاضرة الآن
+                      <Download className="w-3 h-3" />
+                      <span>تحميل</span>
                     </button>
                   </div>
                 </div>
+              )}
 
-                {/* Profile Badge Mock */}
-                <div 
-                  className="rounded-2xl border p-3.5 flex items-center justify-between"
-                  style={{ backgroundColor: `${themeCardBgColor}cc`, borderColor: themeBorderColor }}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div 
-                      className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm"
-                      style={{ backgroundColor: `${themeAccent}25`, color: themeAccent }}
-                    >
-                      ⭐
+              {previewTab === 'calendar' && (
+                <div className="space-y-3 animate-in fade-in duration-200">
+                  <div 
+                    className="rounded-2xl border p-3.5 transition-all space-y-2 relative overflow-hidden shadow-sm"
+                    style={{ 
+                      backgroundColor: previewMode === 'dark' ? themeCardBgColor : '#ffffff', 
+                      borderColor: previewMode === 'dark' ? themeBorderColor : '#e2e8f0' 
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold" style={{ color: themeAccent }}>
+                        الأحد • 10:00 صباحاً
+                      </span>
+                      <Badge variant="outline" className="text-[9px]">مدرج 3 حاسبات</Badge>
                     </div>
-                    <div>
-                      <span className="text-xs font-bold block">{themeTitle}</span>
-                      <span className="text-[10px] opacity-70">الهوية البصرية المرتبطة لجميع الطلاب</span>
+                    <h4 className="font-bold text-xs">محاضرة نظم التشغيل والبرمجة المتزامنة</h4>
+                    <p className="text-[10px] opacity-70">حضور إلزامي مع مناقشة الشيت الثاني</p>
+                  </div>
+                </div>
+              )}
+
+              {previewTab === 'about' && (
+                <div className="space-y-3 animate-in fade-in duration-200">
+                  <div 
+                    className="rounded-2xl border p-4 transition-all space-y-2.5 relative overflow-hidden shadow-sm"
+                    style={{ 
+                      backgroundColor: previewMode === 'dark' ? themeCardBgColor : '#ffffff', 
+                      borderColor: previewMode === 'dark' ? themeBorderColor : '#e2e8f0' 
+                    }}
+                  >
+                    <h4 className="font-black text-xs sm:text-sm">نبذة الأستاذ الأكاديمية</h4>
+                    <p className="text-[11px] leading-relaxed opacity-80">
+                      {teacherData?.bio || 'أستاذ دكتور في علوم الحاسب وهندسة البرمجيات. خبرة تزيد عن 15 عاماً في تدريس المواد التخصصية وتبسيط المفاهيم المعقدة للطلاب ومتابعة مستمرة عبر المنصة.'}
+                    </p>
+                    <div className="pt-2 border-t border-white/10 dark:border-white/10 flex items-center justify-between text-[10px] opacity-70">
+                      <span>ساعات التواصل المكتبي: الثلاثاء والخميس</span>
+                      <span className="font-bold" style={{ color: themeAccent }}>ملف موثق ومفعل</span>
                     </div>
                   </div>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 </div>
+              )}
+
+              {/* 5. Connected Theme Info Banner */}
+              <div 
+                className="rounded-2xl border p-3 flex items-center justify-between"
+                style={{ 
+                  backgroundColor: previewMode === 'dark' ? `${themeCardBgColor}cc` : '#ffffff', 
+                  borderColor: previewMode === 'dark' ? themeBorderColor : '#e2e8f0' 
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs"
+                    style={{ backgroundColor: `${themeAccent}25`, color: themeAccent }}
+                  >
+                    🎨
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold block">{themeTitle}</span>
+                    <span className="text-[9px] opacity-70">يتم تطبيقه فوراً لجميع طلابك عند حفظ الإعدادات</span>
+                  </div>
+                </div>
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               </div>
 
               {/* Footer Note */}
-              <div className="mt-4 pt-3 border-t border-white/10 text-center">
-                <p className="text-[10px] opacity-60">
-                  سيتم تطبيق هذه الألوان تلقائياً لكل طالب مسجل معك في أي مقرر أو تدريب
+              <div className="pt-2 text-center">
+                <p className="text-[9px] opacity-60">
+                  معاينة طبق الأصل لصفحة بروفايل الدكتور الأكاديمية كما يراها الطالب على الهاتف أو الكمبيوتر
                 </p>
               </div>
             </div>
 
-            {/* Quick Action Button */}
+            {/* Quick Action Save Button */}
             <Button
               onClick={handleSaveTheme}
               disabled={isSaving}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-xs h-12 rounded-2xl shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 !text-white font-extrabold text-xs sm:text-sm h-12 rounded-2xl shadow-xl shadow-emerald-600/25 flex items-center justify-center gap-2"
             >
               <Check className="w-4 h-4" />
               <span>نشر الثيم الآن وتفعيله لطلابي</span>

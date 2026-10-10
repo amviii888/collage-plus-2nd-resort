@@ -182,13 +182,13 @@ function CollectionFormModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-zinc-950 border border-zinc-800 text-white rounded-3xl p-6">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white rounded-3xl p-6 shadow-2xl">
                 <DialogHeader>
-                    <DialogTitle className="text-xl font-bold flex items-center gap-2 text-white">
-                        <Library className="w-5 h-5 text-emerald-400" />
+                    <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+                        <Library className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
                         {collectionToEdit ? 'Edit' : 'Create'} Custom Collection
                     </DialogTitle>
-                    <DialogDescription className="text-xs text-zinc-400">
+                    <DialogDescription className="text-xs text-slate-500 dark:text-zinc-400">
                         Bundle full courses, specific units, hand-picked lessons, and PDF files into a single curated collection.
                     </DialogDescription>
                 </DialogHeader>
@@ -198,9 +198,9 @@ function CollectionFormModal({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <FormField control={form.control} name="title" render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel className="text-xs text-zinc-300">Collection Title</FormLabel>
+                                    <FormLabel className="text-xs font-semibold text-slate-700 dark:text-zinc-300">Collection Title</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g., Ultimate Calculus & Physics Bundle" {...field} className="bg-zinc-900 border-zinc-800 text-white rounded-xl text-xs h-9" />
+                                        <Input placeholder="e.g., Ultimate Calculus & Physics Bundle" {...field} className="bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white rounded-xl text-xs h-9" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -208,9 +208,9 @@ function CollectionFormModal({
 
                             <FormField control={form.control} name="thumbnailUrl" render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel className="text-xs text-zinc-300">Cover Thumbnail URL</FormLabel>
+                                    <FormLabel className="text-xs font-semibold text-slate-700 dark:text-zinc-300">Cover Thumbnail URL</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="https://..." {...field} className="bg-zinc-900 border-zinc-800 text-white rounded-xl text-xs h-9" />
+                                        <Input placeholder="https://..." {...field} className="bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white rounded-xl text-xs h-9" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -219,19 +219,19 @@ function CollectionFormModal({
 
                         <FormField control={form.control} name="description" render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-xs text-zinc-300">Description</FormLabel>
+                                <FormLabel className="text-xs font-semibold text-slate-700 dark:text-zinc-300">Description</FormLabel>
                                 <FormControl>
-                                    <Textarea placeholder="Overview of what students get inside this package..." {...field} className="bg-zinc-900 border-zinc-800 text-white rounded-xl text-xs min-h-[60px]" />
+                                    <Textarea placeholder="Overview of what students get inside this package..." {...field} className="bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white rounded-xl text-xs min-h-[60px]" />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )} />
 
                         {/* Selected Items Summary Bar */}
-                        <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 space-y-3">
+                        <div className="p-4 rounded-2xl bg-slate-50/90 dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 space-y-3">
                             <div className="flex items-center justify-between">
-                                <Label className="text-xs font-bold text-white flex items-center gap-1.5">
-                                    <Sparkles className="w-4 h-4 text-emerald-400" />
+                                <Label className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                    <Sparkles className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
                                     Items In This Collection ({selectedCourseIds.length + customItems.length})
                                 </Label>
                                 <Button 
@@ -239,7 +239,7 @@ function CollectionFormModal({
                                     size="sm" 
                                     variant="outline" 
                                     onClick={() => setShowPdfInput(!showPdfInput)}
-                                    className="h-7 text-xs border-zinc-700 hover:bg-zinc-800 rounded-lg text-emerald-400"
+                                    className="h-7 text-xs border-slate-300 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg text-emerald-600 dark:text-emerald-400 font-semibold"
                                 >
                                     <Plus className="w-3 h-3 mr-1" /> Add PDF File
                                 </Button>
@@ -247,25 +247,25 @@ function CollectionFormModal({
 
                             {/* Add PDF Input drawer */}
                             {showPdfInput && (
-                                <div className="p-3 rounded-xl bg-zinc-950 border border-emerald-500/30 space-y-2 animate-in fade-in-50">
-                                    <p className="text-xs font-semibold text-emerald-400">Add Resource PDF / Document</p>
+                                <div className="p-3 rounded-xl bg-white dark:bg-zinc-950 border border-emerald-500/40 space-y-2 animate-in fade-in-50">
+                                    <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Add Resource PDF / Document</p>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                         <Input 
                                             placeholder="Document Title (e.g. Formula Sheet)" 
                                             value={pdfTitle} 
                                             onChange={(e) => setPdfTitle(e.target.value)}
-                                            className="bg-zinc-900 border-zinc-800 text-xs h-8 rounded-lg"
+                                            className="bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs h-8 rounded-lg"
                                         />
                                         <Input 
                                             placeholder="File URL (Drive, Cloudinary, etc.)" 
                                             value={pdfUrl} 
                                             onChange={(e) => setPdfUrl(e.target.value)}
-                                            className="bg-zinc-900 border-zinc-800 text-xs h-8 rounded-lg"
+                                            className="bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs h-8 rounded-lg"
                                         />
                                     </div>
                                     <div className="flex justify-end gap-2 pt-1">
-                                        <Button type="button" size="sm" variant="ghost" onClick={() => setShowPdfInput(false)} className="h-7 text-xs">Cancel</Button>
-                                        <Button type="button" size="sm" onClick={handleAddPdf} className="h-7 text-xs bg-emerald-500 hover:bg-emerald-600 text-black font-bold">Add to Collection</Button>
+                                        <Button type="button" size="sm" variant="ghost" onClick={() => setShowPdfInput(false)} className="h-7 text-xs text-slate-600 dark:text-zinc-400">Cancel</Button>
+                                        <Button type="button" size="sm" onClick={handleAddPdf} className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 !text-white font-bold">Add to Collection</Button>
                                     </div>
                                 </div>
                             )}
@@ -277,11 +277,11 @@ function CollectionFormModal({
                                         <Badge 
                                             key={item.id} 
                                             variant="outline" 
-                                            className="bg-zinc-950 border-zinc-700 text-zinc-200 text-xs py-1 px-2.5 flex items-center gap-1.5 rounded-lg"
+                                            className="bg-white dark:bg-zinc-950 border-slate-300 dark:border-zinc-700 text-slate-800 dark:text-zinc-200 text-xs py-1 px-2.5 flex items-center gap-1.5 rounded-lg font-medium shadow-sm"
                                         >
-                                            {item.type === 'lesson' && <Film className="w-3 h-3 text-emerald-400 shrink-0" />}
-                                            {item.type === 'unit' && <Layers className="w-3 h-3 text-blue-400 shrink-0" />}
-                                            {item.type === 'file' && <FileText className="w-3 h-3 text-amber-400 shrink-0" />}
+                                            {item.type === 'lesson' && <Film className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />}
+                                            {item.type === 'unit' && <Layers className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />}
+                                            {item.type === 'file' && <FileText className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />}
                                             <span className="truncate max-w-[200px]">
                                                 {item.type === 'lesson' ? `${item.videoTitle} (${item.courseTitle})` :
                                                  item.type === 'unit' ? `${item.unitTitle} (${item.courseTitle})` :
@@ -290,7 +290,7 @@ function CollectionFormModal({
                                             <button 
                                                 type="button" 
                                                 onClick={() => handleRemoveCustomItem(item.id)}
-                                                className="text-zinc-500 hover:text-rose-400 ml-1"
+                                                className="text-slate-400 hover:text-rose-600 dark:text-zinc-500 dark:hover:text-rose-400 ml-1"
                                             >
                                                 <X className="w-3 h-3" />
                                             </button>
@@ -302,18 +302,18 @@ function CollectionFormModal({
 
                         {/* Interactive Course & Unit & Lesson Picker */}
                         <div className="space-y-2">
-                            <Label className="text-xs font-semibold text-zinc-300">
+                            <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200">
                                 Select Full Courses, Specific Units, or Individual Lessons
                             </Label>
                             
-                            <ScrollArea className="h-64 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-3">
+                            <ScrollArea className="h-64 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-900/50 p-3">
                                 <div className="space-y-3">
                                     {courses.map((course) => {
                                         const isWholeCourseSelected = selectedCourseIds.includes(course.id);
                                         const units = course.units || (course.videos ? [{ id: 'u1', title: 'Main Unit', videos: course.videos }] : []);
 
                                         return (
-                                            <div key={course.id} className="p-3 rounded-xl bg-zinc-950/70 border border-zinc-800/80 space-y-2">
+                                            <div key={course.id} className="p-3 rounded-xl bg-white dark:bg-zinc-950/70 border border-slate-200 dark:border-zinc-800/80 space-y-2 shadow-xs">
                                                 <div className="flex items-center justify-between gap-2">
                                                     <div className="flex items-center space-x-2">
                                                         <Checkbox
@@ -327,7 +327,7 @@ function CollectionFormModal({
                                                                 }
                                                             }}
                                                         />
-                                                        <Label htmlFor={`course-${course.id}`} className="font-bold text-xs text-white cursor-pointer">
+                                                        <Label htmlFor={`course-${course.id}`} className="font-bold text-xs text-slate-900 dark:text-white cursor-pointer">
                                                             {course.title}
                                                         </Label>
                                                     </div>
@@ -394,10 +394,10 @@ function CollectionFormModal({
                         </div>
 
                         <DialogFooter className="pt-2">
-                            <Button type="button" variant="ghost" onClick={onClose} className="text-zinc-400 hover:text-white text-xs">
+                            <Button type="button" variant="ghost" onClick={onClose} className="text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white text-xs">
                                 Cancel
                             </Button>
-                            <Button type="submit" disabled={isSubmitting} className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs rounded-xl px-5">
+                            <Button type="submit" disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 !text-white font-bold text-xs rounded-xl px-5 shadow-sm">
                                 {isSubmitting ? 'Saving...' : 'Save Collection'}
                             </Button>
                         </DialogFooter>

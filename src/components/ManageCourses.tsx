@@ -1,8 +1,9 @@
 'use client';
 
+import '@/lib/zod-compat';
+import { safeZodResolver } from '@/lib/zod-compat';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useForm, Controller, useFieldArray, FormProvider } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
 import {
@@ -65,6 +66,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { uploadImageToCloudinary } from '@/lib/cloudinary';
 import { isBunnyStreamUrl } from '@/lib/bunnyStream';
+import { BunnyVideoUploader } from '@/components/BunnyVideoUploader';
 
 function cleanFirestorePayload(obj: any): any {
   if (obj === undefined) return undefined;
@@ -114,93 +116,158 @@ const courseSchema = z.object({
 
 type CourseFormValues = z.infer<typeof courseSchema>;
 
-function NestedVideoArray({ unitIndex, control, register, errors, watch }: any) {
+function NestedVideoArray({ unitIndex, control, register, errors, watch, setValue }: any) {
   const { fields, append, remove } = useFieldArray({
     control,
     name: `units.${unitIndex}.videos`,
   });
 
+  const [activeUploadIndex, setActiveUploadIndex] = useState<number | null>(null);
+
+  const handleAddNewAndUpload = () => {
+    const newId = uuidv4();
+    append({ id: newId, title: '', url: '' });
+    setActiveUploadIndex(fields.length);
+  };
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-3.5">
       {fields.map((item, videoIndex) => {
         const videoUrlVal = watch(`units.${unitIndex}.videos.${videoIndex}.url`);
+        const videoTitleVal = watch(`units.${unitIndex}.videos.${videoIndex}.title`);
         const isBunny = isBunnyStreamUrl(videoUrlVal || '');
+        const isUploaderOpen = activeUploadIndex === videoIndex;
 
         return (
           <div
             key={item.id}
-            className="flex flex-col md:flex-row items-start md:items-center gap-3 p-3.5 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 transition-all hover:border-zinc-700"
+            className="flex flex-col gap-2.5 p-3.5 rounded-2xl bg-zinc-900/80 border border-zinc-800/80 transition-all hover:border-zinc-700"
           >
-            <div className="flex items-center gap-2 text-zinc-400 font-mono text-xs shrink-0">
-              <Film className="w-4 h-4 text-emerald-400" />
-              <span>#{videoIndex + 1}</span>
-            </div>
-
-            <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-2.5 w-full">
-              <div>
-                <Input
-                  {...register(`units.${unitIndex}.videos.${videoIndex}.title`)}
-                  placeholder={`Lecture / Lesson ${videoIndex + 1} Title`}
-                  className="bg-white dark:bg-zinc-950/60 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-sm h-9"
-                />
-                {errors.units?.[unitIndex]?.videos?.[videoIndex]?.title && (
-                  <p className="text-rose-500 text-xs mt-1">
-                    {errors.units[unitIndex]!.videos![videoIndex]!.title!.message}
-                  </p>
-                )}
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-3 w-full">
+              <div className="flex items-center gap-2 text-zinc-400 font-mono text-xs shrink-0">
+                <Film className="w-4 h-4 text-emerald-400" />
+                <span>#{videoIndex + 1}</span>
               </div>
 
-              <div>
-                <div className="relative">
+              <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-2.5 w-full">
+                <div>
                   <Input
-                    {...register(`units.${unitIndex}.videos.${videoIndex}.url`)}
-                    placeholder="Bunny Video ID, Bunny Stream URL, or YouTube"
-                    className="bg-white dark:bg-zinc-950/60 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-sm h-9 pr-24"
+                    {...register(`units.${unitIndex}.videos.${videoIndex}.title`)}
+                    placeholder={`عنوان المحاضرة / الدرس ${videoIndex + 1}`}
+                    className="bg-white dark:bg-zinc-950/60 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-sm h-9"
                   />
-                  {videoUrlVal && (
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2">
-                      {isBunny ? (
-                        <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] py-0 px-1.5 flex items-center gap-1">
-                          <ShieldCheck className="w-3 h-3" /> Bunny DRM
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 text-[10px] py-0 px-1.5">
-                          External
-                        </Badge>
-                      )}
-                    </span>
+                  {errors.units?.[unitIndex]?.videos?.[videoIndex]?.title && (
+                    <p className="text-rose-500 text-xs mt-1">
+                      {errors.units[unitIndex]!.videos![videoIndex]!.title!.message}
+                    </p>
                   )}
                 </div>
-                {errors.units?.[unitIndex]?.videos?.[videoIndex]?.url && (
-                  <p className="text-rose-500 text-xs mt-1">
-                    {errors.units[unitIndex]!.videos![videoIndex]!.url!.message}
-                  </p>
-                )}
+
+                <div>
+                  <div className="relative flex items-center gap-1.5">
+                    <div className="relative flex-1">
+                      <Input
+                        {...register(`units.${unitIndex}.videos.${videoIndex}.url`)}
+                        placeholder="Bunny Video ID, Bunny Stream URL, or YouTube"
+                        className="bg-white dark:bg-zinc-950/60 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-sm h-9 pr-24"
+                      />
+                      {videoUrlVal && (
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2">
+                          {isBunny ? (
+                            <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] py-0 px-1.5 flex items-center gap-1">
+                              <ShieldCheck className="w-3 h-3" /> Bunny DRM
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 text-[10px] py-0 px-1.5">
+                              External
+                            </Badge>
+                          )}
+                        </span>
+                      )}
+                    </div>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setActiveUploadIndex(isUploaderOpen ? null : videoIndex)}
+                      className={`h-9 px-3 rounded-xl font-bold text-xs shrink-0 flex items-center gap-1.5 transition-all shadow-sm ${
+                        isUploaderOpen
+                          ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/40'
+                      }`}
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">
+                        {isUploaderOpen ? 'إغلاق الرفع' : 'رفع من الهاتف'}
+                      </span>
+                    </Button>
+                  </div>
+                  {errors.units?.[unitIndex]?.videos?.[videoIndex]?.url && (
+                    <p className="text-rose-500 text-xs mt-1">
+                      {errors.units[unitIndex]!.videos![videoIndex]!.url!.message}
+                    </p>
+                  )}
+                </div>
               </div>
+
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-9 w-9 text-slate-400 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 shrink-0 self-end md:self-center"
+                onClick={() => {
+                  if (activeUploadIndex === videoIndex) setActiveUploadIndex(null);
+                  remove(videoIndex);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             </div>
 
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-9 w-9 text-slate-400 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 shrink-0 self-end md:self-center"
-              onClick={() => remove(videoIndex)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            {/* Embedded Bunny Video Uploader if activated for this row */}
+            {isUploaderOpen && (
+              <div className="mt-2 pt-2 border-t border-zinc-800/80">
+                <BunnyVideoUploader
+                  initialTitle={videoTitleVal || ''}
+                  onUploadSuccess={(result) => {
+                    // 1. Auto fill title if empty
+                    if (!videoTitleVal || videoTitleVal.trim() === '') {
+                      setValue?.(`units.${unitIndex}.videos.${videoIndex}.title`, result.title, { shouldDirty: true, shouldTouch: true, shouldValidate: false });
+                    }
+                    // 2. Auto fill URL with Bunny ID format
+                    setValue?.(`units.${unitIndex}.videos.${videoIndex}.url`, `bunny:${result.videoId}`, { shouldDirty: true, shouldTouch: true, shouldValidate: false });
+                    // Keep uploader open to see finished state / preview, user can close when ready
+                  }}
+                  onCancel={() => setActiveUploadIndex(null)}
+                />
+              </div>
+            )}
           </div>
         );
       })}
 
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        className="border-dashed border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900/30 hover:bg-slate-50 dark:hover:bg-zinc-900 text-xs text-slate-700 dark:text-zinc-300"
-        onClick={() => append({ id: uuidv4(), title: '', url: '' })}
-      >
-        <PlusCircle className="mr-2 h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" /> Add Video / Lecture
-      </Button>
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <Button
+          type="button"
+          size="sm"
+          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-950/40 flex items-center gap-1.5"
+          onClick={handleAddNewAndUpload}
+        >
+          <Upload className="w-3.5 h-3.5" />
+          <span>⚡ رفع درس فيديو جديد من الهاتف (Direct Phone Upload)</span>
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="border-dashed border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900/30 hover:bg-slate-50 dark:hover:bg-zinc-900 text-xs text-slate-700 dark:text-zinc-300"
+          onClick={() => append({ id: uuidv4(), title: '', url: '' })}
+        >
+          <PlusCircle className="mr-1.5 h-3.5 w-3.5 text-zinc-400" />
+          <span>إضافة خانة درس يدوياً</span>
+        </Button>
+      </div>
 
       {errors.units?.[unitIndex]?.videos && typeof errors.units[unitIndex].videos !== 'string' && (
         <p className="text-rose-500 text-xs">{errors.units[unitIndex].videos?.message}</p>
@@ -287,7 +354,7 @@ function CourseForm({
       };
 
   const form = useForm<CourseFormValues>({
-    resolver: zodResolver(courseSchema),
+    resolver: safeZodResolver(courseSchema),
     defaultValues: defaultValues,
   });
 
@@ -1004,6 +1071,7 @@ function CourseForm({
                       register={register}
                       errors={errors}
                       watch={watch}
+                      setValue={setValue}
                     />
                   </CollapsibleContent>
                 </Collapsible>

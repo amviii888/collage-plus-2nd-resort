@@ -85,20 +85,20 @@ export default function TeacherSignupContactPage() {
           <CardContent className="space-y-4 pt-2">
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <a 
-                href="https://wa.me/201201402632" 
+                href="https://wa.me/201201921424" 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="flex items-center justify-center gap-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white p-3.5 rounded-xl transition-all font-bold text-sm shadow-md shadow-blue-500/20 flex-1"
               >
                 <MessageCircle className="w-4 h-4" />
-                <span>WhatsApp: 01201402632</span>
+                <span>WhatsApp: 01201921424</span>
               </a>
               <a 
-                href="tel:01201402632" 
+                href="tel:01201921424" 
                 className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white p-3.5 rounded-xl transition-all font-bold text-sm shadow-xs flex-1"
               >
                 <Phone className="w-4 h-4" />
-                <span>Call: 01201402632</span>
+                <span>Call: 01201921424</span>
               </a>
             </div>
 

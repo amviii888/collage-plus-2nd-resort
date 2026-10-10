@@ -96,10 +96,10 @@ export default function TeacherPhotosMarketingPage() {
       });
 
       // 2. Open WhatsApp Redirect
-      const whatsAppNumber = '201201402632';
+      const whatsAppNumber = '201201921424';
       const priceText = photoConfig.showPrices ? ` (£${selectedPkg.price})` : '';
       const textMessage = `Hi! I am ${teacherName}, and I am interested in booking the "${selectedPkg.title}" photography package${priceText}. Please let me know your available times for a shoot!`;
-      const whatsAppUrl = `https://wa.me/201201402632?text=${encodeURIComponent(textMessage)}`;
+      const whatsAppUrl = `https://wa.me/201201921424?text=${encodeURIComponent(textMessage)}`;
 
       toast({
         title: t('Inquiry Logged'),
@@ -201,7 +201,7 @@ export default function TeacherPhotosMarketingPage() {
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-11 px-6 font-bold border-zinc-700 bg-background/50 hover:bg-accent">
-              <a href="https://wa.me/201201402632?text=Hi!%20I%20am%20interested%20in%20early%20access%20to%20the%20Photo%20and%20Branding%20packages." target="_blank" rel="noopener noreferrer">
+              <a href="https://wa.me/201201921424?text=Hi!%20I%20am%20interested%20in%20early%20access%20to%20the%20Photo%20and%20Branding%20packages." target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="mr-2 h-4 w-4 text-emerald-500" />
                 {t('Inquire on WhatsApp')}
               </a>

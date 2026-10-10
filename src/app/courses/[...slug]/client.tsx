@@ -22,7 +22,7 @@ import { UnlockCourseDialog } from '@/components/UnlockCourseDialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { parseVideoSource, type ParsedVideoSource } from '@/lib/bunnyStream';
+import { parseVideoSource, isBunnyStreamUrl, type ParsedVideoSource } from '@/lib/bunnyStream';
 
 
 const CourseComments = lazy(() => import('@/components/CourseComments').then(module => ({ default: module.CourseComments })));
@@ -342,6 +342,8 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
 
     const [isUnlockOpen, setUnlockOpen] = useState(false);
     const [isHomeworkOpen, setIsHomeworkOpen] = useState(false);
+    const [signedEmbedUrl, setSignedEmbedUrl] = useState<string | null>(null);
+    const [useModernPlayer, setUseModernPlayer] = useState(false);
     const viewCountIncremented = useRef(false);
     
     // Realtime data hooks
@@ -477,6 +479,34 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
 
     const currentVideo = useMemo(() => flatVideos.find(v => v.id === currentVideoId) || flatVideos[0] || null, [flatVideos, currentVideoId]);
     const embedUrl = getVideoEmbedUrl(currentVideo?.url || '');
+    const isCurrentVideoBunny = useMemo(() => isBunnyStreamUrl(currentVideo?.url || ''), [currentVideo?.url]);
+
+    useEffect(() => {
+        if (!currentVideo?.url) {
+            setSignedEmbedUrl(null);
+            return;
+        }
+
+        const isBunny = isBunnyStreamUrl(currentVideo.url);
+        if (!isBunny) {
+            setSignedEmbedUrl(null);
+            return;
+        }
+
+        const parsed = parseVideoSource(currentVideo.url);
+        if (parsed?.videoId) {
+            fetch(`/api/bunny/player-token?videoId=${parsed.videoId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data?.success) {
+                        setSignedEmbedUrl(useModernPlayer ? data.modernEmbedUrl : data.embedUrl);
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [currentVideo?.url, useModernPlayer]);
+
+    const effectiveEmbedUrl = signedEmbedUrl || embedUrl;
 
     const { data: history, isLoading: isHistoryLoading } = useDoc<WatchHistory>(useMemoFirebase(() => {
         const targetId = activeStudentId || user?.uid;
@@ -802,15 +832,16 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                 )}
                             </div>
                             <div className="relative w-full aspect-video bg-black flex-shrink-0 overflow-hidden">
-                                {embedUrl ? (
+                                {effectiveEmbedUrl ? (
                                     <>
                                         <iframe
                                             className="relative z-0"
                                             width="100%"
                                             height="100%"
-                                            src={embedUrl}
+                                            src={effectiveEmbedUrl}
                                             title={title}
                                             frameBorder="0"
+                                            referrerPolicy="strict-origin-when-cross-origin"
                                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                             allowFullScreen
                                         ></iframe>
@@ -820,6 +851,43 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                     <div className="w-full h-full flex items-center justify-center text-destructive-foreground bg-destructive">Invalid Video URL</div>
                                 )}
                             </div>
+                            {isCurrentVideoBunny && (
+                                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 bg-zinc-950/95 border-b border-zinc-800 text-[11px] text-zinc-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                                        <span className="font-semibold text-zinc-300">سيرفر Bunny Stream</span>
+                                        {useModernPlayer ? (
+                                            <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-400">Modern Player v2</Badge>
+                                        ) : (
+                                            <Badge variant="outline" className="text-[10px] border-zinc-700 text-zinc-400">Standard Embed</Badge>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 px-2 text-[10px] text-zinc-300 hover:text-white hover:bg-zinc-800"
+                                            onClick={() => setUseModernPlayer(prev => !prev)}
+                                        >
+                                            {useModernPlayer ? 'تبديل للمشغل الكلاسيكي' : 'تبديل للمشغل الحديث v2'}
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 px-2 text-[10px] text-amber-400 hover:text-amber-300 hover:bg-amber-950/30"
+                                            onClick={() => {
+                                                toast({
+                                                    title: '💡 تنبيه أمان Bunny.net (حل شاشة 403)',
+                                                    description: 'إذا ظهرت شاشة 403، يرجى الدخول إلى حساب Bunny.net > Stream > Library #775464 > Security والتأكد من إضافة نطاق الموقع إلى Allowed Referrers أو إيقاف Embed view token authentication.',
+                                                    duration: 9000,
+                                                });
+                                            }}
+                                        >
+                                            ⚠️ يظهر خطأ 403؟
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 

@@ -1,4 +1,5 @@
 import './globals.css';
+import '@/lib/zod-compat';
 import type { Metadata } from 'next';
 import { Inter, Syne, Space_Mono } from 'next/font/google';
 import { Providers } from '@/components/providers';

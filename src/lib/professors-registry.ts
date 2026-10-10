@@ -474,7 +474,7 @@ export async function resolveProfessorFromCloudOrLocal(
           studentsCount: data.studentsCount || 100,
           descriptionAr: data.descriptionAr || `البوابة الأكاديمية الرسمية لمحاضرات ${data.name}.`,
           descriptionEn: data.descriptionEn || `Official academic portal for ${data.name}.`,
-          assignedThemeId: data.assignedThemeId || 'default'
+          assignedThemeId: data.assignedThemeId || data.customTheme?.themeClass || 'default'
         };
         saveAdminTeacherCodeMapping(prof);
         return prof;
@@ -534,7 +534,7 @@ export async function resolveProfessorFromCloudOrLocal(
           studentsCount: 100,
           descriptionAr: `البوابة الأكاديمية الرسمية لمحاضرات ${tDoc.name}.`,
           descriptionEn: `Official academic portal for ${tDoc.name}.`,
-          assignedThemeId: tDoc.assignedThemeId || 'default'
+          assignedThemeId: tDoc.assignedThemeId || tDoc.customTheme?.themeClass || 'default'
         };
         saveAdminTeacherCodeMapping(prof);
         return prof;

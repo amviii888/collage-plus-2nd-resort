@@ -17,7 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { CourseCard } from '@/components/CourseCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Briefcase, BookOpen, Calendar, Shield, Info, Edit, Settings, Star, Eye, ArrowLeft, Library, FileText, Clock, HelpCircle, Copy, Check, Share2, Award, Sparkles, GraduationCap, Palette } from 'lucide-react';
+import { Briefcase, BookOpen, Calendar, Shield, Info, Edit, Settings, Star, Eye, ArrowLeft, Library, FileText, Clock, HelpCircle, Copy, Check, Share2, Award, Sparkles, GraduationCap, Palette, Key } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -468,12 +468,20 @@ export default function TeacherProfilePage() {
 
                     <div className="flex items-center gap-2 flex-wrap">
                         {isOwner && (
-                            <Button asChild size="sm" variant="outline" className="rounded-2xl border-purple-500/40 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 text-xs font-bold gap-2">
-                                <Link href={`/teacher/theme?id=${teacher.id}`}>
-                                    <Palette className="w-3.5 h-3.5" />
-                                    <span>استوديو الثيم المخصص</span>
-                                </Link>
-                            </Button>
+                            <>
+                                <Button asChild size="sm" variant="outline" className="rounded-2xl border-purple-500/40 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 text-xs font-bold gap-2">
+                                    <Link href={`/teacher/theme?id=${teacher.id}`}>
+                                        <Palette className="w-3.5 h-3.5" />
+                                        <span>استوديو الثيم المخصص</span>
+                                    </Link>
+                                </Button>
+                                <Button asChild size="sm" variant="outline" className="rounded-2xl border-blue-500/40 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 text-xs font-bold gap-2">
+                                    <Link href="/teacher/profile-edit">
+                                        <Key className="w-3.5 h-3.5" />
+                                        <span>{doctorCode ? 'تعديل كود الدكتور' : 'تعيين كود الدكتور للطلاب'}</span>
+                                    </Link>
+                                </Button>
+                            </>
                         )}
 
                         {doctorCode && (

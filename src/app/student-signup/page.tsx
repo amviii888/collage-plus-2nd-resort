@@ -24,10 +24,19 @@ import {
   Sun,
   Moon,
   CheckCircle,
-  Loader2
+  Loader2,
+  MessageCircle,
+  Copy,
+  Check,
+  QrCode,
+  ShieldCheck,
+  RefreshCw,
+  ExternalLink,
+  Edit2
 } from 'lucide-react';
 import { useAuth, useFirestore, useUser } from '@/firebase';
-import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { setDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { QRCodeSVG } from 'qrcode.react';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -258,9 +267,121 @@ export default function StudentSignupPage() {
   const [resolvedProfessor, setResolvedProfessor] = useState<any | null>(null);
   const [isCheckingProfCode, setIsCheckingProfCode] = useState<boolean>(false);
 
+  // WhatsApp Real-Time Verification State
+  const [phoneInput, setPhoneInput] = useState<string>('');
+  const [verificationCode, setVerificationCode] = useState<string>('');
+  const [isPhoneVerified, setIsPhoneVerified] = useState<boolean>(false);
+  const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useState<string>('');
+  const [botPhone, setBotPhone] = useState<string>('201201921424');
+  const [isEditingBotPhone, setIsEditingBotPhone] = useState<boolean>(false);
+  const [tempBotPhone, setTempBotPhone] = useState<string>('201201921424');
+  const [showQrCode, setShowQrCode] = useState<boolean>(false);
+  const [copiedCode, setCopiedCode] = useState<boolean>(false);
+
   useEffect(() => {
     setHasMounted(true);
   }, []);
+
+  // Initialize bot phone and code from storage/generator
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedBotPhone = localStorage.getItem('mol5saty_bot_phone');
+      const activeBotPhone = (savedBotPhone && savedBotPhone !== '201201402632') ? savedBotPhone : '201201921424';
+      setBotPhone(activeBotPhone);
+      setTempBotPhone(activeBotPhone);
+      localStorage.setItem('mol5saty_bot_phone', activeBotPhone);
+    }
+    if (!verificationCode) {
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setVerificationCode(code);
+    }
+  }, [verificationCode]);
+
+  // Real-time Firestore listener on `phone_verifications/${verificationCode}`
+  useEffect(() => {
+    if (!verificationCode || !firestore || isPhoneVerified) return;
+
+    try {
+      const unsub = onSnapshot(doc(firestore, 'phone_verifications', verificationCode), (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          if (data && data.verified) {
+            setIsPhoneVerified(true);
+            const rawPhone = data.phoneNumber || '';
+            setVerifiedPhoneNumber(rawPhone);
+
+            // Normalize Egyptian phone format for the field display
+            const clean = rawPhone.replace(/\s+/g, '');
+            const localNum = clean.startsWith('+20')
+              ? '0' + clean.slice(3)
+              : (clean.startsWith('20') ? '0' + clean.slice(2) : clean);
+            if (localNum.startsWith('01') && localNum.length === 11) {
+              setPhoneInput(localNum);
+            } else if (!phoneInput) {
+              setPhoneInput(clean);
+            }
+
+            toast({
+              title: isArabic ? '✅ تم تأكيد رقم هاتفك بنجاح!' : '✅ Phone Verified Successfully!',
+              description: isArabic
+                ? `تم استلام رسالة التفعيل وتأكيد الرقم [ ${rawPhone} ] بنجاح.`
+                : `Verification received! Phone [ ${rawPhone} ] is verified.`,
+              duration: 8000,
+            });
+          }
+        }
+      }, (err) => {
+        console.warn("Verification listener notice:", err);
+      });
+
+      return () => unsub();
+    } catch (err) {
+      console.warn("Snapshot setup notice:", err);
+    }
+  }, [verificationCode, firestore, isPhoneVerified, isArabic, phoneInput, toast]);
+
+  const handleRegenerateCode = () => {
+    const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+    setVerificationCode(newCode);
+    setIsPhoneVerified(false);
+    setVerifiedPhoneNumber('');
+    toast({
+      title: isArabic ? 'كود تحقق جديد' : 'New Verification Code',
+      description: isArabic ? `تم إنشاء كود جديد: VERIFY-${newCode}` : `Generated code: VERIFY-${newCode}`
+    });
+  };
+
+  const handleCopyCode = () => {
+    const text = `VERIFY-${verificationCode}`;
+    navigator.clipboard.writeText(text);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2500);
+    toast({
+      title: isArabic ? 'تم نسخ كود التفعيل' : 'Code Copied',
+      description: text
+    });
+  };
+
+  const handleSaveBotPhone = () => {
+    const clean = tempBotPhone.replace(/[^\d]/g, '');
+    if (clean.length >= 8) {
+      setBotPhone(clean);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('mol5saty_bot_phone', clean);
+      }
+      setIsEditingBotPhone(false);
+      toast({
+        title: isArabic ? 'تم حفظ رقم البوت' : 'Bot Phone Saved',
+        description: isArabic ? `رقم هاتف البوت المعتمد: ${clean}` : `Bot number set to: ${clean}`
+      });
+    } else {
+      toast({
+        variant: 'destructive',
+        title: isArabic ? 'رقم غير صحيح' : 'Invalid Number',
+        description: isArabic ? 'يرجى إدخال رقم صحيح مع كود الدولة.' : 'Please enter a valid phone number.'
+      });
+    }
+  };
 
   // Live real-time check for doctor code as student types (2 to 4 letters)
   useEffect(() => {
@@ -305,7 +426,7 @@ export default function StudentSignupPage() {
     const formData = new FormData(event.currentTarget);
     const name = (formData.get('name') as string || '').trim();
     const age = (formData.get('age') as string || '').trim();
-    const phone = (formData.get('phone') as string || '').trim();
+    const phone = (phoneInput || (formData.get('phone') as string) || '').trim();
     const professorCode = (formData.get('professorCode') as string || professorCodeInput || '').trim().toUpperCase();
     const password = formData.get('password') as string;
 
@@ -317,7 +438,15 @@ export default function StudentSignupPage() {
     if (!age || Number(age) < 16 || Number(age) > 65) {
       currentErrors.age = [isArabic ? 'يرجى إدخال عمر جامعي صحيح (16-65 سنة).' : 'Please enter a valid college age.'];
     }
-    if (!/^01\d{9}$/.test(phone)) {
+    
+    // Strict WhatsApp Verification Requirement:
+    if (!isPhoneVerified) {
+      currentErrors.phone = [
+        isArabic 
+          ? '🔒 يجب إرسال كود التفعيل عبر واتساب وتأكيد رقم هاتفك أولاً للمتابعة.' 
+          : '🔒 WhatsApp phone verification is strictly required before registering.'
+      ];
+    } else if (!/^01\d{9}$/.test(phone) && !phone.startsWith('+')) {
       currentErrors.phone = [isArabic ? 'رقم الهاتف يجب أن يتكون من 11 رقماً ويبدأ بـ 01.' : 'Phone number must be 11 digits starting with 01.'];
     }
     if (!governorate) {
@@ -459,12 +588,17 @@ export default function StudentSignupPage() {
       }
 
       // 2. Persist student profile document in Firestore
+      const finalVerifiedPhone = (verifiedPhoneNumber || phone).trim();
       const studentData = {
         id: studentId,
         barcodeId,
         name,
         age: Number(age),
-        phoneNumber: phone,
+        phoneNumber: finalVerifiedPhone,
+        isPhoneVerified: true,
+        verifiedPhoneNumber: finalVerifiedPhone,
+        phoneVerificationToken: verificationCode,
+        phoneVerifiedAt: serverTimestamp(),
         governorate: governorateName,
         university,
         facultyCategory,
@@ -489,6 +623,9 @@ export default function StudentSignupPage() {
         email: `${barcodeId}@mol5saty.student`,
         role: 'student',
         barcodeId,
+        phoneNumber: finalVerifiedPhone,
+        isPhoneVerified: true,
+        verifiedPhoneNumber: finalVerifiedPhone,
         governorate: governorateName,
         university,
         facultyCategory,
@@ -510,6 +647,16 @@ export default function StudentSignupPage() {
       if (matchedProfessor) {
         addProfessorCodeToStudent(studentId, professorCode);
         setActiveProfessorBranding(matchedProfessor, studentId);
+        const profTheme = matchedProfessor.assignedThemeId || 'default';
+        if (profTheme && profTheme !== 'default') {
+          localStorage.setItem('student-equipped-theme-' + studentId, profTheme);
+          localStorage.setItem('app_active_global_theme', profTheme);
+          try {
+            await setDoc(doc(firestore, 'students', studentId, 'customizations', 'profile'), {
+              equippedTheme: profTheme
+            }, { merge: true });
+          } catch (e) {}
+        }
       }
 
       toast({
@@ -595,8 +742,8 @@ export default function StudentSignupPage() {
               {errors.name && <p className="text-xs text-red-500">{errors.name[0]}</p>}
             </div>
 
-            {/* Age, Phone & Governorate Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            {/* Age & Governorate Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div className="space-y-1.5">
                 <Label htmlFor="age" className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-[#2563eb]" />
@@ -613,23 +760,6 @@ export default function StudentSignupPage() {
                   className="h-11 rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#0f172a] dark:text-white focus:border-[#2563eb] focus:ring-[#2563eb] text-sm"
                 />
                 {errors.age && <p className="text-xs text-red-500">{errors.age[0]}</p>}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="phone" className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Phone className="w-3.5 h-3.5 text-[#2563eb]" />
-                  <span>{isArabic ? 'رقم الهاتف *' : 'Phone *'}</span>
-                </Label>
-                <Input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  required
-                  placeholder="01xxxxxxxxx"
-                  className="h-11 rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#0f172a] dark:text-white focus:border-[#2563eb] focus:ring-[#2563eb] text-sm font-mono"
-                  dir="ltr"
-                />
-                {errors.phone && <p className="text-xs text-red-500">{errors.phone[0]}</p>}
               </div>
 
               <div className="space-y-1.5">
@@ -651,6 +781,232 @@ export default function StudentSignupPage() {
                 </Select>
                 {errors.governorate && <p className="text-xs text-red-500">{errors.governorate[0]}</p>}
               </div>
+            </div>
+
+            {/* Dedicated WhatsApp Phone Verification Card */}
+            <div className={`rounded-2xl border transition-all p-4 space-y-3 ${
+              isPhoneVerified 
+                ? 'bg-emerald-500/10 border-emerald-500/30 dark:bg-emerald-950/25 dark:border-emerald-500/40' 
+                : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800'
+            }`}>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="phone" className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-[#2563eb]" />
+                  <span>{isArabic ? 'رقم الهاتف وتأكيد واتساب *' : 'Phone & WhatsApp Verification *'}</span>
+                </Label>
+
+                {isPhoneVerified ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>{isArabic ? 'تم التحقق بنجاح ✅' : 'Verified ✅'}</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold">
+                    <Lock className="w-3 h-3" />
+                    <span>{isArabic ? 'يلزم التحقق' : 'Verification Required'}</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Phone Input */}
+              <div className="space-y-1">
+                <div className="relative">
+                  <Input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    required
+                    readOnly={isPhoneVerified}
+                    value={phoneInput}
+                    onChange={(e) => setPhoneInput(e.target.value)}
+                    placeholder="01xxxxxxxxx"
+                    className={`h-11 rounded-xl text-sm font-mono tracking-wider transition-all ${
+                      isPhoneVerified
+                        ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 font-bold'
+                        : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#0f172a] dark:text-white'
+                    }`}
+                    dir="ltr"
+                  />
+                  {isPhoneVerified && (
+                    <div className="absolute inset-y-0 right-0 rtl:left-0 rtl:right-auto px-3 flex items-center text-emerald-600">
+                      <CheckCircle className="w-5 h-5" />
+                    </div>
+                  )}
+                </div>
+                {errors.phone && <p className="text-xs text-red-500 font-semibold">{errors.phone[0]}</p>}
+              </div>
+
+              {/* Verified Badge / Details */}
+              {isPhoneVerified ? (
+                <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-emerald-800 dark:text-emerald-200">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span>
+                      {isArabic 
+                        ? `تم توثيق الرقم [ ${verifiedPhoneNumber || phoneInput} ] وتأكيده بنجاح.` 
+                        : `Number [ ${verifiedPhoneNumber || phoneInput} ] verified via WhatsApp.`}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPhoneVerified(false);
+                      setVerifiedPhoneNumber('');
+                      handleRegenerateCode();
+                    }}
+                    className="text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline self-end sm:self-auto cursor-pointer"
+                  >
+                    {isArabic ? 'تغيير الرقم' : 'Change Number'}
+                  </button>
+                </div>
+              ) : (
+                /* Unverified: Interactive WhatsApp Step */
+                <div className="rounded-2xl bg-white dark:bg-[#070e1f] border border-blue-200 dark:border-blue-900/60 p-3.5 sm:p-4 space-y-3 shadow-xs">
+                  
+                  {/* Step Description */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <MessageCircle className="w-4 h-4 text-[#25d366]" />
+                        <span>{isArabic ? 'خطوة التحقق عبر واتساب:' : 'WhatsApp Verification Step:'}</span>
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={handleRegenerateCode}
+                        className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                        title={isArabic ? 'توليد كود جديد' : 'Generate new code'}
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>{isArabic ? 'كود جديد' : 'New Code'}</span>
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                      {isArabic
+                        ? 'أرسل كود التفعيل في رسالة إلى رقم البوت على واتساب. بمجرد الإرسال سيتفعل حسابك تلقائياً وبشكل فوري!'
+                        : 'Send the verification code via WhatsApp to verify your number immediately.'}
+                    </p>
+                  </div>
+
+                  {/* Verification Code Box */}
+                  <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-800/80 rounded-xl p-2.5 border border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                        {isArabic ? 'كود التحقق:' : 'Code:'}
+                      </span>
+                      <code className="px-2 py-0.5 rounded-md bg-blue-500/10 dark:bg-blue-500/20 text-[#2563eb] dark:text-blue-400 font-mono font-bold text-sm tracking-wider">
+                        VERIFY-{verificationCode}
+                      </code>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleCopyCode}
+                      className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                    >
+                      {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
+                      <span>{copiedCode ? (isArabic ? 'تم النسخ!' : 'Copied!') : (isArabic ? 'نسخ' : 'Copy')}</span>
+                    </button>
+                  </div>
+
+                  {/* WhatsApp Direct Action Button */}
+                  <div className="space-y-2">
+                    <a
+                      href={`https://wa.me/${botPhone.replace(/[^\d]/g, '')}?text=${encodeURIComponent(`VERIFY-${verificationCode}`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#25d366] hover:bg-[#20ba5a] active:scale-[0.99] text-white font-extrabold text-xs sm:text-sm shadow-md shadow-emerald-600/25 transition-all text-center"
+                    >
+                      <MessageCircle className="w-4 h-4 fill-white" />
+                      <span>{isArabic ? '📱 إرسال كود التفعيل عبر واتساب بنقرة واحدة' : '📱 Send Code via WhatsApp (1-Click)'}</span>
+                      <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                    </a>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 px-1 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowQrCode(!showQrCode)}
+                        className="hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <QrCode className="w-3.5 h-3.5 text-[#2563eb]" />
+                        <span>{showQrCode ? (isArabic ? 'إخفاء رمز QR' : 'Hide QR') : (isArabic ? 'مسح رمز QR من هاتف آخر' : 'Scan QR Code')}</span>
+                      </button>
+
+                      <div className="flex items-center gap-1 text-[10px]">
+                        <span>{isArabic ? 'رقم البوت:' : 'Bot:'}</span>
+                        <span className="font-mono font-bold text-slate-700 dark:text-slate-300">+{botPhone}</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingBotPhone(!isEditingBotPhone)}
+                          className="text-blue-500 hover:underline cursor-pointer"
+                          title={isArabic ? 'تغيير رقم البوت إذا كان مختلفاً' : 'Edit Bot Number'}
+                        >
+                          <Edit2 className="w-3 h-3 inline ml-0.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* QR Code Expandable View */}
+                  {showQrCode && (
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center gap-2">
+                      <p className="text-[11px] text-slate-500 text-center">
+                        {isArabic ? 'امسح الرمز بكاميرا الهاتف لإرسال كود التفعيل فوراً عبر واتساب:' : 'Scan with your phone camera to send WhatsApp verification:'}
+                      </p>
+                      <div className="p-2 bg-white rounded-lg shadow-xs">
+                        <QRCodeSVG
+                          value={`https://wa.me/${botPhone.replace(/[^\d]/g, '')}?text=${encodeURIComponent(`VERIFY-${verificationCode}`)}`}
+                          size={150}
+                          level="M"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Edit Bot Phone Drawer */}
+                  {isEditingBotPhone && (
+                    <div className="p-3 bg-blue-50/50 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-900 space-y-2 text-xs">
+                      <Label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                        {isArabic ? 'تعديل رقم هاتف بوت واتساب (مع كود الدولة مثل 201201921424):' : 'Custom Bot WhatsApp Phone Number:'}
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="text"
+                          value={tempBotPhone}
+                          onChange={(e) => setTempBotPhone(e.target.value)}
+                          placeholder="201xxxxxxxxx"
+                          className="h-8 text-xs font-mono bg-white dark:bg-slate-900"
+                          dir="ltr"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleSaveBotPhone}
+                          className="h-8 px-3 text-xs bg-[#2563eb] text-white"
+                        >
+                          {isArabic ? 'حفظ' : 'Save'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Live Listening Radar Indicator */}
+                  <div className="flex items-center gap-2.5 p-2 rounded-xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 text-[11px] text-blue-700 dark:text-blue-300">
+                    <span className="relative flex h-2.5 w-2.5 shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+                    </span>
+                    <span className="truncate">
+                      {isArabic
+                        ? 'في انتظار رسالة التفعيل... يتم الاستماع تلقائياً بدون تحديث الصفحة.'
+                        : 'Listening live for your message... No page reload needed.'}
+                    </span>
+                  </div>
+
+                </div>
+              )}
+
             </div>
 
             {/* University Selection */}
@@ -815,20 +1171,40 @@ export default function StudentSignupPage() {
             </div>
 
             {/* Submit Button */}
-            <Button
-              type="submit"
-              disabled={isSubmitting || !agreed}
-              className="w-full h-12 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-sm shadow-lg shadow-blue-500/25 transition-all disabled:opacity-50 cursor-pointer"
-            >
-              {isSubmitting ? (
-                <span>{isArabic ? 'جاري إنشاء حسابك الجامعي...' : 'Creating College Account...'}</span>
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  <span>{isArabic ? 'إنشاء الحساب وتوليد كود الطالب' : 'Create Account & Generate Student Code'}</span>
-                  {isArabic ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
-                </span>
+            <div className="space-y-2 pt-2">
+              <Button
+                type="submit"
+                disabled={isSubmitting || !agreed || !isPhoneVerified}
+                className={`w-full h-12 rounded-xl text-white font-bold text-sm shadow-lg transition-all cursor-pointer ${
+                  isPhoneVerified
+                    ? 'bg-[#2563eb] hover:bg-[#1d4ed8] shadow-blue-500/25'
+                    : 'bg-slate-400 dark:bg-slate-700 opacity-60 cursor-not-allowed shadow-none'
+                }`}
+              >
+                {isSubmitting ? (
+                  <span>{isArabic ? 'جاري إنشاء حسابك الجامعي...' : 'Creating College Account...'}</span>
+                ) : !isPhoneVerified ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Lock className="w-4 h-4 text-amber-300" />
+                    <span>{isArabic ? '🔒 يلزم تأكيد رقم الهاتف عبر واتساب لتفعيل التسجيل' : '🔒 WhatsApp Verification Required to Register'}</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-300" />
+                    <span>{isArabic ? 'إنشاء الحساب وتوليد كود الطالب' : 'Create Account & Generate Student Code'}</span>
+                    {isArabic ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
+                  </span>
+                )}
+              </Button>
+
+              {!isPhoneVerified && (
+                <p className="text-[11px] text-center text-amber-600 dark:text-amber-400 font-medium">
+                  {isArabic
+                    ? '⚠️ الزر مقفل تلقائياً لحين إرسال كود التفعيل وتأكيده من البوت على واتساب.'
+                    : '⚠️ Button is locked until the verification code is received via WhatsApp.'}
+                </p>
               )}
-            </Button>
+            </div>
 
           </form>
 

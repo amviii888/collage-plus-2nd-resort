@@ -1417,14 +1417,34 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
                     setLibraryThemesList(loaded);
                     // If no explicit student theme is equipped, default to connected professor's theme
                     const currentEquipped = localStorage.getItem('student-equipped-theme-' + activeStudentId);
-                    if (!currentEquipped) {
-                        const profTheme = loaded.find(t => 
-                            t.themeClass?.startsWith('prof_theme_') || 
-                            t.id?.startsWith('prof_theme_') || 
-                            Boolean(t.teacherId)
-                        );
-                        if (profTheme) {
-                            setEquippedTheme(profTheme.themeClass || profTheme.id);
+                    if (!currentEquipped || currentEquipped === 'default') {
+                        const activeProfCode = localStorage.getItem('active_connected_professor_code');
+                        let matchedThemeId: string | undefined;
+
+                        if (activeProfCode) {
+                            const profItem = findProfessorByCode(activeProfCode);
+                            if (profItem?.assignedThemeId && profItem.assignedThemeId !== 'default') {
+                                matchedThemeId = profItem.assignedThemeId;
+                            }
+                        }
+
+                        if (!matchedThemeId) {
+                            const profTheme = loaded.find(t => 
+                                t.themeClass?.startsWith('theme_prof_') || 
+                                t.themeClass?.startsWith('prof_theme_') || 
+                                t.id?.startsWith('theme_prof_') || 
+                                t.id?.startsWith('prof_theme_') || 
+                                Boolean(t.teacherId)
+                            );
+                            if (profTheme) {
+                                matchedThemeId = profTheme.themeClass || profTheme.id;
+                            }
+                        }
+
+                        if (matchedThemeId && matchedThemeId !== 'default') {
+                            setEquippedTheme(matchedThemeId);
+                            localStorage.setItem('student-equipped-theme-' + activeStudentId, matchedThemeId);
+                            localStorage.setItem('app_active_global_theme', matchedThemeId);
                         }
                     }
                 }

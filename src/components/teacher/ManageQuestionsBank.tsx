@@ -236,7 +236,7 @@ function QuestionBankFormModal({ teacherId, itemToEdit, onFinished }: QuestionBa
               size="sm"
               variant="outline"
               onClick={handleOpenGoogleDrive}
-              className="text-xs h-7 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+              className="text-xs h-7 border-emerald-600/40 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 font-medium"
             >
               <ExternalLink className="w-3 h-3 mr-1" />
               {t('Open Google Drive')}

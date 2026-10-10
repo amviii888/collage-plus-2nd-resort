@@ -23,14 +23,14 @@ export default function SupportPage() {
         {
             icon: Phone,
             title: t('support.phone'),
-            value: '01201402632',
-            href: 'tel:01201402632',
+            value: '01201921424',
+            href: 'tel:01201921424',
         },
         {
             icon: MessageCircle,
             title: 'WhatsApp Support',
-            value: '+20 120 140 2632',
-            href: 'https://wa.me/201201402632',
+            value: '+20 120 192 1424',
+            href: 'https://wa.me/201201921424',
         },
         {
             icon: Mail,
