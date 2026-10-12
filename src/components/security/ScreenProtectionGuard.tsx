@@ -103,10 +103,12 @@ export function ScreenProtectionGuard() {
         return false;
       }
 
-      // DevTools Inspection Interception (F12, Ctrl+Shift+I/J/C, Cmd+Option+I/J/C, Ctrl+U)
+      // DevTools Inspection Interception (F12, F2, Ctrl+Shift+I/J/C, Cmd+Option+I/J/C, Ctrl+U)
       if (
         e.key === 'F12' ||
         e.keyCode === 123 ||
+        e.key === 'F2' ||
+        e.keyCode === 113 ||
         (isCmdOrCtrl && e.shiftKey && ['i', 'j', 'c'].includes(key)) ||
         (e.metaKey && e.altKey && ['i', 'j', 'c', 'u'].includes(key)) ||
         (isCmdOrCtrl && key === 'u')
@@ -114,7 +116,14 @@ export function ScreenProtectionGuard() {
         applyInstantBlackout();
         e.preventDefault();
         e.stopPropagation();
-        showSecurityWarning('Developer inspect tools are disabled on protected academic content.', 4000);
+        try {
+          console.clear();
+          console.log(
+            '%c⛔ VIOLATION DETECTED: This is a violation. Developer tools and inspect capabilities are strictly locked.',
+            'color: #ef4444; font-size: 22px; font-weight: 900; background: #000; padding: 12px; border: 2px solid #ef4444;'
+          );
+        } catch {}
+        showSecurityWarning('⛔ VIOLATION: Developer inspect tools (F12 / F2 / Inspect) are strictly locked.', 4000);
         return false;
       }
 
@@ -240,14 +249,31 @@ export function ScreenProtectionGuard() {
       watermarkObserver.observe(document.body, { childList: true, subtree: true });
     } catch {}
 
-    // 7. Window Blur & Visibility - do not black out or block on normal tab/window switches
+    // 7. Window Blur & Visibility (Snipping Tool & Background Screenshot Interception)
     const handleWindowBlur = () => {
-      // Kept passive to allow copying error logs and switching to dev tools
+      // Snipping Tool steals window focus upon activation (e.g. clicking "New" or pressing snippet shortcuts)
+      applyInstantBlackout();
+      setIsBlackedOut(true);
+      setWarningMessage('أداة التقاط الشاشة / النافذة غير نشطة (Screen Capture / Snipping Tool Intercepted).');
     };
 
     const handleWindowFocus = () => {
-      // Clear blackout only if not in active warning countdown
-      if (!warningMessage) {
+      // Clear blackout seamlessly when returning focus to the browser tab
+      setTimeout(() => {
+        if (!document.hidden && document.hasFocus && document.hasFocus()) {
+          setIsBlackedOut(false);
+          setWarningMessage(null);
+          removeInstantBlackout();
+        }
+      }, 250);
+    };
+
+    // 8. Visibility Change (Detect minimizing or tab switching)
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        applyInstantBlackout();
+        setIsBlackedOut(true);
+      } else {
         setTimeout(() => {
           if (!document.hidden && document.hasFocus && document.hasFocus()) {
             setIsBlackedOut(false);
@@ -257,24 +283,31 @@ export function ScreenProtectionGuard() {
       }
     };
 
-    // 5. Visibility Change - kept passive to prevent false positive lockouts
-    const handleVisibilityChange = () => {
-      // Kept passive to allow smooth switching without obscuring errors
-    };
-
-    // 6. Right-Click Context Menu Prevention on Media & Protected Views
-    const handleContextMenu = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (
-        target &&
-        (target.tagName === 'IMG' ||
-          target.tagName === 'VIDEO' ||
-          target.tagName === 'IFRAME' ||
-          target.closest('.protected-media') ||
-          target.closest('.no-capture'))
-      ) {
-        e.preventDefault();
+    // 9. Active DevTools Detection & Console Shield
+    const devToolsCheck = setInterval(() => {
+      const threshold = 160;
+      const isOpen = (window.outerWidth - window.innerWidth > threshold) ||
+                     (window.outerHeight - window.innerHeight > threshold);
+      if (isOpen) {
+        applyInstantBlackout();
+        setIsBlackedOut(true);
+        setWarningMessage('⛔ VIOLATION DETECTED: Developer Tools (F12 / Inspect) are strictly prohibited.');
+        try {
+          console.clear();
+          console.log(
+            '%c⛔ VIOLATION DETECTED: Accessing Developer Tools is strictly prohibited. All activity is logged.',
+            'color: #ef4444; font-size: 22px; font-weight: 900; background: #000; padding: 12px; border: 2px solid #ef4444;'
+          );
+        } catch {}
       }
+    }, 1500);
+
+    // 10. Right-Click Context Menu Prevention (Intercepts Inspect Element)
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showSecurityWarning('القائمة الجانبية وأدوات الفحص معطلة (Right-click & Inspect are disabled).', 2500);
+      return false;
     };
 
     // 7. Drag and Drop Prevention (Prevents saving dragged media)
@@ -301,6 +334,7 @@ export function ScreenProtectionGuard() {
 
     return () => {
       clearInterval(peripheralInterval);
+      clearInterval(devToolsCheck);
       try {
         watermarkObserver.disconnect();
       } catch {}
@@ -329,9 +363,11 @@ export function ScreenProtectionGuard() {
           }
         }
         body.mol5asaty-guard-protected > *:not(#screen-protection-curtain):not(#screen-protection-warning) {
-          filter: blur(16px) brightness(0.1) !important;
+          filter: blur(32px) brightness(0) !important;
+          opacity: 0 !important;
           pointer-events: none !important;
           user-select: none !important;
+          visibility: hidden !important;
         }
         pre, code, [data-error], [role="alert"], [data-radix-toast-announce], .toaster, .toast, .font-mono, [data-selectable], .selectable-text {
           user-select: text !important;

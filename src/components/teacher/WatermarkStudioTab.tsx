@@ -74,7 +74,7 @@ export function WatermarkStudioTab({
     setConfig(prev => ({ ...prev, ...patch }));
   };
 
-  // Test Speech locally with natural Arabic voice auto-selection
+  // Test Speech locally with natural Arabic voice auto-selection & voice personalities
   const handleTestSpeech = () => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       toast({
@@ -93,15 +93,46 @@ export function WatermarkStudioTab({
       const sampleText = `تنبيه أمني. محتوى مرخص للطالب أحمد محمود رضوان، كود الطالب 2026-94، هاتف 01099887766${uniSample}.`;
       const utterance = new SpeechSynthesisUtterance(sampleText);
       
-      const voices = window.speechSynthesis.getVoices();
-      const arVoice = voices.find(v => v.lang.startsWith('ar') || v.name.toLowerCase().includes('arabic') || v.lang.includes('ar-EG') || v.lang.includes('ar-SA'));
-      if (arVoice) {
-        utterance.voice = arVoice;
+      const voiceStyle = config.ttsVoice || 'female';
+      let pitch = 1.15;
+      let rate = 0.94;
+
+      if (voiceStyle === 'child') {
+        pitch = 1.68;
+        rate = 1.05;
+      } else if (voiceStyle === 'male') {
+        pitch = 0.72;
+        rate = 0.88;
       }
-      
-      utterance.rate = 0.92;
-      utterance.pitch = 1.0;
+
+      utterance.pitch = pitch;
+      utterance.rate = rate;
       utterance.volume = 1.0;
+
+      const voices = window.speechSynthesis.getVoices();
+      const arVoices = voices.filter(v => v.lang.startsWith('ar') || v.name.toLowerCase().includes('arabic') || v.lang.includes('ar-EG') || v.lang.includes('ar-SA'));
+      
+      if (arVoices.length > 0) {
+        if (voiceStyle === 'male') {
+          const maleAr = arVoices.find(v => 
+            v.name.toLowerCase().includes('male') || 
+            v.name.toLowerCase().includes('maged') || 
+            v.name.toLowerCase().includes('tarik') ||
+            v.name.toLowerCase().includes('shakir')
+          );
+          utterance.voice = maleAr || arVoices[0];
+        } else if (voiceStyle === 'female') {
+          const femaleAr = arVoices.find(v => 
+            v.name.toLowerCase().includes('female') || 
+            v.name.toLowerCase().includes('salma') || 
+            v.name.toLowerCase().includes('hoda') || 
+            v.name.toLowerCase().includes('laila')
+          );
+          utterance.voice = femaleAr || arVoices[0];
+        } else {
+          utterance.voice = arVoices[0];
+        }
+      }
 
       utterance.onend = () => setIsTestingSpeech(false);
       utterance.onerror = () => setIsTestingSpeech(false);
@@ -109,7 +140,7 @@ export function WatermarkStudioTab({
       window.speechSynthesis.speak(utterance);
       toast({
         title: '🔊 جاري تجربة البصمة الصوتية (Audio Watermark Test)',
-        description: 'استمع الآن لصوت النظام وهو يقرأ بيانات الطالب؛ يتكرر هذا الصوت تلقائياً كل 15 دقيقة لمنع تسجيل الشاشة خارجياً.',
+        description: `تم تشغيل البصمة الصوتية بنمط (${voiceStyle === 'child' ? 'صوت طفل' : voiceStyle === 'male' ? 'صوت رجل' : 'صوت أنثوي'}).`,
       });
     } catch (e) {
       setIsTestingSpeech(false);
@@ -382,6 +413,40 @@ export function WatermarkStudioTab({
                 </div>
               </div>
 
+              {/* Movement Speed Control */}
+              <div className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Move className="w-3.5 h-3.5 text-emerald-400" />
+                    <Label className="text-xs font-bold text-white">سرعة حركة العلامة المائية (DVD Movement Speed):</Label>
+                  </div>
+                  <span className="text-[10px] text-emerald-400 font-mono font-bold">
+                    {config.movementSpeed === 'slow' ? '0.5x بطيء' : config.movementSpeed === 'fast' ? '2.0x سريع' : config.movementSpeed === 'ultra_fast' ? '3.2x فائق السرعة' : '1.0x عادي'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { key: 'slow', label: 'بطيء (0.5x)' },
+                    { key: 'normal', label: 'عادي (1.0x)' },
+                    { key: 'fast', label: 'سريع (2.0x)' },
+                    { key: 'ultra_fast', label: 'فائق السرعة (3.2x)' },
+                  ].map(spd => (
+                    <button
+                      key={spd.key}
+                      type="button"
+                      onClick={() => updateConfig({ movementSpeed: spd.key as any })}
+                      className={`py-2 px-2 rounded-xl text-[11px] font-bold border transition-all ${
+                        (config.movementSpeed || 'normal') === spd.key
+                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {spd.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Fixed Placement Position Selector (Only if fixed is chosen) */}
               {config.movementType === 'fixed' ? (
                 <div className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-3">
@@ -580,32 +645,52 @@ export function WatermarkStudioTab({
                 </div>
 
                 {config.ttsEnabled && (
-                  <div className="pt-3 border-t border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-zinc-300">تكرار القراءة الصوتية:</Label>
-                      <Select 
-                        value={String(config.ttsIntervalMinutes || 15)} 
-                        onValueChange={(v) => updateConfig({ ttsIntervalMinutes: Number(v) as any })}
-                      >
-                        <SelectTrigger className="bg-zinc-900 border-zinc-700 text-xs w-48">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
-                          <SelectItem value="15">كل 15 دقيقة (موصى به)</SelectItem>
-                          <SelectItem value="30">كل 30 دقيقة</SelectItem>
-                          <SelectItem value="60">كل ساعة (مرة في الساعة)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                  <div className="pt-3 border-t border-zinc-800/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-zinc-300">نبرة وصوت القارئ (Voice):</Label>
+                        <Select 
+                          value={config.ttsVoice || 'female'} 
+                          onValueChange={(v) => updateConfig({ ttsVoice: v as any })}
+                        >
+                          <SelectTrigger className="bg-zinc-900 border-zinc-700 text-xs w-44">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                            <SelectItem value="female">صوت أنثوي (Female)</SelectItem>
+                            <SelectItem value="male">صوت رجل عميق (Male)</SelectItem>
+                            <SelectItem value="child">صوت طفل (Child)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-xs text-zinc-300">تكرار القراءة الصوتية:</Label>
+                        <Select 
+                          value={String(config.ttsIntervalMinutes || 15)} 
+                          onValueChange={(v) => updateConfig({ ttsIntervalMinutes: Number(v) as any })}
+                        >
+                          <SelectTrigger className="bg-zinc-900 border-zinc-700 text-xs w-44">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                            <SelectItem value="5">كل 5 دقائق (مكثف)</SelectItem>
+                            <SelectItem value="15">كل 15 دقيقة (موصى به)</SelectItem>
+                            <SelectItem value="30">كل 30 دقيقة</SelectItem>
+                            <SelectItem value="60">كل ساعة (مرة في الساعة)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="flex items-center gap-2">
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={handleTestSpeech}
                         disabled={isTestingSpeech}
-                        className="border-blue-500/40 bg-blue-950/40 text-blue-300 hover:bg-blue-900/50 rounded-xl text-xs flex items-center gap-1.5 self-end sm:self-auto"
+                        className="border-blue-500/40 bg-blue-950/40 text-blue-300 hover:bg-blue-900/50 rounded-xl text-xs flex items-center gap-1.5 self-end md:self-auto"
                       >
                         {isTestingSpeech ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className="w-3.5 h-3.5" />}
                         <span>{isTestingSpeech ? 'جاري القراءة بصوت مسموع...' : 'تجربة الصوت الآن (Free Test)'}</span>

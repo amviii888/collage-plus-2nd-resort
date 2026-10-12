@@ -15,11 +15,16 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
-  Layers
+  Layers,
+  FolderOpen,
+  FileText,
+  QrCode
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { LibraryBook } from '@/lib/library-types';
+import { QRCodeSVG } from 'qrcode.react';
+import { DynamicWatermark } from '@/components/security/DynamicWatermark';
+import type { LibraryBook, BookUnit, BookUnitFile } from '@/lib/library-types';
 
 interface ProtectedBookReaderProps {
   book: LibraryBook;
@@ -39,20 +44,30 @@ export function ProtectedBookReader({
   const [zoom, setZoom] = useState<number>(100);
   const [currentPage, setCurrentPage] = useState<number>(0);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const [cornerIndex, setCornerIndex] = useState<number>(0);
   const [securityWarning, setSecurityWarning] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const hasMultiplePages = Boolean(book.pages && book.pages.length > 0);
-  const totalPagesCount = hasMultiplePages ? (book.pages?.length || 0) : 0;
+  // Units system navigation state
+  const hasUnits = Boolean(book.units && book.units.length > 0);
+  const [selectedUnitIndex, setSelectedUnitIndex] = useState<number>(0);
+  const [selectedFileIndex, setSelectedFileIndex] = useState<number>(0);
 
-  // Dynamic watermark movement: cycles position smoothly every 7 seconds
+  const activeUnit: BookUnit | undefined = hasUnits ? book.units?.[selectedUnitIndex] : undefined;
+  const activeUnitFile: BookUnitFile | undefined = activeUnit?.files?.[selectedFileIndex];
+
+  // Active resource determination
+  const activePdfUrl = activeUnitFile ? activeUnitFile.fileUrl : book.pdfUrl;
+  const activePages = activeUnitFile?.pages && activeUnitFile.pages.length > 0 
+    ? activeUnitFile.pages 
+    : (book.pages || []);
+
+  const hasMultiplePages = Boolean(activePages && activePages.length > 0);
+  const totalPagesCount = hasMultiplePages ? activePages.length : 0;
+
+  // Reset page when unit or file changes
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCornerIndex((prev) => (prev + 1) % 5);
-    }, 7000);
-    return () => clearInterval(timer);
-  }, []);
+    setCurrentPage(0);
+  }, [selectedUnitIndex, selectedFileIndex]);
 
   // Anti-print, anti-screenshot, anti-dev-tools keyboard traps
   useEffect(() => {
@@ -226,6 +241,50 @@ export function ProtectedBookReader({
         </div>
       </header>
 
+      {/* Units Navigation Bar if book contains units */}
+      {hasUnits && book.units && (
+        <div className="h-12 border-b border-zinc-800/90 bg-zinc-950/95 px-4 flex items-center gap-2 overflow-x-auto shrink-0 z-20">
+          <span className="text-[11px] font-bold text-emerald-400 shrink-0 flex items-center gap-1">
+            <FolderOpen className="w-3.5 h-3.5" />
+            <span>الوحدات ({book.units.length}):</span>
+          </span>
+          {book.units.map((unit, uIdx) => (
+            <button
+              key={unit.id || uIdx}
+              type="button"
+              onClick={() => { setSelectedUnitIndex(uIdx); setSelectedFileIndex(0); }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                selectedUnitIndex === uIdx
+                  ? 'bg-emerald-500/20 border border-emerald-500/60 text-emerald-300 ring-2 ring-emerald-500/20'
+                  : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'
+              }`}
+            >
+              {unit.title || `الوحدة ${uIdx + 1}`}
+            </button>
+          ))}
+
+          {activeUnit && activeUnit.files && activeUnit.files.length > 1 && (
+            <div className="flex items-center gap-1.5 border-r border-zinc-800 pr-2 mr-2 shrink-0">
+              {activeUnit.files.map((file, fIdx) => (
+                <button
+                  key={file.id || fIdx}
+                  type="button"
+                  onClick={() => setSelectedFileIndex(fIdx)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+                    selectedFileIndex === fIdx
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800 border border-zinc-800'
+                  }`}
+                >
+                  <FileText className="w-3 h-3 inline ml-1" />
+                  {file.title || `ملف ${fIdx + 1}`}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Security Warning Notification */}
       {securityWarning && (
         <div className="bg-amber-500/20 border-b border-amber-500/40 text-amber-200 text-xs px-4 py-2 flex items-center justify-between animate-in fade-in">
@@ -244,25 +303,24 @@ export function ProtectedBookReader({
 
       {/* Reader Viewport */}
       <div className="flex-1 relative overflow-auto bg-[#050608] flex items-center justify-center p-2 sm:p-6">
-        {/* Dynamic Anti-Screen-Capture Watermark */}
-        <div 
-          className={`absolute z-40 pointer-events-none select-none transition-all duration-1000 ease-in-out ${watermarkPositions[cornerIndex]}`}
-        >
-          <div className="px-3.5 py-2 rounded-xl bg-black/75 backdrop-blur-xs border border-white/15 text-white font-mono text-[11px] sm:text-xs font-bold uppercase tracking-wider text-center shadow-2xl">
-            <div className="text-emerald-400 font-extrabold">{studentName || 'Student'}</div>
-            <div className="text-zinc-300 text-[10px]">ID: {studentBarcode || studentId || 'N/A'}</div>
-            <div className="text-zinc-400 text-[9px]">{currentDate} • Digital Rights Protected</div>
-          </div>
-        </div>
+        {/* Real Dynamic Watermark Over Paper/PDF/Images with Audio TTS & Bounce */}
+        <DynamicWatermark
+          studentId={studentId}
+          previewStudent={{
+            name: studentName,
+            barcode: studentBarcode || studentId,
+          }}
+        />
 
-        {/* Diagonal Repeated Background Watermark Pattern */}
-        <div className="absolute inset-0 pointer-events-none select-none opacity-[0.04] flex items-center justify-center overflow-hidden z-20">
-          <div className="rotate-[-25deg] text-2xl font-mono font-black text-white whitespace-nowrap leading-loose">
-            {Array.from({ length: 14 }).map((_, i) => (
-              <div key={i}>
-                {studentName} • {studentBarcode || studentId} • UNIVERSE ACADEMY SECURE VAULT • {book.title}
-              </div>
-            ))}
+        {/* High-Res QR Verification Stamp */}
+        <div className="absolute bottom-4 right-4 z-30 pointer-events-none select-none p-2.5 rounded-2xl bg-black/85 border border-emerald-500/30 backdrop-blur-md shadow-2xl flex items-center gap-3">
+          <div className="bg-white p-1 rounded-lg">
+            <QRCodeSVG value={studentBarcode || studentId || 'MOL5SATY-SECURE'} size={46} level="H" />
+          </div>
+          <div className="text-right font-mono">
+            <div className="text-[10px] text-emerald-400 font-extrabold">SECURE DIGITAL PASS</div>
+            <div className="text-[11px] text-white font-bold max-w-[130px] truncate">{studentName}</div>
+            <div className="text-[9px] text-zinc-400">{studentBarcode || studentId}</div>
           </div>
         </div>
 
@@ -272,23 +330,30 @@ export function ProtectedBookReader({
           style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
         >
           {/* Case 1: Multiple Pages uploaded as images */}
-          {hasMultiplePages && book.pages && book.pages.length > 0 ? (
+          {hasMultiplePages && activePages && activePages.length > 0 ? (
             <div className="w-full max-w-3xl flex flex-col items-center gap-3">
               <div className="relative rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-950 shadow-2xl w-full max-h-[75vh] flex items-center justify-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={book.pages[currentPage]}
+                  src={activePages[currentPage]}
                   alt={`الصفحة ${currentPage + 1}`}
                   className="max-h-[75vh] w-auto object-contain select-none pointer-events-none"
                   onContextMenu={(e) => e.preventDefault()}
+                  draggable={false}
+                />
+                {/* Invisible text-selection and drag barrier */}
+                <div 
+                  className="absolute inset-0 select-none" 
+                  onContextMenu={(e) => e.preventDefault()} 
                 />
               </div>
 
               {/* Bottom Quick Page Scroller */}
               <div className="flex items-center gap-2 overflow-x-auto max-w-full p-2 bg-zinc-950/80 rounded-2xl border border-zinc-800/80">
-                {book.pages.map((pgUrl, idx) => (
+                {activePages.map((pgUrl, idx) => (
                   <button
                     key={idx}
+                    type="button"
                     onClick={() => setCurrentPage(idx)}
                     className={`relative w-12 h-16 rounded-lg overflow-hidden border transition-all shrink-0 cursor-pointer ${
                       currentPage === idx
@@ -305,16 +370,16 @@ export function ProtectedBookReader({
                 ))}
               </div>
             </div>
-          ) : book.pdfUrl ? (
+          ) : activePdfUrl ? (
             /* Case 2: Full PDF URL */
             <div className="w-full h-full rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-950 shadow-2xl relative">
               <iframe
-                src={`${book.pdfUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+                src={`${activePdfUrl}#toolbar=0&navpanes=0&scrollbar=1`}
                 className="w-full h-full border-0 pointer-events-auto"
                 title={book.title}
               />
               <div 
-                className="absolute inset-0 pointer-events-none" 
+                className="absolute inset-0 pointer-events-none select-none" 
                 onContextMenu={(e) => e.preventDefault()} 
               />
             </div>

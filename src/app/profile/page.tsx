@@ -60,7 +60,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { isStudentEmail, clearAllStudentAuthSessions } from '@/lib/auth-helpers';
-import { getStudentConnectedProfessors, findProfessorByCode, setActiveProfessorBranding, ProfessorItem } from '@/lib/professors-registry';
+import { getStudentConnectedProfessors, findProfessorByCode, setActiveProfessorBranding, ProfessorItem, getAdminCustomTeacherCodes, REGISTERED_PROFESSORS, normalizeImagePath, DEFAULT_CUSTOM_PROFESSOR_IMAGE, getTeacherCustomAvatar } from '@/lib/professors-registry';
 import { AttendanceHistoryModal } from '@/components/AttendanceHistoryModal';
 import { SeasonalHubCard } from '@/components/SeasonalHubCard';
 import { calculateLevelFromXP, getDisplayLevel, getStoredSeasons, getStoredRewards, getStudentClaimedRewards, claimStudentRewardLocally, SeasonReward, Season, AppThemeAsset } from '@/lib/seasons';
@@ -377,6 +377,47 @@ function TeacherDashboard({ teacherId }: { teacherId: string }) {
   const teacherRef = useMemoFirebase(() => doc(firestore, 'teachers', teacherId), [firestore, teacherId]);
   const { data: teacher, isLoading: teacherLoading } = useDoc<Teacher>(teacherRef);
   
+  const [customCodesUpdateKey, setCustomCodesUpdateKey] = useState(0);
+  useEffect(() => {
+    const handleUpdate = () => setCustomCodesUpdateKey(k => k + 1);
+    window.addEventListener('admin_teacher_codes_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('admin_teacher_codes_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
+  const customCodes = useMemo(() => getAdminCustomTeacherCodes(), [customCodesUpdateKey]);
+  const matchedProf = useMemo(() => {
+    const list = Object.values(customCodes);
+    const tName = teacher?.name?.trim();
+    const tCode = ((teacher as any)?.code || (teacher as any)?.teacherCode || '').trim().toUpperCase();
+    return list.find(c => 
+      c.id === teacherId || 
+      (teacher?.id && c.id === teacher.id) || 
+      (c.code && (c.code.toUpperCase() === teacherId.toUpperCase() || c.code.toUpperCase() === tCode)) ||
+      (tName && (c.name === tName || c.name.includes(tName) || tName.includes(c.name)))
+    ) || REGISTERED_PROFESSORS.find(p =>
+      p.id === teacherId ||
+      (teacher?.id && p.id === teacher.id) ||
+      (p.code && (p.code.toUpperCase() === teacherId.toUpperCase() || p.code.toUpperCase() === tCode)) ||
+      (tName && (p.name === tName || p.name.includes(tName) || tName.includes(p.name)))
+    ) || findProfessorByCode(teacherId) || list[0] || null;
+  }, [teacherId, teacher, customCodes]);
+
+  const effectivePfp = useMemo(() => {
+    const customAvatar = getTeacherCustomAvatar(teacherId || teacher?.name || (teacher as any)?.code);
+    const raw = customAvatar ||
+                matchedProf?.avatarUrl || 
+                matchedProf?.appIconPath || 
+                (teacher as any)?.profilePictureUrl || 
+                (teacher as any)?.avatarUrl || 
+                (teacher as any)?.appIconPath || 
+                DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+    return normalizeImagePath(raw);
+  }, [teacher, matchedProf, teacherId, customCodesUpdateKey]);
+  
   const coursesQuery = useMemoFirebase(() => {
     if (!firestore || !teacherId) return null;
     return collection(firestore, 'teachers', teacherId, 'courses');
@@ -661,7 +702,7 @@ function TeacherDashboard({ teacherId }: { teacherId: string }) {
           <div className="flex flex-col md:flex-row items-center gap-5 text-center md:text-right">
             <div className="relative">
               <Avatar className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl border-4 border-white dark:border-zinc-900 shadow-xl ring-2 ring-blue-500/30">
-                <AvatarImage src={teacher.profilePictureUrl} className="object-cover" />
+                <AvatarImage src={effectivePfp} className="object-cover" />
                 <AvatarFallback className="bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-3xl font-black rounded-3xl">
                   {teacher.name?.charAt(0) || 'D'}
                 </AvatarFallback>
@@ -1727,8 +1768,18 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
                         </div>
                     </div>
 
-                    {/* Action Buttons: Unified Avatar & Theme Customizer */}
+                    {/* Action Buttons: Unified Avatar & Theme Customizer + Library Access */}
                     <div className="flex items-center gap-2.5 w-full md:w-auto z-10 shrink-0">
+                        <Button
+                            asChild
+                            variant="outline"
+                            className="w-full md:w-auto h-11 px-5 rounded-2xl border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-xs gap-2 transition-all hover:scale-105 shadow-xs cursor-pointer"
+                        >
+                            <Link href="/library">
+                                <BookOpen className="w-4 h-4 text-emerald-500" />
+                                <span>{isArabic ? 'المكتبة' : 'Library'}</span>
+                            </Link>
+                        </Button>
                         <Button
                             onClick={() => { setAvatarTab('avatar'); setThemeModalOpen(true); }}
                             variant="outline"

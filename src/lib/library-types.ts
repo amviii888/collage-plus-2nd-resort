@@ -1,3 +1,28 @@
+export interface BookUnitFile {
+  id: string;
+  title: string;
+  fileUrl: string; // PDF, image or document URL
+  fileType: 'pdf' | 'image' | 'file';
+  pageCount?: number;
+  pages?: string[]; // Multiple images or page scans
+  allowDownload?: boolean;
+}
+
+export interface BookUnit {
+  id: string;
+  title: string;
+  description?: string;
+  files: BookUnitFile[];
+}
+
+export interface LibrarySettings {
+  accessCode: string; // Universal library access code (e.g. library123)
+  iconPath?: string; // Custom icon path for library in header
+  isLocked?: boolean;
+  updatedAt?: any;
+  updatedBy?: string;
+}
+
 export interface LibraryBook {
   id: string;
   title: string;
@@ -8,6 +33,7 @@ export interface LibraryBook {
   coverUrl?: string;
   pdfUrl?: string; // Cloudinary / Secure PDF URL
   pages?: string[]; // Cloudinary URLs of multiple pages
+  units?: BookUnit[]; // Units / collections system
   allowDownload?: boolean; // True: students can download, False: preview/read-only protected
   pageCount?: number;
   isAvailable?: boolean;

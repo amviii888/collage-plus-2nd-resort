@@ -208,11 +208,121 @@ export const REGISTERED_PROFESSORS: ProfessorItem[] = [
 /**
  * Retrieves dynamic admin-assigned teacher code mappings
  */
+export const DEFAULT_CUSTOM_PROFESSOR_IMAGE = '/icons/professors/387869340_817871683671250_6351633986100870309_n.jpg';
+
+/**
+ * Normalizes any image or icon path entered by users or admins.
+ * Handles paths with 'public/', Windows backslashes, missing leading slashes, directory paths, or raw filenames.
+ */
+export function normalizeImagePath(path: string | undefined | null): string {
+  if (!path || typeof path !== 'string') return DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+  let clean = path.trim().replace(/^["']|["']$/g, '').replace(/\\/g, '/'); // Strip quotes and normalize Windows backslashes
+  if (clean.startsWith('file://')) clean = clean.replace('file://', '');
+  if (clean.startsWith('/public/')) clean = clean.replace('/public/', '/');
+  if (clean.startsWith('public/')) clean = clean.replace('public/', '/');
+  if (clean.startsWith('./public/')) clean = clean.replace('./public/', '/');
+  
+  // If user entered only the directory path (e.g. "public/icons/professors" or "/icons/professors" or "icons/professors")
+  const strippedDir = clean.replace(/^\/+|\/+$/g, '');
+  if (strippedDir === 'icons/professors' || strippedDir === 'public/icons/professors' || strippedDir === 'professors') {
+    return DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+  }
+
+  // If path contains the uploaded professor image file
+  if (clean.includes('387869340')) {
+    return DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+  }
+
+  // If the user entered just a filename (e.g. "my-photo.jpg") or relative path
+  if (!clean.startsWith('http://') && !clean.startsWith('https://') && !clean.startsWith('data:') && !clean.startsWith('/')) {
+    if (clean.startsWith('icons/') || clean.startsWith('professors-custom/')) {
+      clean = '/' + clean;
+    } else {
+      clean = '/icons/professors/' + clean;
+    }
+  }
+
+  // Ensure trailing slash removed if not empty
+  if (clean.length > 1 && clean.endsWith('/')) {
+    clean = clean.slice(0, -1);
+  }
+
+  // If after normalization it ended up as just the folder
+  if (clean === '/icons/professors' || clean === '/icons/professors/') {
+    return DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+  }
+
+  return clean;
+}
+
+/**
+ * Resolves the teacher's custom avatar or icon from local storage, custom codes, or registry
+ */
+export function getTeacherCustomAvatar(identifier?: string | null): string {
+  if (typeof window === 'undefined') return DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+  try {
+    if (!identifier) {
+      const all = Object.values(getAdminCustomTeacherCodes());
+      if (all.length > 0 && (all[0].avatarUrl || all[0].appIconPath)) {
+        return normalizeImagePath(all[0].avatarUrl || all[0].appIconPath);
+      }
+      return DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+    }
+
+    const clean = identifier.trim();
+    const stored = localStorage.getItem(`custom_teacher_avatar_${clean}`) || 
+                   localStorage.getItem(`custom_teacher_avatar_${clean.toUpperCase()}`);
+    if (stored) return normalizeImagePath(stored);
+
+    const list = Object.values(getAdminCustomTeacherCodes());
+    const found = list.find(c => 
+      c.id === clean || 
+      c.code.toUpperCase() === clean.toUpperCase() || 
+      c.name === clean || 
+      c.name.includes(clean) || 
+      clean.includes(c.name)
+    );
+    if (found?.avatarUrl || found?.appIconPath) {
+      return normalizeImagePath(found.avatarUrl || found.appIconPath);
+    }
+
+    const builtin = REGISTERED_PROFESSORS.find(p => 
+      p.id === clean || 
+      p.code.toUpperCase() === clean.toUpperCase() || 
+      p.name === clean ||
+      p.name.includes(clean) ||
+      clean.includes(p.name)
+    );
+    if (builtin?.avatarUrl || builtin?.appIconPath) {
+      return normalizeImagePath(builtin.avatarUrl || builtin.appIconPath);
+    }
+
+    return DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+  } catch {
+    return DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+  }
+}
+
+/**
+ * Retrieves custom teacher codes saved by the admin from local storage with normalized paths
+ */
 export function getAdminCustomTeacherCodes(): Record<string, ProfessorItem> {
   if (typeof window === 'undefined') return {};
   try {
     const raw = localStorage.getItem('admin_custom_teacher_codes');
-    return raw ? JSON.parse(raw) : {};
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    const normalized: Record<string, ProfessorItem> = {};
+    for (const [key, val] of Object.entries(parsed)) {
+      const item = val as ProfessorItem;
+      normalized[key] = {
+        ...item,
+        appIconPath: normalizeImagePath(item.appIconPath),
+        avatarUrl: normalizeImagePath(item.avatarUrl || item.appIconPath),
+        heroImageUrl: normalizeImagePath(item.heroImageUrl)
+      };
+    }
+    return normalized;
   } catch (e) {
     console.error('Failed to parse admin teacher codes:', e);
     return {};
@@ -227,14 +337,33 @@ export function saveAdminTeacherCodeMapping(mapping: ProfessorItem) {
   try {
     const current = getAdminCustomTeacherCodes();
     const cleanCode = mapping.code.trim().toUpperCase();
+    const cleanIcon = normalizeImagePath(mapping.appIconPath);
+    const cleanAvatar = normalizeImagePath(mapping.avatarUrl || cleanIcon);
+    const cleanHero = normalizeImagePath(mapping.heroImageUrl);
+
     const updated = {
       ...current,
       [cleanCode]: {
         ...mapping,
-        code: cleanCode
+        code: cleanCode,
+        appIconPath: cleanIcon,
+        avatarUrl: cleanAvatar,
+        heroImageUrl: cleanHero
       }
     };
     localStorage.setItem('admin_custom_teacher_codes', JSON.stringify(updated));
+    localStorage.setItem(`custom_teacher_avatar_${cleanCode}`, cleanAvatar);
+    localStorage.setItem(`custom_teacher_icon_${cleanCode}`, cleanIcon);
+    if (mapping.id) {
+      localStorage.setItem(`custom_teacher_avatar_${mapping.id}`, cleanAvatar);
+      localStorage.setItem(`custom_teacher_icon_${mapping.id}`, cleanIcon);
+    }
+    if (mapping.name) {
+      localStorage.setItem(`custom_teacher_avatar_${mapping.name}`, cleanAvatar);
+      localStorage.setItem(`custom_teacher_icon_${mapping.name}`, cleanIcon);
+    }
+    localStorage.setItem('active_default_professor_icon', cleanAvatar);
+
     window.dispatchEvent(new Event('admin_teacher_codes_updated'));
     window.dispatchEvent(new Event('connected_professors_updated'));
   } catch (e) {
@@ -246,12 +375,23 @@ export function saveAdminTeacherCodeMapping(mapping: ProfessorItem) {
  * Saves teacher code mapping to both local storage AND Firestore cloud database
  */
 export async function saveTeacherCodeMappingToCloudAndLocal(mapping: ProfessorItem, firestore?: any) {
-  saveAdminTeacherCodeMapping(mapping);
+  const cleanIcon = normalizeImagePath(mapping.appIconPath);
+  const cleanAvatar = normalizeImagePath(mapping.avatarUrl || cleanIcon);
+  const cleanHero = normalizeImagePath(mapping.heroImageUrl);
+
+  const normalizedMapping = {
+    ...mapping,
+    appIconPath: cleanIcon,
+    avatarUrl: cleanAvatar,
+    heroImageUrl: cleanHero
+  };
+
+  saveAdminTeacherCodeMapping(normalizedMapping);
 
   if (firestore) {
     try {
       const cleanCode = mapping.code.trim().toUpperCase();
-      const { doc, setDoc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+      const { doc, setDoc, serverTimestamp, collection, getDocs, query, where } = await import('firebase/firestore');
 
       // 1. Save to central teacher_codes collection
       const codeRef = doc(firestore, 'teacher_codes', cleanCode);
@@ -265,9 +405,10 @@ export async function saveTeacherCodeMappingToCloudAndLocal(mapping: ProfessorIt
         subjectEn: mapping.subjectEn || '',
         facultyAr: mapping.facultyAr || '',
         facultyEn: mapping.facultyEn || '',
-        avatarUrl: mapping.avatarUrl || '',
-        heroImageUrl: mapping.heroImageUrl || '',
-        appIconPath: mapping.appIconPath || '',
+        avatarUrl: cleanAvatar,
+        profilePictureUrl: cleanAvatar,
+        heroImageUrl: cleanHero,
+        appIconPath: cleanIcon,
         appIconEmoji: mapping.appIconEmoji || '',
         appNameAr: mapping.appNameAr || '',
         appNameEn: mapping.appNameEn || '',
@@ -276,21 +417,45 @@ export async function saveTeacherCodeMappingToCloudAndLocal(mapping: ProfessorIt
         updatedAt: serverTimestamp(),
       }, { merge: true });
 
-      // 2. Also update teacher document if teacher id exists
+      // 2. Update direct teacher document if id exists
       if (mapping.id) {
         const teacherRef = doc(firestore, 'teachers', mapping.id);
         await setDoc(teacherRef, {
           code: cleanCode,
           assistantCode: cleanCode,
           teacherCode: cleanCode,
+          profilePictureUrl: cleanAvatar,
+          avatarUrl: cleanAvatar,
+          heroImageUrl: cleanHero,
           appNameAr: mapping.appNameAr || '',
           appNameEn: mapping.appNameEn || '',
-          appIconPath: mapping.appIconPath || '',
+          appIconPath: cleanIcon,
           appIconEmoji: mapping.appIconEmoji || '',
           themeColor: mapping.themeColor || '#2563eb',
           assignedThemeId: mapping.assignedThemeId || 'default',
           updatedAt: serverTimestamp(),
         }, { merge: true });
+      }
+
+      // 3. Find and update any matching teacher documents by name or code to ensure profile sync
+      try {
+        const teachersCol = collection(firestore, 'teachers');
+        const qName = query(teachersCol, where('name', '==', mapping.name));
+        const snap = await getDocs(qName);
+        for (const d of snap.docs) {
+          if (d.id !== mapping.id) {
+            await setDoc(doc(firestore, 'teachers', d.id), {
+              code: cleanCode,
+              profilePictureUrl: cleanAvatar,
+              avatarUrl: cleanAvatar,
+              appIconPath: cleanIcon,
+              heroImageUrl: cleanHero,
+              updatedAt: serverTimestamp(),
+            }, { merge: true });
+          }
+        }
+      } catch (errQ) {
+        console.warn('Syncing extra teachers by name:', errQ);
       }
     } catch (err) {
       console.error('Failed to sync teacher code mapping to Firestore:', err);

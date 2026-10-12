@@ -51,7 +51,10 @@ import {
   saveAdminTeacherCodeMapping, 
   saveTeacherCodeMappingToCloudAndLocal,
   deleteAdminTeacherCodeMapping,
-  deleteProfessorCompletely
+  deleteProfessorCompletely,
+  normalizeImagePath,
+  DEFAULT_CUSTOM_PROFESSOR_IMAGE,
+  getTeacherCustomAvatar
 } from '@/lib/professors-registry';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -176,12 +179,14 @@ export default function AdminTeacherManagementPage() {
         if (cloudTeachers) {
             cloudTeachers.forEach(t => {
                 if (isDeleted(t.id, t.name, (t as any).code || (t as any).teacherCode)) return;
+                const custom = Object.values(customCodes).find(c => c.id === t.id || c.name === t.name);
+                const rawPfp = custom?.avatarUrl || custom?.appIconPath || t.profilePictureUrl || (t as any).avatarUrl || getTeacherCustomAvatar(t.id || t.name);
                 list.push({
                     id: t.id,
                     name: t.name,
                     email: t.email,
-                    pfp: t.profilePictureUrl,
-                    hero: t.heroImageUrl,
+                    pfp: normalizeImagePath(rawPfp),
+                    hero: normalizeImagePath(t.heroImageUrl),
                     subject: t.subjects?.join(', ') || 'General'
                 });
             });
@@ -192,13 +197,15 @@ export default function AdminTeacherManagementPage() {
             if (!p) return;
             if (isDeleted(p.id, p.name, p.code)) return;
             if (!list.some(item => item.name === p.name || item.id === p.id || (p.code && item.id === p.code))) {
+                const custom = Object.values(customCodes).find(c => c.id === p.id || c.name === p.name || c.code === p.code);
                 const codeSlug = (p.code || 'prof').toLowerCase();
+                const rawPfp = custom?.avatarUrl || custom?.appIconPath || p.avatarUrl || p.appIconPath || getTeacherCustomAvatar(p.id || p.name || p.code);
                 list.push({
                     id: p.id || p.code || String(Math.random()),
                     name: p.name || 'أستاذ مادة',
                     email: `${codeSlug}@faculty.mol5saty.com`,
-                    pfp: p.avatarUrl || '',
-                    hero: p.heroImageUrl || '',
+                    pfp: normalizeImagePath(rawPfp),
+                    hero: normalizeImagePath(p.heroImageUrl),
                     subject: p.subjectAr || 'عام'
                 });
             }
@@ -221,13 +228,13 @@ export default function AdminTeacherManagementPage() {
         setSelectedTeacherForMapping(teacher);
         
         // Check if already mapped
-        const existingEntry = Object.values(customCodes).find(c => c.id === teacher.id || c.name === teacher.name);
+        const existingEntry = Object.values(customCodes).find(c => c.id === teacher.id || c.name === teacher.name || (teacher.code && c.code === teacher.code));
         if (existingEntry) {
             setMappingCode(existingEntry.code);
             setMappingAppNameAr(existingEntry.appNameAr);
             setMappingAppNameEn(existingEntry.appNameEn);
-            setMappingSelectedIconPath(existingEntry.appIconPath);
-            setMappingHeroUrl(existingEntry.heroImageUrl || teacher.hero || '');
+            setMappingSelectedIconPath(normalizeImagePath(existingEntry.appIconPath || existingEntry.avatarUrl));
+            setMappingHeroUrl(normalizeImagePath(existingEntry.heroImageUrl || teacher.hero || ''));
             setMappingAssignedThemeId(existingEntry.assignedThemeId || 'default');
         } else {
             // Suggest 2-4 letter uppercase code from name or defaults
@@ -238,7 +245,7 @@ export default function AdminTeacherManagementPage() {
             setMappingCode(suggestedCode);
             setMappingAppNameAr(`منصة ${teacher.name} [${suggestedCode}]`);
             setMappingAppNameEn(`${teacher.name} Portal [${suggestedCode}]`);
-            setMappingSelectedIconPath('/professors-custom/dr-farouk.svg');
+            setMappingSelectedIconPath(normalizeImagePath(teacher.pfp || getTeacherCustomAvatar(teacher.id || teacher.name) || DEFAULT_CUSTOM_PROFESSOR_IMAGE));
             setMappingHeroUrl(teacher.hero || PlaceHolderImages.find(p => p.id === 'teacher-hero')?.imageUrl || '');
             setMappingAssignedThemeId('default');
         }
@@ -259,7 +266,7 @@ export default function AdminTeacherManagementPage() {
             return;
         }
 
-        const effectiveIconPath = (mappingSelectedIconPath || '').trim();
+        const effectiveIconPath = normalizeImagePath(mappingSelectedIconPath) || DEFAULT_CUSTOM_PROFESSOR_IMAGE;
         const teacherSubject = selectedTeacherForMapping?.subject || 'التخصص الجامعي';
 
         const updatedItem: ProfessorItem = {
@@ -272,8 +279,8 @@ export default function AdminTeacherManagementPage() {
             subjectEn: teacherSubject,
             facultyAr: 'الكلية والجامعة',
             facultyEn: 'Faculty Department',
-            avatarUrl: selectedTeacherForMapping?.pfp || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400',
-            heroImageUrl: mappingHeroUrl || 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=1200',
+            avatarUrl: effectiveIconPath || normalizeImagePath(selectedTeacherForMapping?.pfp) || DEFAULT_CUSTOM_PROFESSOR_IMAGE,
+            heroImageUrl: normalizeImagePath(mappingHeroUrl) || 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=1200',
             appIconPath: effectiveIconPath,
             appIconEmoji: '',
             appNameAr: mappingAppNameAr || `منصة ${selectedTeacherForMapping?.name} [${cleanCode}]`,
@@ -289,6 +296,7 @@ export default function AdminTeacherManagementPage() {
         await saveTeacherCodeMappingToCloudAndLocal(updatedItem, firestore);
         const current = getAdminCustomTeacherCodes();
         setCustomCodes(current);
+        setRefreshKey(prev => prev + 1);
 
         toast({
             title: 'تم ربط الكود والأيقونة بنجاح! 🎓',
@@ -700,7 +708,12 @@ export default function AdminTeacherManagementPage() {
                                                 value={pfpUrl} 
                                                 onChange={(e) => {
                                                     setPfpUrl(e.target.value);
-                                                    form.setValue('profilePictureUrl', e.target.value);
+                                                    form.setValue('profilePictureUrl', normalizeImagePath(e.target.value));
+                                                }}
+                                                onBlur={(e) => {
+                                                    const clean = normalizeImagePath(e.target.value);
+                                                    setPfpUrl(clean);
+                                                    form.setValue('profilePictureUrl', clean);
                                                 }}
                                                 placeholder="/professors-custom/photo.png or https://..."
                                                 className="h-10 text-xs font-mono"
@@ -819,21 +832,52 @@ export default function AdminTeacherManagementPage() {
                             />
                         </div>
 
-                        {/* 3. Custom Codebase Image Path Input ONLY */}
-                        <div className="space-y-2 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                            <Label className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                                <ImageIcon className="w-4 h-4 text-blue-600" />
-                                <span>{t('Custom Image Icon Path (/public/professors-custom/filename.svg or URL):')}</span>
+                        {/* 3. Custom Codebase Image Path Input with Live Visual Preview */}
+                        <div className="space-y-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                            <Label className="text-xs font-bold text-slate-900 dark:text-white flex items-center justify-between">
+                                <span className="flex items-center gap-2">
+                                    <ImageIcon className="w-4 h-4 text-blue-600" />
+                                    <span>{t('Image / Icon Path or Filename:')}</span>
+                                </span>
+                                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">
+                                    /icons/professors/
+                                </span>
                             </Label>
                             <Input
                                 value={mappingSelectedIconPath}
                                 onChange={(e) => setMappingSelectedIconPath(e.target.value)}
-                                placeholder="/professors-custom/dr-khalil.svg"
+                                onBlur={(e) => setMappingSelectedIconPath(normalizeImagePath(e.target.value))}
+                                placeholder="387869340_817871683671250_6351633986100870309_n.jpg or /icons/professors/..."
                                 className="h-11 text-sm font-mono text-left bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700"
                                 dir="ltr"
                             />
+                            
+                            {/* Live Visual Preview Box */}
+                            {mappingSelectedIconPath ? (
+                                <div className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-950 border border-emerald-500/30">
+                                    <div className="w-14 h-14 rounded-xl overflow-hidden border-2 border-emerald-500/40 bg-slate-100 dark:bg-slate-800 shrink-0 shadow-xs">
+                                        <img
+                                            src={normalizeImagePath(mappingSelectedIconPath)}
+                                            alt="Live Preview"
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                                (e.currentTarget as any).src = DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="text-xs space-y-1 overflow-hidden">
+                                        <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+                                            <span>✓ معاينة الصورة المباشرة (Active Image Preview)</span>
+                                        </div>
+                                        <p className="font-mono text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                            المسار المعتمد: {normalizeImagePath(mappingSelectedIconPath)}
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : null}
+
                             <p className="text-[11px] text-slate-500 leading-relaxed">
-                                {t('Enter path of any image or icon placed inside /public/professors-custom/filename.png')}
+                                يمكنك كتابة اسم الملف مباشرة (مثل <code>387869340_...jpg</code>) أو المسار (<code>/icons/professors/...</code>). يتم تحويله وضبطه تلقائياً.
                             </p>
                         </div>
 

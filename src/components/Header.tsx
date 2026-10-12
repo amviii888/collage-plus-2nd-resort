@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from './ui/button';
-import { Settings, WifiOff, Sun, Moon, LogOut, Compass } from 'lucide-react';
+import { Settings, WifiOff, Sun, Moon, LogOut, Compass, BookOpen } from 'lucide-react';
 import { useUser, useAuth, useDoc, useMemoFirebase, useStudent } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import type { Teacher } from '@/lib/types';
@@ -16,7 +16,7 @@ import { useOnlineStatus } from '@/hooks/use-online-status';
 import { cn } from '@/lib/utils';
 import { InstallPwaButton } from './InstallPwaButton';
 import { isStudentEmail, getStudentBarcodeFromEmail, clearAllStudentAuthSessions } from '@/lib/auth-helpers';
-import { findProfessorByCode } from '@/lib/professors-registry';
+import { findProfessorByCode, normalizeImagePath, DEFAULT_CUSTOM_PROFESSOR_IMAGE } from '@/lib/professors-registry';
 
 function UserProfile() {
     const { user, isUserLoading } = useUser();
@@ -180,9 +180,22 @@ export function Header() {
     const auth = useAuth();
     const [hasSession, setHasSession] = useState(false);
     const [activeProfBranding, setActiveProfBranding] = useState<any>(null);
+    const [libraryIconPath, setLibraryIconPath] = useState<string | null>(null);
 
     const [isStudentSession, setIsStudentSession] = useState(false);
     const [isAssistantSession, setIsAssistantSession] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const savedIcon = localStorage.getItem('library_custom_icon_path');
+            if (savedIcon) setLibraryIconPath(savedIcon);
+            const onLibIconChange = () => {
+                setLibraryIconPath(localStorage.getItem('library_custom_icon_path'));
+            };
+            window.addEventListener('library_icon_updated', onLibIconChange);
+            return () => window.removeEventListener('library_icon_updated', onLibIconChange);
+        }
+    }, []);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -300,9 +313,12 @@ export function Header() {
                             <div className="flex items-center gap-2.5">
                                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl border border-blue-500/30 bg-blue-50 dark:bg-slate-900 p-0.5 shadow-md shadow-blue-500/20 flex items-center justify-center overflow-hidden">
                                     <img 
-                                        src={activeProfBranding.appIconPath || activeProfBranding.avatarUrl} 
+                                        src={normalizeImagePath(activeProfBranding.appIconPath || activeProfBranding.avatarUrl)} 
                                         alt={activeProfBranding.name} 
                                         className="w-full h-full object-cover rounded-[9px]" 
+                                        onError={(e) => {
+                                            (e.currentTarget as HTMLImageElement).src = DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+                                        }}
                                     />
                                 </div>
                                 <div className="flex flex-col text-right">
@@ -326,6 +342,27 @@ export function Header() {
 
                 {/* Right Quick Controls: Dark/Light Mode Switcher & Settings */}
                 <div className="flex items-center gap-2 sm:gap-3">
+                    {/* Library Link next to teachers in Top Bar */}
+                    <Link
+                        href="/library"
+                        className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/50 transition-all shadow-xs"
+                        title="المكتبة الأكاديمية (Library)"
+                    >
+                        {libraryIconPath ? (
+                            <img 
+                                src={normalizeImagePath(libraryIconPath)} 
+                                alt="Library" 
+                                className="w-4 h-4 object-contain rounded" 
+                                onError={(e) => {
+                                    (e.currentTarget as HTMLElement).style.display = 'none';
+                                }}
+                            />
+                        ) : (
+                            <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        )}
+                        <span>المكتبة</span>
+                    </Link>
+
                     {!isTeacher && (
                         <Link
                             href="/discover"

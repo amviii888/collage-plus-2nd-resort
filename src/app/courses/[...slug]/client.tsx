@@ -24,6 +24,7 @@ import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { parseVideoSource, isBunnyStreamUrl, type ParsedVideoSource } from '@/lib/bunnyStream';
 import { DynamicWatermark } from '@/components/security/DynamicWatermark';
+import { ProtectedBookReader } from '@/components/library/ProtectedBookReader';
 
 
 const CourseComments = lazy(() => import('@/components/CourseComments').then(module => ({ default: module.CourseComments })));
@@ -343,6 +344,7 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
 
     const [isUnlockOpen, setUnlockOpen] = useState(false);
     const [isHomeworkOpen, setIsHomeworkOpen] = useState(false);
+    const [isAttachmentReaderOpen, setIsAttachmentReaderOpen] = useState(false);
     const [optimisticViewDelta, setOptimisticViewDelta] = useState(0);
     const viewCountIncremented = useRef(false);
     
@@ -924,8 +926,15 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                         </div>
                                     </Link>
                                     {attachmentUrl && (
-                                        <Button asChild size="sm" variant="outline">
-                                            <Link href={attachmentUrl} target="_blank" rel="noopener noreferrer"><Download className="mr-2 h-4 w-4"/>{t('Attachment', {lng: 'ar'})}</Link>
+                                        <Button 
+                                            type="button" 
+                                            size="sm" 
+                                            variant="outline"
+                                            onClick={() => setIsAttachmentReaderOpen(true)}
+                                            className="font-bold text-xs gap-1.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer shadow-xs"
+                                        >
+                                            <BookOpen className="mr-1.5 h-4 w-4 text-emerald-500" />
+                                            <span>{t('عرض المرفق الدراسي المحمي', {lng: 'ar'})}</span>
                                         </Button>
                                     )}
                                 </div>
@@ -1043,6 +1052,26 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                         </div>
                     </DialogContent>
                 </Dialog>
+            )}
+
+            {/* Protected Document / PDF Reader with Dynamic Watermark & Anti-Theft Protection */}
+            {isAttachmentReaderOpen && attachmentUrl && teacher && (
+                <ProtectedBookReader
+                    book={{
+                        id: `course_attach_${courseId}`,
+                        title: `${title} - ملف المادة الشارح`,
+                        author: teacher.name,
+                        description: description || 'ملحقات ومذكرات المحاضرة المحمية رقمياً ضد التسريب.',
+                        price: 0,
+                        category: 'ملحقات الكورس',
+                        pdfUrl: attachmentUrl,
+                        allowDownload: false,
+                    }}
+                    studentId={activeStudentId || user?.uid || 'student'}
+                    studentName={typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('mol5saty_active_student_profile') || '{}')?.name || user?.displayName || 'Student') : 'Student'}
+                    studentBarcode={typeof window !== 'undefined' ? (localStorage.getItem('student_barcode') || '') : ''}
+                    onClose={() => setIsAttachmentReaderOpen(false)}
+                />
             )}
         </div>
     );

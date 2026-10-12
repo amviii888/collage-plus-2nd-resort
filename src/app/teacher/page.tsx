@@ -27,7 +27,7 @@ import { useTranslation } from 'react-i18next';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { REGISTERED_PROFESSORS, getAdminCustomTeacherCodes, findProfessorByCode } from '@/lib/professors-registry';
+import { REGISTERED_PROFESSORS, getAdminCustomTeacherCodes, findProfessorByCode, normalizeImagePath, DEFAULT_CUSTOM_PROFESSOR_IMAGE, getTeacherCustomAvatar } from '@/lib/professors-registry';
 
 
 import { CalendarView } from '@/components/CalendarView';
@@ -364,22 +364,76 @@ export default function TeacherProfilePage() {
     const isOwner = user && !user.isAnonymous && user.uid === teacherId;
 
     const matchedProf = useMemo(() => {
-        if (!teacherId) return null;
-        return REGISTERED_PROFESSORS.find(p => p.id === teacherId || p.code.toLowerCase() === teacherId.toLowerCase() || p.code === teacherId) || 
-               Object.values(getAdminCustomTeacherCodes()).find(p => p.id === teacherId || p.code.toLowerCase() === teacherId.toLowerCase() || p.code === teacherId) || 
-               findProfessorByCode(teacherId) || null;
-    }, [teacherId]);
+        const customCodesList = Object.values(getAdminCustomTeacherCodes());
+        
+        // 1. Match by teacherId
+        if (teacherId) {
+            const foundById = REGISTERED_PROFESSORS.find(p => p.id === teacherId || p.code.toLowerCase() === teacherId.toLowerCase() || p.code === teacherId) || 
+                              customCodesList.find(p => p.id === teacherId || p.code.toLowerCase() === teacherId.toLowerCase() || p.code === teacherId) || 
+                              findProfessorByCode(teacherId);
+            if (foundById) return foundById;
+        }
+
+        // 2. Match by cloudTeacher attributes (code, assistantCode, teacherCode, name)
+        if (cloudTeacher) {
+            const cCode = ((cloudTeacher as any).code || (cloudTeacher as any).teacherCode || (cloudTeacher as any).assistantCode || '').trim().toUpperCase();
+            const cName = (cloudTeacher.name || '').trim();
+
+            if (cCode) {
+                const foundByCode = customCodesList.find(p => p.code.toUpperCase() === cCode) ||
+                                    REGISTERED_PROFESSORS.find(p => p.code.toUpperCase() === cCode) ||
+                                    findProfessorByCode(cCode);
+                if (foundByCode) return foundByCode;
+            }
+
+            if (cName) {
+                const foundByName = customCodesList.find(p => p.name === cName || p.name.includes(cName) || cName.includes(p.name)) ||
+                                    REGISTERED_PROFESSORS.find(p => p.name === cName || p.name.includes(cName) || cName.includes(p.name));
+                if (foundByName) return foundByName;
+            }
+        }
+
+        if (customCodesList.length > 0) {
+            return customCodesList[0];
+        }
+
+        return null;
+    }, [teacherId, cloudTeacher]);
 
     const teacher: Teacher | null = useMemo(() => {
-        if (cloudTeacher) return cloudTeacher;
+        if (cloudTeacher) {
+            const customAvatar = getTeacherCustomAvatar(teacherId || cloudTeacher?.name || cloudTeacher?.id || (cloudTeacher as any)?.code);
+            const rawPfp = customAvatar ||
+                           matchedProf?.avatarUrl || 
+                           matchedProf?.appIconPath || 
+                           (cloudTeacher as any).profilePictureUrl || 
+                           (cloudTeacher as any).avatarUrl || 
+                           (cloudTeacher as any).appIconPath || 
+                           DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+            const rawHero = (cloudTeacher as any).heroImageUrl || matchedProf?.heroImageUrl || '';
+            const normalizedPfp = normalizeImagePath(rawPfp);
+            const normalizedHero = normalizeImagePath(rawHero);
+
+            return {
+                ...cloudTeacher,
+                profilePictureUrl: normalizedPfp || DEFAULT_CUSTOM_PROFESSOR_IMAGE,
+                avatarUrl: normalizedPfp || DEFAULT_CUSTOM_PROFESSOR_IMAGE,
+                heroImageUrl: normalizedHero || cloudTeacher.heroImageUrl || matchedProf?.heroImageUrl,
+            };
+        }
         if (matchedProf) {
+            const customAvatar = getTeacherCustomAvatar(teacherId || matchedProf.name || matchedProf.code);
+            const rawPfp = customAvatar || matchedProf.avatarUrl || matchedProf.appIconPath || DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+            const normalizedPfp = normalizeImagePath(rawPfp);
+            const normalizedHero = normalizeImagePath(matchedProf.heroImageUrl);
             return {
                 id: matchedProf.id || teacherId!,
                 name: matchedProf.name,
                 email: `${matchedProf.code.toLowerCase()}@faculty.mol5saty.com`,
                 bio: matchedProf.descriptionAr || matchedProf.descriptionEn || 'الأستاذ الجامعي المعتمد بالمنصة.',
-                profilePictureUrl: matchedProf.avatarUrl,
-                heroImageUrl: matchedProf.heroImageUrl,
+                profilePictureUrl: normalizedPfp || DEFAULT_CUSTOM_PROFESSOR_IMAGE,
+                avatarUrl: normalizedPfp || DEFAULT_CUSTOM_PROFESSOR_IMAGE,
+                heroImageUrl: normalizedHero,
                 subjects: [matchedProf.subjectAr],
                 gradesTaught: ['الفرقة الأولى', 'الفرقة الثانية', 'الفرقة الثالثة', 'الفرقة الرابعة'],
                 approved: true,
@@ -503,10 +557,18 @@ export default function TeacherProfilePage() {
                     <div className="flex flex-col md:flex-row items-center gap-4 sm:gap-5">
                         <div className="relative shrink-0">
                             <img 
-                                src={teacher.profilePictureUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400"} 
+                                src={normalizeImagePath(teacher.profilePictureUrl || DEFAULT_CUSTOM_PROFESSOR_IMAGE)} 
                                 className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 object-cover shadow-sm" 
                                 alt={teacher.name}
                                 referrerPolicy="no-referrer"
+                                onError={(e) => {
+                                    const img = e.currentTarget as HTMLImageElement;
+                                    if (img.src !== window.location.origin + DEFAULT_CUSTOM_PROFESSOR_IMAGE) {
+                                        img.src = DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+                                    } else {
+                                        img.src = '/icons/professors/vv.svg';
+                                    }
+                                }}
                             />
                             <div className="absolute -bottom-1 -left-1 px-1.5 py-0.5 rounded-md bg-blue-600 text-[10px] text-white font-bold shadow-xs">
                                 معتمد

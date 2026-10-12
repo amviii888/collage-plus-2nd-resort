@@ -23,15 +23,15 @@ import { CldUploadButton } from 'next-cloudinary';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { UploadCloud } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { saveTeacherCodeMappingToCloudAndLocal } from '@/lib/professors-registry';
+import { saveTeacherCodeMappingToCloudAndLocal, normalizeImagePath, DEFAULT_CUSTOM_PROFESSOR_IMAGE, getTeacherCustomAvatar } from '@/lib/professors-registry';
 import { Key, Sparkles, CheckCircle, ShieldCheck } from 'lucide-react';
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   phoneNumber: z.string().optional(),
   bio: z.string().max(300, { message: 'Bio cannot be longer than 300 characters.' }).optional(),
-  profilePictureUrl: z.string().url({ message: 'Please enter a valid URL.' }).optional().or(z.literal('')),
-  heroImageUrl: z.string().url({ message: 'Please enter a valid URL.' }).optional().or(z.literal('')),
+  profilePictureUrl: z.string().optional().or(z.literal('')),
+  heroImageUrl: z.string().optional().or(z.literal('')),
   subjects: z.array(z.string()).min(1, 'Please select at least one subject.'),
   gradesTaught: z.array(z.string()).min(1, 'Please select at least one grade.'),
 });
@@ -60,7 +60,7 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
       name: teacher.name || '',
       phoneNumber: teacher.phoneNumber || '',
       bio: teacher.bio || '',
-      profilePictureUrl: teacher.profilePictureUrl || '',
+      profilePictureUrl: normalizeImagePath(teacher.profilePictureUrl || (teacher as any).avatarUrl || (teacher as any).appIconPath || getTeacherCustomAvatar(teacher.id || teacher.name)),
       heroImageUrl: teacher.heroImageUrl || '',
       subjects: teacher.subjects || [],
       gradesTaught: teacher.gradesTaught || [],
@@ -192,7 +192,8 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
     form.setValue('heroImageUrl', result.info.secure_url, { shouldValidate: true, shouldDirty: true });
   }
 
-  const pfpUrl = form.watch('profilePictureUrl');
+  const watchedPfp = form.watch('profilePictureUrl');
+  const pfpUrl = normalizeImagePath(watchedPfp || (teacher as any).avatarUrl || (teacher as any).appIconPath || getTeacherCustomAvatar(teacher.id || teacher.name));
 
   return (
     <Card className="profile-content-card">

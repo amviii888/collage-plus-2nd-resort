@@ -44,7 +44,9 @@ import {
   findProfessorByCode, 
   setActiveProfessorBranding, 
   ProfessorItem,
-  REGISTERED_PROFESSORS 
+  REGISTERED_PROFESSORS,
+  normalizeImagePath,
+  DEFAULT_CUSTOM_PROFESSOR_IMAGE 
 } from '@/lib/professors-registry';
 
 function TeacherLiveMetrics({ professorId, professorCode }: { professorId?: string; professorCode?: string }) {
@@ -369,17 +371,23 @@ export default function MyDoctorsPage() {
                         <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-900 p-1 shadow-md border border-slate-200 dark:border-slate-700 flex items-center justify-center">
                           {professor?.appIconPath ? (
                             <img 
-                              src={professor.appIconPath} 
+                              src={normalizeImagePath(professor.appIconPath)} 
                               alt={professor.name} 
                               className="w-full h-full object-contain rounded-lg"
                               referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).src = DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+                              }}
                             />
                           ) : (
                             <img 
-                              src={professor?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400'} 
+                              src={normalizeImagePath(professor?.avatarUrl || DEFAULT_CUSTOM_PROFESSOR_IMAGE)} 
                               alt={professor?.name || 'Icon'} 
                               className="w-full h-full object-cover rounded-lg"
                               referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).src = DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+                              }}
                             />
                           )}
                         </div>

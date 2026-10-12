@@ -54,6 +54,7 @@ import { useFirestore, useUser, useAuth, useCollection, useMemoFirebase } from '
 import { 
   collection, 
   doc, 
+  getDoc,
   setDoc, 
   deleteDoc, 
   updateDoc, 
@@ -63,7 +64,10 @@ import {
   where 
 } from 'firebase/firestore';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import type { LibraryBook, LibraryRequest } from '@/lib/library-types';
+import type { LibraryBook, LibraryRequest, BookUnit, BookUnitFile, LibrarySettings } from '@/lib/library-types';
+import { Switch } from '@/components/ui/switch';
+import { normalizeImagePath } from '@/lib/professors-registry';
+import { FolderOpen, Shield } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LibrarianPortalPage() {
@@ -77,7 +81,13 @@ export default function LibrarianPortalPage() {
   const isDark = mounted ? resolvedTheme === 'dark' : false;
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'books' | 'requests' | 'subscribers'>('books');
+  const [activeTab, setActiveTab] = useState<'books' | 'requests' | 'subscribers' | 'settings'>('books');
+
+  // Universal Library Settings state
+  const [libraryAccessCode, setLibraryAccessCode] = useState('library123');
+  const [libraryIconPath, setLibraryIconPath] = useState('');
+  const [isLibraryLocked, setIsLibraryLocked] = useState(true);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   // Book Modal state
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
@@ -92,6 +102,7 @@ export default function LibrarianPortalPage() {
   const [bookPdfUrl, setBookPdfUrl] = useState('');
   const [allowDownload, setAllowDownload] = useState(false);
   const [bookPagesList, setBookPagesList] = useState<string[]>([]);
+  const [bookUnits, setBookUnits] = useState<BookUnit[]>([]);
   const [isSavingBook, setIsSavingBook] = useState(false);
 
   const [isUploadingFile, setIsUploadingFile] = useState(false);
@@ -132,9 +143,135 @@ export default function LibrarianPortalPage() {
     );
   }, [user]);
 
+  // Load library settings on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedCode = localStorage.getItem('library_access_code_setting') || 'library123';
+      const savedIcon = localStorage.getItem('library_custom_icon_path') || '';
+      const savedLock = localStorage.getItem('library_is_locked_setting') !== 'false';
+      setLibraryAccessCode(savedCode);
+      setLibraryIconPath(savedIcon);
+      setIsLibraryLocked(savedLock);
+
+      if (firestore) {
+        getDoc(doc(firestore, 'library_settings', 'access_config')).then(snap => {
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data.accessCode) setLibraryAccessCode(data.accessCode);
+            if (data.iconPath) setLibraryIconPath(data.iconPath);
+            if (data.isLocked !== undefined) setIsLibraryLocked(data.isLocked);
+          }
+        }).catch(() => {});
+      }
+    }
+  }, [firestore]);
+
+  const handleSaveLibrarySettings = async () => {
+    setIsSavingSettings(true);
+    try {
+      const cleanCode = libraryAccessCode.trim() || 'library123';
+      const cleanIcon = libraryIconPath.trim();
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('library_access_code_setting', cleanCode);
+        localStorage.setItem('library_custom_icon_path', cleanIcon);
+        localStorage.setItem('library_is_locked_setting', String(isLibraryLocked));
+        window.dispatchEvent(new Event('library_icon_updated'));
+      }
+      if (firestore) {
+        await setDoc(doc(firestore, 'library_settings', 'access_config'), {
+          accessCode: cleanCode,
+          iconPath: cleanIcon,
+          isLocked: isLibraryLocked,
+          updatedAt: serverTimestamp(),
+          updatedBy: user?.email || 'librarian',
+        }, { merge: true });
+      }
+      toast({
+        title: '✅ تم حفظ إعدادات أمان المكتبة',
+        description: `رمز الدخول المعتمد الآن: "${cleanCode}"، حالة القفل: ${isLibraryLocked ? 'مفعل' : 'مفتوح للجميع'}.`,
+      });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'فشل حفظ الإعدادات', description: err.message });
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
   const handleLibrarianLogout = async () => {
     if (auth) await signOut(auth);
     window.location.href = '/login';
+  };
+
+  // Units Management Helpers
+  const handleAddUnit = () => {
+    const newUnit: BookUnit = {
+      id: `unit_${Date.now()}`,
+      title: `الوحدة ${bookUnits.length + 1}`,
+      description: '',
+      files: [],
+    };
+    setBookUnits([...bookUnits, newUnit]);
+  };
+
+  const handleUpdateUnitTitle = (unitIndex: number, title: string) => {
+    const updated = [...bookUnits];
+    updated[unitIndex].title = title;
+    setBookUnits(updated);
+  };
+
+  const handleRemoveUnit = (unitIndex: number) => {
+    setBookUnits(bookUnits.filter((_, idx) => idx !== unitIndex));
+  };
+
+  const handleAddFileToUnit = (unitIndex: number) => {
+    const updated = [...bookUnits];
+    const unit = updated[unitIndex];
+    const newFile: BookUnitFile = {
+      id: `file_${Date.now()}`,
+      title: `ملف / درس ${unit.files.length + 1}`,
+      fileUrl: '',
+      fileType: 'pdf',
+    };
+    unit.files = [...unit.files, newFile];
+    setBookUnits(updated);
+  };
+
+  const handleUpdateUnitFile = (unitIndex: number, fileIndex: number, patch: Partial<BookUnitFile>) => {
+    const updated = [...bookUnits];
+    updated[unitIndex].files[fileIndex] = {
+      ...updated[unitIndex].files[fileIndex],
+      ...patch,
+    };
+    setBookUnits(updated);
+  };
+
+  const handleRemoveFileFromUnit = (unitIndex: number, fileIndex: number) => {
+    const updated = [...bookUnits];
+    updated[unitIndex].files = updated[unitIndex].files.filter((_, idx) => idx !== fileIndex);
+    setBookUnits(updated);
+  };
+
+  const handleUploadUnitFile = async (e: React.ChangeEvent<HTMLInputElement>, unitIndex: number, fileIndex: number) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploadingFile(true);
+      setUploadProgress('جاري الرفع السحابي...');
+      const isImg = file.type.startsWith('image/');
+      const result = await uploadFileToCloudinary(file, isImg ? 'image' : 'raw', 'library/units');
+      handleUpdateUnitFile(unitIndex, fileIndex, {
+        fileUrl: result.secure_url,
+        fileType: isImg ? 'image' : 'pdf',
+        title: file.name.replace(/\.[^/.]+$/, ""),
+      });
+      toast({ title: '✅ تم رفع ملف الوحدة بنجاح' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'فشل رفع الملف', description: err.message });
+    } finally {
+      setIsUploadingFile(false);
+      setUploadProgress(null);
+    }
   };
 
   // Open Create Book
@@ -150,6 +287,7 @@ export default function LibrarianPortalPage() {
     setBookPdfUrl('');
     setAllowDownload(false);
     setBookPagesList([]);
+    setBookUnits([]);
     setIsBookModalOpen(true);
   };
 
@@ -166,6 +304,7 @@ export default function LibrarianPortalPage() {
     setBookPdfUrl(book.pdfUrl || '');
     setAllowDownload(!!book.allowDownload);
     setBookPagesList(book.pages || []);
+    setBookUnits(book.units || []);
     setIsBookModalOpen(true);
   };
 
@@ -192,6 +331,7 @@ export default function LibrarianPortalPage() {
         coverUrl: bookCoverUrl.trim(),
         pdfUrl: bookPdfUrl.trim(),
         pages: bookPagesList,
+        units: bookUnits,
         allowDownload: !!allowDownload,
         isAvailable: true,
         updatedAt: serverTimestamp(),
@@ -199,13 +339,13 @@ export default function LibrarianPortalPage() {
 
       if (editingBook) {
         await updateDoc(doc(firestore, 'library_books', editingBook.id), bookData);
-        toast({ title: '✅ تم تحديث الكتاب بنجاح' });
+        toast({ title: '✅ تم تحديث الكتاب والوحدات بنجاح' });
       } else {
         const newRef = doc(collection(firestore, 'library_books'));
         bookData.id = newRef.id;
         bookData.createdAt = serverTimestamp();
         await setDoc(newRef, bookData);
-        toast({ title: '🎉 تم إضافة الكتاب إلى المكتبة بنجاح' });
+        toast({ title: '🎉 تم إضافة الكتاب والوحدات إلى المكتبة بنجاح' });
       }
 
       setIsBookModalOpen(false);
@@ -570,6 +710,18 @@ export default function LibrarianPortalPage() {
               <Users className="w-4 h-4" />
               <span>الطلاب المشتركون ({resolvedRequests.length})</span>
             </button>
+
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'settings'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                  : 'text-slate-800 dark:text-zinc-200 hover:text-slate-950 dark:hover:text-white'
+              }`}
+            >
+              <KeyRound className="w-4 h-4" />
+              <span>إعدادات الأمان وكود الدخول</span>
+            </button>
           </div>
 
           {activeTab === 'books' && (
@@ -785,6 +937,129 @@ export default function LibrarianPortalPage() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 4: LIBRARY SECURITY & ACCESS CODE SETTINGS */}
+        {activeTab === 'settings' && (
+          <div className="space-y-6 pt-2">
+            <Card className="bg-white dark:bg-[#0c101c] border-slate-300 dark:border-zinc-800 p-6 sm:p-8 rounded-3xl shadow-sm text-right space-y-6">
+              <div className="border-b border-slate-200 dark:border-zinc-800 pb-4">
+                <h3 className="text-lg font-black text-slate-950 dark:text-white flex items-center gap-2">
+                  <KeyRound className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                  <span>رمز الدخول العام وإعدادات قفل المكتبة (Library Access Code)</span>
+                </h3>
+                <p className="text-xs text-slate-600 dark:text-zinc-400 mt-1">
+                  المكتبة مغلقة برمز دخول؛ لن يتمكن أي طالب من الدخول وتصفح الكتب إلا بعد إدخال الرمز السري الذي تحدده هنا (مثل library123).
+                </p>
+              </div>
+
+              {/* Lock Toggle */}
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <span className="text-sm font-black text-emerald-950 dark:text-emerald-300">
+                    تفعيل قفل المكتبة برمز الدخول (Lock Library with Code)
+                  </span>
+                  <p className="text-xs text-slate-600 dark:text-zinc-400">
+                    عند التفعيل، تظهر شاشة قفل مشفرة وتطلب من الطالب الرمز قبل إظهار محتويات المكتبة.
+                  </p>
+                </div>
+                <Switch
+                  checked={isLibraryLocked}
+                  onCheckedChange={setIsLibraryLocked}
+                />
+              </div>
+
+              {/* Access Code Input */}
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                  رمز الدخول السري للمكتبة (Universal Access Code) *
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={libraryAccessCode}
+                    onChange={(e) => setLibraryAccessCode(e.target.value)}
+                    placeholder="library123"
+                    className="h-11 bg-slate-50 dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-sm font-mono tracking-widest text-left rounded-xl flex-1 font-bold"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(libraryAccessCode);
+                      toast({ title: '📋 تم نسخ كود المكتبة إلى الحافظة' });
+                    }}
+                    className="h-11 px-4 rounded-xl border-slate-300 dark:border-zinc-800 text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span>نسخ</span>
+                  </Button>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-zinc-500">
+                  الرمز الافتراضي هو <code className="font-mono text-emerald-600 font-bold">library123</code>. يمكنك تغييره في أي وقت، وسيتحدث فوراً لجميع الطلاب.
+                </p>
+              </div>
+
+              {/* Library Icon Path */}
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                  أيقونة المكتبة في الشريط العلوي (Custom Library Icon Path / Route)
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={libraryIconPath}
+                    onChange={(e) => setLibraryIconPath(e.target.value)}
+                    placeholder="/icons/library.png أو رابط صورة سحابي"
+                    className="h-11 bg-slate-50 dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs font-mono text-left rounded-xl flex-1"
+                  />
+                  <label className="h-11 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer flex items-center gap-1.5 shrink-0 shadow-xs">
+                    <UploadCloud className="w-4 h-4" />
+                    <span>رفع أيقونة</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const res = await uploadFileToCloudinary(file, 'image', 'library/icons');
+                          setLibraryIconPath(res.secure_url);
+                          toast({ title: '✅ تم رفع أيقونة المكتبة' });
+                        } catch (err: any) {
+                          toast({ variant: 'destructive', title: 'فشل الرفع', description: err.message });
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+                {libraryIconPath && (
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800">
+                    <img 
+                      src={normalizeImagePath(libraryIconPath)} 
+                      alt="Library Icon" 
+                      className="w-8 h-8 object-contain rounded-lg"
+                      onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                    />
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
+                      معاينة الأيقونة في الهيدر: ستظهر بجوار الأساتذة في الشريط العلوي
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Save Button */}
+              <div className="pt-4 border-t border-slate-200 dark:border-zinc-800 flex justify-end">
+                <Button
+                  onClick={handleSaveLibrarySettings}
+                  disabled={isSavingSettings}
+                  className="h-11 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/20 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{isSavingSettings ? 'جارٍ الحفظ...' : 'حفظ إعدادات أمان المكتبة'}</span>
+                </Button>
+              </div>
+            </Card>
           </div>
         )}
       </div>
@@ -1019,6 +1294,118 @@ export default function LibrarianPortalPage() {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Units & Collections System (نظام الوحدات والمجموعات للكتاب) */}
+            <div className="space-y-3 text-right p-4 rounded-2xl bg-slate-100 dark:bg-zinc-900/70 border border-slate-300 dark:border-zinc-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <FolderOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>نظام الوحدات والمجموعات (Units & Collections System)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-zinc-400 mt-0.5">
+                    يمكنك تقسيم الكتاب إلى وحدات وفصول متعددة، وإضافة ملفات أو صور مستقلة لكل وحدة.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleAddUnit}
+                  className="h-8 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>إضافة وحدة</span>
+                </Button>
+              </div>
+
+              {bookUnits.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  {bookUnits.map((unit, uIdx) => (
+                    <div key={unit.id || uIdx} className="p-3.5 rounded-xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <Input
+                          value={unit.title}
+                          onChange={(e) => handleUpdateUnitTitle(uIdx, e.target.value)}
+                          placeholder={`عنوان الوحدة ${uIdx + 1} (مثال: الوحدة الأولى: الكيمياء العضوية)`}
+                          className="h-9 text-xs font-bold bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-700"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveUnit(uIdx)}
+                          className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-500/10 shrink-0"
+                          title="حذف الوحدة"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                      {/* Files inside unit */}
+                      <div className="space-y-2 pr-3 border-r-2 border-emerald-500/50">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-slate-700 dark:text-zinc-300">
+                            الملفات والصور داخل هذه الوحدة ({unit.files.length}):
+                          </span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleAddFileToUnit(uIdx)}
+                            className="h-7 px-2.5 text-[10px] font-bold rounded-lg border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                          >
+                            <Plus className="w-3 h-3 ml-1" />
+                            <span>إضافة ملف / صورة</span>
+                          </Button>
+                        </div>
+
+                        {unit.files.map((file, fIdx) => (
+                          <div key={file.id || fIdx} className="p-2.5 rounded-lg bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={file.title}
+                                onChange={(e) => handleUpdateUnitFile(uIdx, fIdx, { title: e.target.value })}
+                                placeholder="اسم الملف أو المذكرة داخل الوحدة"
+                                className="h-8 text-[11px] bg-white dark:bg-zinc-950 flex-1 font-bold"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleRemoveFileFromUnit(uIdx, fIdx)}
+                                className="h-7 w-7 text-red-500 hover:text-red-600 shrink-0"
+                                title="حذف الملف"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={file.fileUrl}
+                                onChange={(e) => handleUpdateUnitFile(uIdx, fIdx, { fileUrl: e.target.value })}
+                                placeholder="رابط الملف (PDF أو صورة) أو ارفع من جهازك"
+                                className="h-8 text-[10px] font-mono text-left bg-white dark:bg-zinc-950 flex-1"
+                              />
+                              <label className="h-8 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] cursor-pointer flex items-center gap-1 shrink-0 shadow-xs">
+                                <UploadCloud className="w-3.5 h-3.5" />
+                                <span>رفع</span>
+                                <input
+                                  type="file"
+                                  accept="application/pdf,image/*"
+                                  className="hidden"
+                                  onChange={(e) => handleUploadUnitFile(e, uIdx, fIdx)}
+                                />
+                              </label>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

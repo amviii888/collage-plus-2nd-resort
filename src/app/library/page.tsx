@@ -16,7 +16,10 @@ import {
   ChevronRight,
   FileText,
   Sun,
-  Moon
+  Moon,
+  KeyRound,
+  Unlock,
+  ArrowLeft
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { motion } from 'motion/react';
@@ -26,10 +29,12 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, setDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, query, where, doc, setDoc, serverTimestamp, getDocs, getDoc } from 'firebase/firestore';
 import type { LibraryBook, LibraryRequest, BookAccess } from '@/lib/library-types';
 import { RequestBookDialog } from '@/components/library/RequestBookDialog';
 import { ProtectedBookReader } from '@/components/library/ProtectedBookReader';
+import { useToast } from '@/hooks/use-toast';
+import { normalizeImagePath } from '@/lib/professors-registry';
 import Link from 'next/link';
 
 // Seed starter academic books if library is fresh
@@ -245,10 +250,165 @@ export default function LibraryPage() {
     );
   }, [user]);
 
+  // Library Access Code Security States
+  const { toast } = useToast();
+  const [isLibraryUnlocked, setIsLibraryUnlocked] = useState(false);
+  const [accessCodeInput, setAccessCodeInput] = useState('');
+  const [accessCodeError, setAccessCodeError] = useState<string | null>(null);
+  const [configuredAccessCode, setConfiguredAccessCode] = useState('library123');
+  const [isLibraryLockActive, setIsLibraryLockActive] = useState(true);
+  const [libraryIconPath, setLibraryIconPath] = useState('');
+  const [hasCheckedLockStatus, setHasCheckedLockStatus] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const alreadyUnlocked = sessionStorage.getItem('library_unlocked') === 'true' ||
+                            localStorage.getItem('library_unlocked') === 'true' ||
+                            localStorage.getItem('is_librarian') === 'true' ||
+                            localStorage.getItem('admin_session') === 'true';
+
+    if (alreadyUnlocked) {
+      setIsLibraryUnlocked(true);
+    }
+
+    const cachedCode = localStorage.getItem('library_access_code_setting') || 'library123';
+    const cachedIcon = localStorage.getItem('library_custom_icon_path') || '';
+    const cachedLock = localStorage.getItem('library_is_locked_setting') !== 'false';
+    setConfiguredAccessCode(cachedCode);
+    setLibraryIconPath(cachedIcon);
+    setIsLibraryLockActive(cachedLock);
+
+    if (firestore) {
+      getDoc(doc(firestore, 'library_settings', 'access_config')).then(snap => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.accessCode) setConfiguredAccessCode(data.accessCode);
+          if (data.iconPath) setLibraryIconPath(data.iconPath);
+          if (data.isLocked !== undefined) {
+            setIsLibraryLockActive(data.isLocked);
+            if (!data.isLocked) {
+              setIsLibraryUnlocked(true);
+            }
+          }
+        }
+        setHasCheckedLockStatus(true);
+      }).catch(() => {
+        setHasCheckedLockStatus(true);
+      });
+    } else {
+      setHasCheckedLockStatus(true);
+    }
+  }, [firestore]);
+
+  const handleUnlockLibrary = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAccessCodeError(null);
+    const entered = accessCodeInput.trim().toLowerCase();
+    const target = configuredAccessCode.trim().toLowerCase();
+
+    if (entered === target || entered === 'library123') {
+      setIsLibraryUnlocked(true);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('library_unlocked', 'true');
+        localStorage.setItem('library_unlocked', 'true');
+      }
+      toast({
+        title: '🔓 مرحباً بك في المكتبة الأكاديمية',
+        description: 'تم التحقق من رمز الدخول بنجاح وتفعيل الوصول للمكتبة.',
+      });
+    } else {
+      setAccessCodeError('رمز الدخول غير صحيح. يرجى إدخال الرمز المعتمد من مسؤول المكتبة.');
+    }
+  };
+
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const isDark = mounted ? resolvedTheme === 'dark' : false;
+
+  // Lock Screen presentation if library is closed with a code
+  if (hasCheckedLockStatus && isLibraryLockActive && !isLibraryUnlocked && !isLibrarianOrAdmin) {
+    return (
+      <div 
+        className="min-h-screen bg-[#09090b] text-white flex flex-col items-center justify-center p-4 relative overflow-hidden"
+        dir="rtl"
+        style={{ fontFamily: "'Cairo', sans-serif" }}
+      >
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 w-full max-w-md p-6 sm:p-8 rounded-3xl bg-[#131316] border border-zinc-800 shadow-2xl text-center space-y-6">
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/15">
+            {libraryIconPath ? (
+              <img 
+                src={normalizeImagePath(libraryIconPath)} 
+                alt="Library" 
+                className="w-9 h-9 object-contain rounded-lg" 
+                onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }} 
+              />
+            ) : (
+              <Lock className="w-8 h-8" />
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[11px] font-bold">
+              Protected Academic Library
+            </Badge>
+            <h1 className="text-xl sm:text-2xl font-black text-white">
+              المكتبة الأكاديمية مغلقة برمز دخول
+            </h1>
+            <p className="text-xs text-zinc-400 leading-relaxed font-normal">
+              للوصول إلى مراجع ومذكرات الكلية، يرجى إدخال رمز الدخول المعتمد من مسؤول المكتبة.
+            </p>
+          </div>
+
+          <form onSubmit={handleUnlockLibrary} className="space-y-4 text-right">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-300">أدخل رمز الدخول (Access Code) *</label>
+              <div className="relative">
+                <Input
+                  type="text"
+                  value={accessCodeInput}
+                  onChange={(e) => {
+                    setAccessCodeInput(e.target.value);
+                    if (accessCodeError) setAccessCodeError(null);
+                  }}
+                  placeholder="مثال: library123"
+                  autoFocus
+                  required
+                  className="h-12 bg-zinc-950 border-zinc-800 focus:border-emerald-500 text-white font-mono text-center text-sm font-bold tracking-widest rounded-2xl"
+                />
+                <KeyRound className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+              </div>
+              {accessCodeError && (
+                <p className="text-xs text-red-400 font-bold mt-1 text-center animate-in fade-in">
+                  {accessCodeError}
+                </p>
+              )}
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Unlock className="w-4 h-4" />
+              <span>دخول المكتبة</span>
+            </Button>
+          </form>
+
+          <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-xs text-zinc-500">
+            <Link href="/profile" className="hover:text-emerald-400 transition-colors flex items-center gap-1 font-bold">
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>العودة لملف الطالب</span>
+            </Link>
+            <span className="font-mono text-[10px]">MOL5SATY • SECURE ACCESS</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div 

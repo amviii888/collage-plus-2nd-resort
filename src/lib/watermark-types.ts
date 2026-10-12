@@ -23,13 +23,17 @@ export interface DynamicWatermarkConfig {
   customX?: number; // 0 - 100%
   customY?: number; // 0 - 100%
 
+  // Movement Speed control
+  movementSpeed: 'slow' | 'normal' | 'fast' | 'ultra_fast'; // DVD / corner movement speed
+
   // Security Overkill features
   flickerEnabled: boolean; // periodically increases visibility/flickers
   flickerIntervalSeconds: number; // default 45 seconds
 
   // Audio Watermark (TTS - Text to Speech Web Speech API, 100% free)
   ttsEnabled: boolean;
-  ttsIntervalMinutes: 0 | 15 | 30 | 60; // 0 = off, 15, 30, 60 minutes
+  ttsIntervalMinutes: 0 | 5 | 15 | 30 | 60; // 0 = off, 5, 15, 30, 60 minutes
+  ttsVoice: 'female' | 'male' | 'child'; // voice personality
   ttsInitialTestDelaySeconds?: number; // 0 = disabled, 10 or 15 = speaks once shortly after starting to verify audio
 
   // Anti-Tamper & Anti-Inspect Shield
@@ -51,6 +55,7 @@ export const DEFAULT_WATERMARK_CONFIG: DynamicWatermarkConfig = {
   borderStyle: 'thin',
   borderColor: 'rgba(34, 197, 94, 0.3)',
   movementType: 'wandering', // DVD / wandering bounce by default
+  movementSpeed: 'normal', // slow, normal, fast, ultra_fast
   fixedPosition: 'top-left',
   customX: 10,
   customY: 10,
@@ -58,6 +63,7 @@ export const DEFAULT_WATERMARK_CONFIG: DynamicWatermarkConfig = {
   flickerIntervalSeconds: 40,
   ttsEnabled: false,
   ttsIntervalMinutes: 0,
+  ttsVoice: 'female',
   ttsInitialTestDelaySeconds: 15,
   antiTamperShieldEnabled: true,
 };

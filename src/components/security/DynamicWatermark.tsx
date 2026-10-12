@@ -113,6 +113,16 @@ export function DynamicWatermark({
     let animId: number;
     let lastTime = performance.now();
 
+    // Speed multiplier: slow = 0.5x, normal = 1.0x, fast = 2.0x, ultra_fast = 3.2x
+    const speedMultiplier = cfg.movementSpeed === 'slow' ? 0.5 :
+                            cfg.movementSpeed === 'fast' ? 2.0 :
+                            cfg.movementSpeed === 'ultra_fast' ? 3.2 : 1.0;
+
+    const baseVx = 0.35 * speedMultiplier;
+    const baseVy = 0.28 * speedMultiplier;
+    wanderRef.current.vx = (wanderRef.current.vx >= 0 ? 1 : -1) * baseVx;
+    wanderRef.current.vy = (wanderRef.current.vy >= 0 ? 1 : -1) * baseVy;
+
     const updateBounce = (time: number) => {
       const delta = Math.min((time - lastTime) / 16.6, 2.5);
       lastTime = time;
@@ -144,18 +154,21 @@ export function DynamicWatermark({
 
     animId = requestAnimationFrame(updateBounce);
     return () => cancelAnimationFrame(animId);
-  }, [cfg.movementType]);
+  }, [cfg.movementType, cfg.movementSpeed]);
 
   // ----------------------------------------------------
-  // 2. Corner Cycling Logic (every 8 seconds)
+  // 2. Corner Cycling Logic
   // ----------------------------------------------------
   useEffect(() => {
     if (cfg.movementType !== 'corner_cycle') return;
+    const cornerMs = cfg.movementSpeed === 'slow' ? 14000 :
+                     cfg.movementSpeed === 'fast' ? 4000 :
+                     cfg.movementSpeed === 'ultra_fast' ? 2000 : 8000;
     const interval = setInterval(() => {
       setCornerIndex(prev => (prev + 1) % 5);
-    }, 8000);
+    }, cornerMs);
     return () => clearInterval(interval);
-  }, [cfg.movementType]);
+  }, [cfg.movementType, cfg.movementSpeed]);
 
   // ----------------------------------------------------
   // 3. Flickering Effect (stealth flash every X seconds)
@@ -187,22 +200,58 @@ export function DynamicWatermark({
       const arabicPhrase = `تنبيه أمني. محتوى مرخص للطالب ${studentName}، كود الطالب ${studentCode}، هاتف ${studentPhone}${uniPhrase}.`;
       const utterance = new SpeechSynthesisUtterance(arabicPhrase);
       
-      // Auto-detect Arabic voice if available on system
-      const voices = window.speechSynthesis.getVoices();
-      const arVoice = voices.find(v => v.lang.startsWith('ar') || v.name.toLowerCase().includes('arabic') || v.lang.includes('ar-EG') || v.lang.includes('ar-SA'));
-      if (arVoice) {
-        utterance.voice = arVoice;
+      // Select voice personality: female, male, or child
+      const voiceStyle = cfg.ttsVoice || 'female';
+      let pitch = 1.12;
+      let rate = 0.94;
+
+      if (voiceStyle === 'child') {
+        pitch = 1.68; // child playful high pitch
+        rate = 1.05;  // youthful tempo
+      } else if (voiceStyle === 'male') {
+        pitch = 0.72; // deep masculine pitch
+        rate = 0.88;  // authoritative measured pace
+      } else {
+        // female
+        pitch = 1.15;
+        rate = 0.94;
       }
+
+      utterance.pitch = pitch;
+      utterance.rate = rate;
+      utterance.volume = 0.95;
+
+      // Auto-detect matching Arabic voice if available on system
+      const voices = window.speechSynthesis.getVoices();
+      const arVoices = voices.filter(v => v.lang.startsWith('ar') || v.name.toLowerCase().includes('arabic') || v.lang.includes('ar-EG') || v.lang.includes('ar-SA'));
       
-      utterance.rate = 0.92;
-      utterance.pitch = 1.0;
-      utterance.volume = 0.85;
+      if (arVoices.length > 0) {
+        if (voiceStyle === 'male') {
+          const maleAr = arVoices.find(v => 
+            v.name.toLowerCase().includes('male') || 
+            v.name.toLowerCase().includes('maged') || 
+            v.name.toLowerCase().includes('tarik') ||
+            v.name.toLowerCase().includes('shakir')
+          );
+          utterance.voice = maleAr || arVoices[0];
+        } else if (voiceStyle === 'female') {
+          const femaleAr = arVoices.find(v => 
+            v.name.toLowerCase().includes('female') || 
+            v.name.toLowerCase().includes('salma') || 
+            v.name.toLowerCase().includes('hoda') || 
+            v.name.toLowerCase().includes('laila')
+          );
+          utterance.voice = femaleAr || arVoices[0];
+        } else {
+          utterance.voice = arVoices[0];
+        }
+      }
 
       window.speechSynthesis.speak(utterance);
     } catch (e) {
       console.warn('TTS watermark speak notice:', e);
     }
-  }, [studentName, studentCode, studentPhone, studentUniversity, cfg.showUniversity]);
+  }, [studentName, studentCode, studentPhone, studentUniversity, cfg.showUniversity, cfg.ttsVoice]);
 
   // Event listener for manual / test trigger from UI
   useEffect(() => {
@@ -230,7 +279,7 @@ export function DynamicWatermark({
       }, initialDelaySec * 1000);
     }
 
-    // Recurring interval (Every 15 min, 30 min, or 60 min)
+    // Recurring interval (Every 5 min, 15 min, 30 min, or 60 min)
     const intervalMs = cfg.ttsIntervalMinutes * 60 * 1000;
     const interval = setInterval(speakWatermarkAudio, intervalMs);
 
@@ -262,8 +311,8 @@ export function DynamicWatermark({
       const isCmdOrCtrl = e.metaKey || e.ctrlKey;
       const key = e.key ? e.key.toLowerCase() : '';
 
-      // F12 key
-      if (e.key === 'F12' || e.keyCode === 123) {
+      // F12 and F2 keys
+      if (e.key === 'F12' || e.keyCode === 123 || e.key === 'F2' || e.keyCode === 113) {
         e.preventDefault();
         e.stopPropagation();
         setIsTampered(true);

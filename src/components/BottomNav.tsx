@@ -56,7 +56,6 @@ export function BottomNav() {
 
     if (isTeacher) {
        return [
-          { href: '/library', icon: BookOpen, label: 'المكتبة' },
           { href: '/profile', icon: GraduationCap, label: 'الملف الأكاديمي' },
       ];
     }
@@ -64,7 +63,6 @@ export function BottomNav() {
     // Default for all students (authenticated, anonymous, student barcode, or visitor):
     return [
         { href: '/discover', icon: Compass, label: 'الأساتذة والمحاضرون' },
-        { href: '/library', icon: BookOpen, label: 'المكتبة' },
         { href: '/profile', icon: GraduationCap, label: 'هوية الطالب' }
     ];
 
