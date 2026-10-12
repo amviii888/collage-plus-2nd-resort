@@ -3,6 +3,12 @@ require('dotenv').config({ path: './.env.local' });
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  allowedDevOrigins: [
+    'ais-dev-2yht2i7uwv4pfrnyzrf5wo-739993943153.europe-west2.run.app',
+    '*.run.app',
+    'localhost:3000',
+    '127.0.0.1:3000'
+  ],
   typescript: {
     ignoreBuildErrors: true,
   },

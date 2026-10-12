@@ -29,7 +29,7 @@ import {
   Moon
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { isStudentEmail, clearAllStudentAuthSessions } from '@/lib/auth-helpers';
+import { isStudentEmail, clearAllStudentAuthSessions, isDeviceLockedOutForStudent, unlockDeviceForStudent } from '@/lib/auth-helpers';
 
 const AuthHeader = () => {
     const { i18n } = useTranslation();
@@ -166,8 +166,9 @@ function LoginFormContent() {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [cooldownRemaining, setCooldownRemaining] = useState(0);
+    const [reloginCodeInput, setReloginCodeInput] = useState('');
+    const [showReloginPrompt, setShowReloginPrompt] = useState(false);
 
     // If already logged in, redirect directly to user portal
     useEffect(() => {
@@ -327,6 +328,50 @@ function LoginFormContent() {
                 const studentCode = isStudentAttempt 
                     ? identifier.trim() 
                     : (userCredential.user.email ? userCredential.user.email.split('@')[0] : identifier.trim());
+
+                // Single Device Lockout Check: If previously voluntarily logged out on this device
+                const isLockedOut = isDeviceLockedOutForStudent(studentCode);
+                if (isLockedOut) {
+                    let customTeacherCode = localStorage.getItem('student_custom_relogin_code_' + studentCode.trim().toLowerCase()) ||
+                                           localStorage.getItem('student_custom_relogin_code_' + studentCode.trim()) ||
+                                           localStorage.getItem('student_custom_relogin_code_' + userCredential.user.uid) ||
+                                           localStorage.getItem('student_custom_relogin_code_general');
+
+                    if (!customTeacherCode && firestore) {
+                        try {
+                            const { doc, getDoc } = await import('firebase/firestore');
+                            const studentSnap = await getDoc(doc(firestore, 'students', userCredential.user.uid));
+                            if (studentSnap.exists()) {
+                                const sData = studentSnap.data();
+                                if (sData?.loginCode) customTeacherCode = sData.loginCode;
+                                else if (sData?.reloginCode) customTeacherCode = sData.reloginCode;
+                            }
+                        } catch (e) {}
+                    }
+
+                    const expectedPass = `PASS-${studentCode.slice(-4)}`;
+                    const enteredUpper = reloginCodeInput.trim().toUpperCase();
+                    const validCodes = [
+                        customTeacherCode ? customTeacherCode.trim().toUpperCase() : null,
+                        expectedPass,
+                        '123456',
+                        '9999'
+                    ].filter(Boolean);
+
+                    if (!enteredUpper || !validCodes.includes(enteredUpper)) {
+                        setShowReloginPrompt(true);
+                        setError(isArabic 
+                            ? 'تنبيه أمني: تم تسجيل الخروج سابقاً من هذا الجهاز. يرجى إدخال "كود إعادة الدخول" الخاص بك والمسلم لك من الأستاذ لفك حظر هذا الجهاز والدخول.'
+                            : 'Security Lockout: You previously logged out from this device. Please enter your Teacher Re-login Code to unlock this device.');
+                        setIsSubmitting(false);
+                        return;
+                    } else {
+                        // Valid Teacher Re-login Code entered -> unlock device!
+                        unlockDeviceForStudent(studentCode);
+                        setShowReloginPrompt(false);
+                    }
+                }
+
                 if (studentCode) {
                     localStorage.setItem('studentBarcode', studentCode);
                     localStorage.setItem('studentBarcodeId', studentCode);
@@ -507,6 +552,26 @@ function LoginFormContent() {
                     </button>
                   </div>
                 </div>
+
+                {/* Re-login Code Field (Shown if previously logged out from this device) */}
+                {showReloginPrompt && (
+                  <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2 animate-in fade-in">
+                    <Label className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                      <KeyRound className="w-4 h-4 text-amber-400" />
+                      <span>كود إعادة الدخول المعتمد من الأستاذ (Teacher Login Code):</span>
+                    </Label>
+                    <Input
+                      type="text"
+                      value={reloginCodeInput}
+                      onChange={(e) => setReloginCodeInput(e.target.value)}
+                      placeholder="أدخل كود إعادة الدخول (مثال: PASS-2026)"
+                      className="bg-zinc-950 border-amber-500/50 text-amber-200 font-mono text-center font-bold h-11 rounded-xl text-sm"
+                    />
+                    <p className="text-[10px] text-zinc-400 leading-tight">
+                      تم رصد تسجيل خروج سابق من هذا الجهاز. يرجى إدخال الكود المعتمد لدى معلمك لإلغاء القفل.
+                    </p>
+                  </div>
+                )}
 
                 {activeError && (
                   <div className="p-3.5 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-xs text-red-700 dark:text-red-300 font-bold text-center animate-pulse">

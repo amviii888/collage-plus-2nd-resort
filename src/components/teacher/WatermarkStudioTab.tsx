@@ -24,7 +24,8 @@ import {
   Compass, 
   Maximize2,
   Lock,
-  Play
+  Play,
+  QrCode
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -747,6 +748,149 @@ export function WatermarkStudioTab({
                   <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-1">
                     <span className="font-bold text-emerald-400 flex items-center gap-1">🎨 ختم Canvas مباشر</span>
                     <p className="text-[10px] text-zinc-400">رسم بصمة الطالب مباشرة على بكسلات الـ Canvas بطريقة غير قابلة للفرز كـ HTML.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* High-Res QR Verification Pass Stamp Controls */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-zinc-950 to-emerald-950/20 border border-emerald-500/30 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <QrCode className="w-4 h-4 text-emerald-400" />
+                      <span className="text-xs font-bold text-white">ختم التوثيق الرقمي عالي الدقة (High-Res QR Verification Pass Stamp)</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400">
+                      يُظهر ختم QR تفاعلي مدمج برمز الطالب في زاوية المشغل للتحقق السريع من ملكية المحتوى وبصمة العرض.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={config.showQrStamp ?? true}
+                    onCheckedChange={(v) => updateConfig({ showQrStamp: v })}
+                  />
+                </div>
+
+                {(config.showQrStamp ?? true) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-zinc-800/80">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-zinc-300">موقع ختم الـ QR على الشاشة:</Label>
+                      <Select 
+                        value={config.qrPosition || 'bottom-right'} 
+                        onValueChange={(v) => updateConfig({ qrPosition: v as any })}
+                      >
+                        <SelectTrigger className="bg-zinc-900 border-zinc-700 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                          <SelectItem value="bottom-right">أسفل اليمين (Bottom-Right)</SelectItem>
+                          <SelectItem value="bottom-left">أسفل اليسار (Bottom-Left)</SelectItem>
+                          <SelectItem value="top-right">أعلى اليمين (Top-Right)</SelectItem>
+                          <SelectItem value="top-left">أعلى اليسار (Top-Left)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs text-zinc-300">عنوان الختم الرقمي (Pass Title):</Label>
+                      <Input
+                        type="text"
+                        value={config.qrPassTitle || 'SECURE DIGITAL PASS'}
+                        onChange={(e) => updateConfig({ qrPassTitle: e.target.value })}
+                        placeholder="SECURE DIGITAL PASS"
+                        className="bg-zinc-900 border-zinc-700 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Visual Theme Representation Card for Professor Profile */}
+              <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-emerald-400" />
+                      <span className="text-xs font-bold text-white">المعاينة البصرية للثيم والخلفية (Visual Representation of Profile Theme)</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400">
+                      محاكاة حية لمعاينة شكل بروفايلك الأكاديمي، الخلفية الخضراء التفاعلية، والكروت كما تظهر للطلاب عند زيارة بروفايلك.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Theme Selector Switches */}
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-zinc-800/80">
+                  {[
+                    { id: 'emerald', label: 'الزمردي الكهربائي 🟢', color: 'from-emerald-500/20 via-zinc-950 to-zinc-950', border: 'border-emerald-500/40', accent: 'text-emerald-400' },
+                    { id: 'sapphire', label: 'السيبراني الأزرق 🔵', color: 'from-blue-500/20 via-zinc-950 to-zinc-950', border: 'border-blue-500/40', accent: 'text-blue-400' },
+                    { id: 'amber', label: 'العنبر الصحراوي 🟧', color: 'from-amber-500/20 via-zinc-950 to-zinc-950', border: 'border-amber-500/40', accent: 'text-amber-400' },
+                    { id: 'obsidian', label: 'الظلام العميق ⬛', color: 'from-zinc-900 via-zinc-950 to-zinc-950', border: 'border-zinc-700', accent: 'text-zinc-300' },
+                    { id: 'violet', label: 'البنفسجي الملكي 🟣', color: 'from-purple-500/20 via-zinc-950 to-zinc-950', border: 'border-purple-500/40', accent: 'text-purple-400' },
+                  ].map((themeItem) => (
+                    <button
+                      key={themeItem.id}
+                      type="button"
+                      onClick={() => {
+                        updateConfig({ profileTheme: themeItem.id as any });
+                        localStorage.setItem('app_active_global_theme', themeItem.id);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                        (config.profileTheme || 'emerald') === themeItem.id
+                          ? 'bg-zinc-800 text-white border-emerald-500 ring-2 ring-emerald-500/30'
+                          : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+                      }`}
+                    >
+                      {themeItem.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Accurate Mini Visual Mockup of Teacher Profile */}
+                <div className={`relative p-5 rounded-2xl bg-gradient-to-b ${
+                  config.profileTheme === 'sapphire' ? 'from-blue-950/40 via-zinc-950 to-zinc-950 border-blue-500/30' :
+                  config.profileTheme === 'amber' ? 'from-amber-950/40 via-zinc-950 to-zinc-950 border-amber-500/30' :
+                  config.profileTheme === 'obsidian' ? 'from-zinc-900 via-zinc-950 to-zinc-950 border-zinc-800' :
+                  config.profileTheme === 'violet' ? 'from-purple-950/40 via-zinc-950 to-zinc-950 border-purple-500/30' :
+                  'from-emerald-950/40 via-zinc-950 to-zinc-950 border-emerald-500/30'
+                } border shadow-2xl space-y-4 overflow-hidden`}>
+                  {/* Background Radial Glow & Technical Point Grid */}
+                  <div className="absolute inset-0 bg-[radial-gradient(#22c55e_1px,transparent_1px)] [background-size:16px_16px] opacity-10 pointer-events-none" />
+
+                  <div className="relative z-10 flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-emerald-500/40 flex items-center justify-center overflow-hidden shadow-lg">
+                      {teacherData?.avatarUrl || teacherData?.customAvatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img 
+                          src={teacherData?.avatarUrl || teacherData?.customAvatar || '/icons/professors/387869340_817871683671250_6351633986100870309_n.jpg'} 
+                          alt="Prof" 
+                          className="w-full h-full object-cover" 
+                        />
+                      ) : (
+                        <span className="text-lg font-black text-emerald-400">
+                          {teacherData?.name?.charAt(0) || 'أ'}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-white flex items-center gap-1.5">
+                        <span>{teacherData?.name || 'الأستاذ د. أحمد رضوان'}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">
+                          موثق ✓
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-zinc-400">أستاذ المادة والتخصص الأكاديمي • 1,240+ طالب مسجل</p>
+                    </div>
+                  </div>
+
+                  {/* Sample Course Card in Theme */}
+                  <div className="relative z-10 p-3 rounded-xl bg-zinc-900/90 border border-zinc-800 flex items-center justify-between text-xs">
+                    <div className="space-y-0.5">
+                      <span className="font-bold text-white text-[11px]">كورسات الأستاذ المعروضة للطلاب:</span>
+                      <p className="text-[10px] text-zinc-400">المحاضرة الشاملة والتطبيقات العملية (معاينة نمط الكروت)</p>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 font-bold text-[10px]">
+                      نشط للمشاهدة
+                    </span>
                   </div>
                 </div>
               </div>

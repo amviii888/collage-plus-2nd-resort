@@ -38,6 +38,15 @@ export interface DynamicWatermarkConfig {
 
   // Anti-Tamper & Anti-Inspect Shield
   antiTamperShieldEnabled?: boolean; // Blocks inspect element, devtools tampering, DOM deletion
+
+  // High-Res QR Verification Pass Stamp Overlay
+  showQrStamp?: boolean;
+  qrPosition?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+  qrSize?: number;
+  qrPassTitle?: string;
+
+  // Visual Theme Representation
+  profileTheme?: 'emerald' | 'sapphire' | 'amber' | 'obsidian' | 'violet';
 }
 
 export const DEFAULT_WATERMARK_CONFIG: DynamicWatermarkConfig = {
@@ -66,4 +75,9 @@ export const DEFAULT_WATERMARK_CONFIG: DynamicWatermarkConfig = {
   ttsVoice: 'female',
   ttsInitialTestDelaySeconds: 15,
   antiTamperShieldEnabled: true,
+  showQrStamp: true,
+  qrPosition: 'bottom-right',
+  qrSize: 44,
+  qrPassTitle: 'SECURE DIGITAL PASS',
+  profileTheme: 'emerald',
 };

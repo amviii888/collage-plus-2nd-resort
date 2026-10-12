@@ -31,7 +31,8 @@ import {
   Download,
   Layers,
   ImageIcon,
-  EyeOff
+  EyeOff,
+  Save
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { uploadFileToCloudinary, uploadMultiplePagesToCloudinary } from '@/lib/cloudinary';

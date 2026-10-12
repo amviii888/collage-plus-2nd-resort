@@ -49,6 +49,7 @@ export function ScreenProtectionGuard() {
   };
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     // 1. Android FLAG_SECURE Bridge (Capacitor / Cordova / Native Android WebView)
     try {
       if (typeof window !== 'undefined') {

@@ -48,11 +48,34 @@ export function StudentActionModal({
   const [paymentAmount, setPaymentAmount] = useState('');
   const [note, setNote] = useState('');
 
+  const [loginCode, setLoginCode] = useState('');
+  const [codeSaved, setCodeSaved] = useState(false);
+
   useEffect(() => {
     if (student) {
         setNote(student.notes || '');
+        const existingCode = (student as any).loginCode || 
+                            (student as any).reloginCode || 
+                            (typeof window !== 'undefined' ? (localStorage.getItem('student_custom_relogin_code_' + student.barcodeId) || localStorage.getItem('student_custom_relogin_code_' + student.id) || '') : '');
+        setLoginCode(existingCode || (student.barcodeId ? `PASS-${student.barcodeId.slice(-4)}` : '123456'));
+        setCodeSaved(false);
     }
   }, [student]);
+
+  const handleSaveLoginCode = () => {
+    if (!student) return;
+    const cleanCode = loginCode.trim().toUpperCase();
+    if (typeof window !== 'undefined') {
+        if (student.barcodeId) {
+            localStorage.setItem('student_custom_relogin_code_' + student.barcodeId.trim().toLowerCase(), cleanCode);
+            localStorage.setItem('student_custom_relogin_code_' + student.barcodeId, cleanCode);
+        }
+        localStorage.setItem('student_custom_relogin_code_' + student.id, cleanCode);
+        localStorage.setItem('student_custom_relogin_code_general', cleanCode);
+    }
+    setCodeSaved(true);
+    setTimeout(() => setCodeSaved(false), 3000);
+  };
 
   const lastAttendedDate = useMemo(() => {
     if (!student?.lastAttendedAt) {
@@ -117,7 +140,29 @@ export function StudentActionModal({
                 <span className="font-semibold">{t('This student is marked as in debt.')}</span>
             </div>
           )}
-          <div className="space-y-2 pt-4">
+          <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
+            <Label htmlFor="student-relogin-code" className="text-xs font-bold text-slate-800 dark:text-slate-200">
+              كود إعادة تسجيل الدخول للجهاز (Device Login Code)
+            </Label>
+            <p className="text-[11px] text-slate-500">
+              الكود الذي يتسلمه الطالب من المحاضر لإعادة الدخول إذا تم الخروج من هذا الجهاز سابقاً.
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                id="student-relogin-code"
+                type="text"
+                value={loginCode}
+                onChange={(e) => setLoginCode(e.target.value)}
+                placeholder="أدخل كود إعادة الدخول (مثال: 123456 أو PASS2026)"
+                className="h-10 text-sm font-mono uppercase bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-700"
+              />
+              <Button size="sm" onClick={handleSaveLoginCode} className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shrink-0 cursor-pointer">
+                {codeSaved ? 'تم الحفظ ✓' : 'حفظ الكود'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
             <Label htmlFor="student-note">{t('Notes')}</Label>
             <Textarea
               id="student-note"

@@ -1,6 +1,6 @@
 import './globals.css';
 import '@/lib/zod-compat';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter, Syne, Space_Mono } from 'next/font/google';
 import { Providers } from '@/components/providers';
 import { ClientLayoutWrapper } from '@/components/ClientLayoutWrapper';
@@ -8,6 +8,15 @@ import { ClientLayoutWrapper } from '@/components/ClientLayoutWrapper';
 const inter = Inter({ subsets: ['latin'], variable: '--font-body' });
 const syne = Syne({ subsets: ['latin'], variable: '--font-display', weight: ['400', '600', '700', '800'] });
 const spaceMono = Space_Mono({ subsets: ['latin'], variable: '--font-mono', weight: ['400', '700'] });
+
+export const viewport: Viewport = {
+  themeColor: '#09090b',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+};
 
 export const metadata: Metadata = {
   title: {
@@ -74,7 +83,6 @@ export const metadata: Metadata = {
       },
     ],
   },
-  themeColor: '#09090b',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

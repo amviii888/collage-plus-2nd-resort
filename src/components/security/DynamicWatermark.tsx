@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useStudent, useUser } from '@/firebase';
 import type { DynamicWatermarkConfig } from '@/lib/watermark-types';
 import { DEFAULT_WATERMARK_CONFIG } from '@/lib/watermark-types';
-import { ShieldAlert, Lock, AlertTriangle, EyeOff } from 'lucide-react';
+import { ShieldAlert, Lock, AlertTriangle, EyeOff, QrCode } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface DynamicWatermarkProps {
   studentId?: string;
@@ -616,6 +617,30 @@ export function DynamicWatermark({
           }
         `}</style>
       </div>
+
+      {/* High-Res QR Code Pass Stamp Overlay (Baked into Media Overlay) */}
+      {(cfg.showQrStamp ?? true) && (
+        <div 
+          className={`absolute z-30 pointer-events-none select-none p-2.5 rounded-2xl bg-black/85 border border-emerald-500/40 backdrop-blur-md shadow-2xl flex items-center gap-3 animate-in fade-in duration-300 ${
+            cfg.qrPosition === 'bottom-left' ? 'bottom-4 left-4' :
+            cfg.qrPosition === 'top-right' ? 'top-4 right-4' :
+            cfg.qrPosition === 'top-left' ? 'top-4 left-4' : 'bottom-4 right-4'
+          }`}
+          style={{ opacity: cfg.opacity ? Math.max(0.65, cfg.opacity) : 0.85 }}
+        >
+          <div className="bg-white p-1 rounded-xl shadow-inner">
+            <QRCodeSVG value={studentCode || 'MOL5SATY-SECURE-PASS'} size={cfg.qrSize || 44} level="H" />
+          </div>
+          <div className="text-right font-mono leading-tight">
+            <div className="text-[9px] text-emerald-400 font-extrabold tracking-wider uppercase flex items-center justify-end gap-1">
+              <QrCode className="w-2.5 h-2.5 inline" />
+              <span>{cfg.qrPassTitle || 'SECURE DIGITAL PASS'}</span>
+            </div>
+            <div className="text-[11px] text-white font-bold max-w-[130px] truncate">{studentName}</div>
+            <div className="text-[9px] text-zinc-400 font-mono">{studentCode}</div>
+          </div>
+        </div>
+      )}
 
       {/* 3. Anti-Tamper & DevTools Shield Lockout (Activates if DevTools / DOM deletion detected) */}
       {(isTampered || isDevToolsDetected) && (

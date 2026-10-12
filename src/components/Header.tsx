@@ -396,8 +396,8 @@ export function Header() {
                         </Link>
                     </Button>
 
-                    {/* Fast Quick Log Out Button */}
-                    {hasSession && (
+                    {/* Fast Quick Log Out Button - strictly reserved for Teachers (hidden for Students) */}
+                    {hasSession && isTeacher && (
                         <button
                             onClick={handleHeaderLogout}
                             type="button"
