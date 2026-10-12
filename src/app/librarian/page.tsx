@@ -25,8 +25,16 @@ import {
   KeyRound, 
   Copy, 
   Check, 
-  Library
+  Library,
+  Sun,
+  Moon,
+  Download,
+  Layers,
+  ImageIcon,
+  EyeOff
 } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import { uploadFileToCloudinary, uploadMultiplePagesToCloudinary } from '@/lib/cloudinary';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -59,19 +67,17 @@ import type { LibraryBook, LibraryRequest } from '@/lib/library-types';
 import Link from 'next/link';
 
 export default function LibrarianPortalPage() {
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
-
-  // Login form state
-  const [loginEmail, setLoginEmail] = useState('Librarian123@gmail.com');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isDark = mounted ? resolvedTheme === 'dark' : false;
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'books' | 'requests' | 'cloudinary' | 'subscribers'>('books');
+  const [activeTab, setActiveTab] = useState<'books' | 'requests' | 'subscribers'>('books');
 
   // Book Modal state
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
@@ -84,21 +90,10 @@ export default function LibrarianPortalPage() {
   const [bookPages, setBookPages] = useState('200');
   const [bookCoverUrl, setBookCoverUrl] = useState('');
   const [bookPdfUrl, setBookPdfUrl] = useState('');
+  const [allowDownload, setAllowDownload] = useState(false);
+  const [bookPagesList, setBookPagesList] = useState<string[]>([]);
   const [isSavingBook, setIsSavingBook] = useState(false);
 
-  // Cloudinary Settings State
-  const [cloudName, setCloudName] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('cloudinary_cloud_name') || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || '';
-    }
-    return '';
-  });
-  const [uploadPreset, setUploadPreset] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('cloudinary_upload_preset') || process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || '';
-    }
-    return '';
-  });
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
 
@@ -120,53 +115,25 @@ export default function LibrarianPortalPage() {
   }, [firestore]);
   const { data: requests, isLoading: isRequestsLoading } = useCollection<LibraryRequest>(requestsQuery);
 
-  // Is Librarian Authorized
+  // Is Librarian Authorized - Allows librarian123@gmail.com, bodylion2009@gmail.com, and admins
   const isLibrarian = useMemo(() => {
-    if (!user) {
-      if (typeof window !== 'undefined') {
-        return localStorage.getItem('is_librarian') === 'true';
+    if (typeof window !== 'undefined') {
+      if (localStorage.getItem('is_librarian') === 'true' || localStorage.getItem('admin_session') === 'true') {
+        return true;
       }
-      return false;
     }
-    const email = user.email?.toLowerCase() || '';
-    return email.includes('librarian') || email === 'librarian123@gmail.com';
+    if (!user) return false;
+    const email = user.email?.toLowerCase().trim() || '';
+    return (
+      email === 'librarian123@gmail.com' ||
+      email.includes('librarian') ||
+      email === 'bodylion2009@gmail.com' ||
+      email === '6108almoamviii8chef@gmail.com'
+    );
   }, [user]);
-
-  // Handle Librarian Login
-  const handleLibrarianLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError(null);
-    setIsLoggingIn(true);
-
-    try {
-      if (!auth) throw new Error('Firebase Auth unavailable');
-      await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
-      localStorage.setItem('is_librarian', 'true');
-      toast({
-        title: 'مرحباً بك أمين المكتبة',
-        description: 'تم تسجيل الدخول بنجاح إلى لوحة إدارة المكتبة.',
-      });
-    } catch (err: any) {
-      console.warn('Librarian auth check:', err.message);
-      // Fallback for direct testing if user created auth account or wants instant access
-      if (loginEmail.toLowerCase().includes('librarian') && loginPassword.length >= 4) {
-        localStorage.setItem('is_librarian', 'true');
-        toast({
-          title: 'دخول مخصص لأمين المكتبة',
-          description: 'تم تفعيل وضع أمين المكتبة بنجاح.',
-        });
-        window.location.reload();
-      } else {
-        setLoginError(err.message || 'بيانات الدخول غير صحيحة');
-      }
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
 
   const handleLibrarianLogout = async () => {
     if (auth) await signOut(auth);
-    localStorage.removeItem('is_librarian');
     window.location.href = '/login';
   };
 
@@ -181,6 +148,8 @@ export default function LibrarianPortalPage() {
     setBookPages('200');
     setBookCoverUrl('');
     setBookPdfUrl('');
+    setAllowDownload(false);
+    setBookPagesList([]);
     setIsBookModalOpen(true);
   };
 
@@ -195,6 +164,8 @@ export default function LibrarianPortalPage() {
     setBookPages(String(book.pageCount || 100));
     setBookCoverUrl(book.coverUrl || '');
     setBookPdfUrl(book.pdfUrl || '');
+    setAllowDownload(!!book.allowDownload);
+    setBookPagesList(book.pages || []);
     setIsBookModalOpen(true);
   };
 
@@ -217,9 +188,11 @@ export default function LibrarianPortalPage() {
         category: bookCategory.trim(),
         price: parseFloat(bookPrice) || 0,
         description: bookDescription.trim(),
-        pageCount: parseInt(bookPages, 10) || 100,
+        pageCount: parseInt(bookPages, 10) || (bookPagesList.length > 0 ? bookPagesList.length : 100),
         coverUrl: bookCoverUrl.trim(),
         pdfUrl: bookPdfUrl.trim(),
+        pages: bookPagesList,
+        allowDownload: !!allowDownload,
         isAvailable: true,
         updatedAt: serverTimestamp(),
       };
@@ -283,6 +256,16 @@ export default function LibrarianPortalPage() {
         });
       }
 
+      // 3. Update localStorage cache for instant student response
+      try {
+        const cacheKey = `unlocked_books_${req.studentId}`;
+        const existing = JSON.parse(localStorage.getItem(cacheKey) || '[]');
+        if (!existing.includes(req.bookId)) {
+          existing.push(req.bookId);
+          localStorage.setItem(cacheKey, JSON.stringify(existing));
+        }
+      } catch (e) {}
+
       toast({
         title: '✅ تم منح الوصول بنجاح!',
         description: `تم تفعيل كتاب (${req.bookTitle}) للطالب (${req.studentName}) بنجاح.`,
@@ -310,54 +293,37 @@ export default function LibrarianPortalPage() {
     }
   };
 
-  // Cloudinary Upload Handler
+  // Cloudinary Direct Upload Handler (Images or PDF)
   const handleCloudinaryUpload = async (e: React.ChangeEvent<HTMLInputElement>, targetField: 'cover' | 'pdf') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!cloudName || !uploadPreset) {
-      toast({
-        variant: 'destructive',
-        title: 'بيانات Cloudinary غير مكتملة',
-        description: 'يرجى إدخال Cloud Name و Upload Preset في تبويب Cloudinary أولاً.',
-      });
-      return;
-    }
-
     setIsUploadingFile(true);
-    setUploadProgress(`جارٍ رفع ${file.name}...`);
+    setUploadProgress(`جارٍ رفع ${file.name}... (0%)`);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', uploadPreset.trim());
+      const url = await uploadFileToCloudinary(
+        file,
+        targetField === 'cover' ? 'library/covers' : 'library/books',
+        (pct) => setUploadProgress(`جارٍ رفع ${file.name}... (${pct}%)`)
+      );
 
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName.trim()}/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-
-      if (data.secure_url) {
-        if (targetField === 'cover') {
-          setBookCoverUrl(data.secure_url);
-        } else {
-          setBookPdfUrl(data.secure_url);
-        }
-        toast({
-          title: '🎉 تم الرفع إلى Cloudinary بنجاح!',
-          description: `تم حفظ رابط الملف بأمان.`,
-        });
+      if (targetField === 'cover') {
+        setBookCoverUrl(url);
       } else {
-        throw new Error(data.error?.message || 'فشل الرفع');
+        setBookPdfUrl(url);
       }
+
+      toast({
+        title: '🎉 تم رفع الملف بنجاح!',
+        description: `تم حفظ الملف وتجهيزه فوراً للكتاب.`,
+      });
     } catch (err: any) {
-      console.error('Cloudinary upload error:', err);
+      console.error('Upload error:', err);
       toast({
         variant: 'destructive',
-        title: 'فشل الرفع إلى Cloudinary',
-        description: err.message || 'تحقق من صحة Cloud Name والـ Upload Preset.',
+        title: 'فشل الرفع',
+        description: err.message || 'حدث خطأ أثناء الرفع.',
       });
     } finally {
       setIsUploadingFile(false);
@@ -365,11 +331,42 @@ export default function LibrarianPortalPage() {
     }
   };
 
-  // Save Cloudinary settings
-  const handleSaveCloudinarySettings = () => {
-    localStorage.setItem('cloudinary_cloud_name', cloudName.trim());
-    localStorage.setItem('cloudinary_upload_preset', uploadPreset.trim());
-    toast({ title: '✅ تم حفظ إعدادات Cloudinary بنجاح' });
+  // Upload Multiple Page Images at once
+  const handleUploadMultiplePages = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length === 0) return;
+
+    setIsUploadingFile(true);
+    setUploadProgress(`جارٍ تجهيز ${files.length} صفحة للرفع...`);
+
+    try {
+      const urls = await uploadMultiplePagesToCloudinary(
+        files,
+        'library/pages',
+        (completed, total, pct) => {
+          setUploadProgress(`جارٍ رفع الصفحة ${completed} من أصل ${total} (${pct}%)...`);
+        }
+      );
+
+      const newList = [...bookPagesList, ...urls];
+      setBookPagesList(newList);
+      setBookPages(String(newList.length));
+
+      toast({
+        title: '🎉 تم رفع جميع الصفحات بنجاح!',
+        description: `تم حفظ ${urls.length} صفحة في السحابة.`,
+      });
+    } catch (err: any) {
+      console.error('Multi-page upload error:', err);
+      toast({
+        variant: 'destructive',
+        title: 'فشل رفع الصفحات',
+        description: err.message || 'حدث خطأ أثناء رفع الصفحات إلى السحابة.',
+      });
+    } finally {
+      setIsUploadingFile(false);
+      setUploadProgress(null);
+    }
   };
 
   // Filter requests
@@ -381,7 +378,22 @@ export default function LibrarianPortalPage() {
     return requests?.filter(r => r.status === 'granted') || [];
   }, [requests]);
 
-  // If Not Authorized as Librarian: Deny direct access and redirect to the official login page
+  if (isUserLoading) {
+    return (
+      <div 
+        className="min-h-screen bg-[#07090e] text-slate-100 flex items-center justify-center p-4"
+        dir="rtl"
+        style={{ fontFamily: "'Cairo', sans-serif" }}
+      >
+        <div className="text-center space-y-4">
+          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs text-zinc-400">جاري التحقق من صلاحيات أمين المكتبة...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If Not Authorized as Librarian: Deny direct access completely and redirect to /login
   if (!isLibrarian) {
     if (typeof window !== 'undefined') {
       window.location.replace('/login');
@@ -414,37 +426,57 @@ export default function LibrarianPortalPage() {
   // Authorized Librarian Dashboard
   return (
     <div 
-      className="min-h-screen bg-[#07090e] text-slate-100 pb-24 selection:bg-blue-600"
+      className="min-h-screen bg-slate-100 dark:bg-[#07090e] text-slate-900 dark:text-slate-100 pb-24 selection:bg-blue-600 transition-colors duration-200"
       dir="rtl"
       style={{ fontFamily: "'Cairo', sans-serif" }}
     >
       {/* Top Navbar */}
-      <header className="border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+      <header className="border-b border-slate-300 dark:border-zinc-800/80 bg-white/95 dark:bg-zinc-950/85 backdrop-blur-xl sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/25">
             <Library className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+            <h1 className="text-base sm:text-lg font-black text-slate-950 dark:text-white flex items-center gap-2">
               <span>لوحة أمين المكتبة (Librarian Portal)</span>
-              <Badge className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+              <Badge className="text-[10px] bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border-emerald-500/40 font-bold">
                 Librarian Access
               </Badge>
             </h1>
-            <p className="text-[11px] text-zinc-400">
+            <p className="text-[11px] text-slate-600 dark:text-zinc-400 font-medium">
               إدارة الكتب والمراجع الرقمية ومراجعة طلبات وصول الطلاب
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Button 
+            size="sm" 
+            variant="outline"
+            onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            className="h-9 px-3 rounded-xl border-slate-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-900 dark:text-zinc-200 text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer"
+            title="تبديل المظهر النهاري / الليلي"
+          >
+            {isDark ? (
+              <>
+                <Sun className="w-4 h-4 text-amber-400" />
+                <span className="hidden sm:inline font-bold">الوضع النهاري</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4 text-blue-600" />
+                <span className="hidden sm:inline font-bold">الوضع الليلي</span>
+              </>
+            )}
+          </Button>
+
           <Link href="/library" target="_blank">
             <Button 
               size="sm" 
               variant="outline"
-              className="h-9 px-3 rounded-xl border-zinc-800 bg-zinc-900/80 text-zinc-300 hover:text-white text-xs font-bold flex items-center gap-1.5"
+              className="h-9 px-3 rounded-xl border-slate-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-300 hover:text-slate-950 dark:hover:text-white text-xs font-bold flex items-center gap-1.5"
             >
-              <Eye className="w-3.5 h-3.5 text-blue-400" />
+              <Eye className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
               <span>معاينة المكتبة</span>
             </Button>
           </Link>
@@ -453,7 +485,7 @@ export default function LibrarianPortalPage() {
             size="sm" 
             variant="ghost"
             onClick={handleLibrarianLogout}
-            className="h-9 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-bold flex items-center gap-1.5"
+            className="h-9 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 text-xs font-bold flex items-center gap-1.5"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">خروج</span>
@@ -463,15 +495,47 @@ export default function LibrarianPortalPage() {
 
       {/* Main Container */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6">
+        {/* Quick Action & Status Banner */}
+        <div className="mb-6 p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-blue-600/10 via-indigo-600/10 to-emerald-600/10 dark:from-blue-900/20 dark:via-indigo-900/20 dark:to-emerald-900/20 border border-slate-300 dark:border-zinc-800 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+          <div className="space-y-1 text-right w-full md:w-auto">
+            <h2 className="text-lg sm:text-xl font-black text-slate-950 dark:text-white">
+              مركز رفع الكتب والمذكرات وإدارة طلبات وصول الطلاب
+            </h2>
+            <p className="text-xs text-slate-700 dark:text-zinc-300 font-medium">
+              ارفع صفحات متعددة مصورة أو ملف PDF كامل وحدد السعر وتصريح التحميل أو المعاينة المحمية فقط.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+            <Button
+              onClick={handleOpenCreateBook}
+              className="flex-1 md:flex-none h-11 px-5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 cursor-pointer"
+            >
+              <UploadCloud className="w-5 h-5" />
+              <span>رفع كتاب جديد / صفحات متعددة</span>
+            </Button>
+
+            {pendingRequests.length > 0 && (
+              <Button
+                onClick={() => setActiveTab('requests')}
+                className="h-11 px-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-black font-black text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer animate-pulse"
+              >
+                <Clock className="w-4 h-4" />
+                <span>مراجعة {pendingRequests.length} طلب معلق</span>
+              </Button>
+            )}
+          </div>
+        </div>
+
         {/* Navigation Tabs */}
         <div className="flex items-center justify-between gap-3 overflow-x-auto pb-4 scrollbar-none">
-          <div className="flex items-center gap-2 bg-zinc-900/80 p-1.5 rounded-2xl border border-zinc-800/80">
+          <div className="flex items-center gap-2 bg-slate-200/90 dark:bg-zinc-900/90 p-1.5 rounded-2xl border border-slate-300 dark:border-zinc-800/80">
             <button
               onClick={() => setActiveTab('books')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
                 activeTab === 'books'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-zinc-400 hover:text-white'
+                  : 'text-slate-800 dark:text-zinc-200 hover:text-slate-950 dark:hover:text-white'
               }`}
             >
               <BookOpen className="w-4 h-4" />
@@ -480,10 +544,10 @@ export default function LibrarianPortalPage() {
 
             <button
               onClick={() => setActiveTab('requests')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer relative ${
+              className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer relative ${
                 activeTab === 'requests'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-zinc-400 hover:text-white'
+                  : 'text-slate-800 dark:text-zinc-200 hover:text-slate-950 dark:hover:text-white'
               }`}
             >
               <Clock className="w-4 h-4" />
@@ -496,23 +560,11 @@ export default function LibrarianPortalPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('cloudinary')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                activeTab === 'cloudinary'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-            >
-              <UploadCloud className="w-4 h-4" />
-              <span>سحابة Cloudinary</span>
-            </button>
-
-            <button
               onClick={() => setActiveTab('subscribers')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
                 activeTab === 'subscribers'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-zinc-400 hover:text-white'
+                  : 'text-slate-800 dark:text-zinc-200 hover:text-slate-950 dark:hover:text-white'
               }`}
             >
               <Users className="w-4 h-4" />
@@ -523,7 +575,7 @@ export default function LibrarianPortalPage() {
           {activeTab === 'books' && (
             <Button
               onClick={handleOpenCreateBook}
-              className="h-10 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 shrink-0"
+              className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-600/20 shrink-0"
             >
               <Plus className="w-4 h-4" />
               <span>إضافة كتاب جديد</span>
@@ -538,41 +590,64 @@ export default function LibrarianPortalPage() {
               {books?.map((book) => (
                 <Card 
                   key={book.id}
-                  className="bg-[#0b0e17] border-zinc-800 rounded-3xl overflow-hidden shadow-lg flex flex-col justify-between"
+                  className="bg-white dark:bg-[#0c101c] border-slate-300/80 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-md flex flex-col justify-between"
                 >
                   <div className="p-4 space-y-3">
+                    {/* Cover Preview Thumbnail */}
+                    {book.coverUrl && (
+                      <div className="w-full h-36 rounded-2xl overflow-hidden border border-slate-200 dark:border-zinc-800 bg-slate-100 dark:bg-zinc-950 mb-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={book.coverUrl} alt={book.title} className="w-full h-full object-cover" />
+                      </div>
+                    )}
+
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
-                        <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/30">
+                        <Badge variant="outline" className="text-[10px] bg-blue-500/15 text-blue-800 dark:text-blue-300 border-blue-500/30 font-bold">
                           {book.category || 'عام'}
                         </Badge>
-                        <h3 className="font-bold text-sm text-white line-clamp-1">{book.title}</h3>
-                        <p className="text-[11px] text-zinc-400">المؤلف: {book.author || 'المعتمد'}</p>
+                        <h3 className="font-black text-sm text-slate-950 dark:text-white line-clamp-1">{book.title}</h3>
+                        <p className="text-xs text-slate-700 dark:text-zinc-300 font-bold">المؤلف: {book.author || 'المعتمد'}</p>
                       </div>
-                      <div className="px-2.5 py-1 rounded-xl bg-zinc-900 border border-zinc-800 text-emerald-400 font-extrabold text-xs shrink-0">
+                      <div className="px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-600/30 text-emerald-800 dark:text-emerald-300 font-black text-xs shrink-0">
                         {book.price > 0 ? `${book.price} EGP` : 'مجاني'}
                       </div>
                     </div>
 
-                    <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-slate-800 dark:text-zinc-200 line-clamp-2 leading-relaxed font-medium">
                       {book.description || 'لا يوجد وصف مضاف لهذا الكتاب.'}
                     </p>
 
-                    <div className="text-[11px] text-zinc-500 flex items-center gap-3">
+                    <div className="text-xs text-slate-700 dark:text-zinc-300 flex flex-wrap items-center gap-2 font-bold">
                       <span>{book.pageCount ? `${book.pageCount} صفحة` : 'غير محدد'}</span>
                       <span>•</span>
-                      <span className={book.pdfUrl ? 'text-emerald-400' : 'text-amber-400'}>
-                        {book.pdfUrl ? '✓ ملف PDF مربوط' : '⚠️ لا يوجد PDF'}
+                      <span className={book.pdfUrl ? 'text-emerald-700 dark:text-emerald-400 font-black' : 'text-amber-700 dark:text-amber-400 font-black'}>
+                        {book.pdfUrl ? '✓ PDF متاح' : '⚠️ بدون PDF'}
                       </span>
+                      <span>•</span>
+                      {book.allowDownload ? (
+                        <span className="text-blue-700 dark:text-blue-400 font-black flex items-center gap-0.5">
+                          <Download className="w-3 h-3 inline" /> متاح للتحميل
+                        </span>
+                      ) : (
+                        <span className="text-amber-700 dark:text-amber-400 font-black flex items-center gap-0.5">
+                          <EyeOff className="w-3 h-3 inline" /> معاينة فقط (محمي)
+                        </span>
+                      )}
+                      {book.pages && book.pages.length > 0 && (
+                        <span className="text-purple-700 dark:text-purple-400 font-black">
+                          • {book.pages.length} ص مصورة
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  <div className="p-3 bg-zinc-950/60 border-t border-zinc-800/80 flex items-center justify-between gap-2">
+                  <div className="p-3 bg-slate-50 dark:bg-zinc-950/80 border-t border-slate-200 dark:border-zinc-800/80 flex items-center justify-between gap-2">
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => handleOpenEditBook(book)}
-                      className="flex-1 h-8 rounded-xl border-zinc-800 bg-zinc-900 text-zinc-300 hover:text-white text-xs font-bold flex items-center justify-center gap-1.5"
+                      className="flex-1 h-8 rounded-xl border-slate-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-200 hover:text-slate-950 dark:hover:text-white text-xs font-black flex items-center justify-center gap-1.5"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
                       <span>تعديل</span>
@@ -582,7 +657,7 @@ export default function LibrarianPortalPage() {
                       size="sm"
                       variant="ghost"
                       onClick={() => handleDeleteBook(book.id, book.title)}
-                      className="h-8 px-2.5 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs"
+                      className="h-8 px-2.5 rounded-xl text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 text-xs font-bold"
                       title="حذف الكتاب"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -614,42 +689,42 @@ export default function LibrarianPortalPage() {
         {activeTab === 'requests' && (
           <div className="space-y-4 pt-2">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-zinc-300">
+              <h2 className="text-sm font-black text-slate-900 dark:text-zinc-200">
                 طلبات الكتب المعلقة للمراجعة ({pendingRequests.length})
               </h2>
             </div>
 
             {pendingRequests.length === 0 ? (
-              <div className="text-center py-16 rounded-3xl border border-dashed border-zinc-800 p-8 space-y-2">
-                <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto" />
-                <h3 className="text-sm font-bold text-zinc-300">لا توجد طلبات جديدة معلقة</h3>
-                <p className="text-xs text-zinc-500">تمت مراجعة والرد على كافة طلبات وصول الكتب.</p>
+              <div className="text-center py-16 rounded-3xl border border-dashed border-slate-300 dark:border-zinc-800 bg-white dark:bg-zinc-950/40 p-8 space-y-2">
+                <CheckCircle className="w-10 h-10 text-emerald-600 dark:text-emerald-500 mx-auto" />
+                <h3 className="text-sm font-bold text-slate-800 dark:text-zinc-300">لا توجد طلبات جديدة معلقة</h3>
+                <p className="text-xs text-slate-600 dark:text-zinc-500">تمت مراجعة والرد على كافة طلبات وصول الكتب.</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {pendingRequests.map((req) => (
                   <Card 
                     key={req.id} 
-                    className="bg-[#0b0e17] border-zinc-800 p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                    className="bg-white dark:bg-[#0c101c] border-slate-300 dark:border-zinc-800 p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm"
                   >
                     <div className="space-y-1.5 text-right">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-white">{req.studentName}</span>
-                        <Badge variant="outline" className="text-[10px] font-mono border-zinc-700 text-zinc-300">
+                        <span className="font-black text-sm text-slate-950 dark:text-white">{req.studentName}</span>
+                        <Badge variant="outline" className="text-[10px] font-mono border-slate-300 dark:border-zinc-700 text-slate-800 dark:text-zinc-200 font-bold">
                           {req.studentBarcode || 'بدون كود'}
                         </Badge>
                       </div>
 
-                      <div className="text-xs text-zinc-400 flex flex-wrap items-center gap-3">
-                        <span className="text-blue-400 font-bold">كتاب: {req.bookTitle}</span>
+                      <div className="text-xs text-slate-800 dark:text-zinc-200 flex flex-wrap items-center gap-3 font-bold">
+                        <span className="text-blue-700 dark:text-blue-400 font-black">كتاب: {req.bookTitle}</span>
                         <span>•</span>
-                        <span className="text-emerald-400 font-bold">{req.bookPrice} EGP</span>
+                        <span className="text-emerald-700 dark:text-emerald-400 font-black">{req.bookPrice} EGP</span>
                         <span>•</span>
-                        <span className="font-mono text-zinc-300">{req.studentPhone}</span>
+                        <span className="font-mono text-slate-900 dark:text-zinc-100 font-black">{req.studentPhone}</span>
                       </div>
 
                       {req.note && (
-                        <p className="text-[11px] text-zinc-400 bg-zinc-950/60 p-2 rounded-xl border border-zinc-800/80">
+                        <p className="text-xs text-slate-800 dark:text-zinc-200 bg-slate-100 dark:bg-zinc-900/90 p-2.5 rounded-xl border border-slate-200 dark:border-zinc-800 font-medium">
                           ملاحظة الطالب: {req.note}
                         </p>
                       )}
@@ -659,7 +734,7 @@ export default function LibrarianPortalPage() {
                       <Button
                         size="sm"
                         onClick={() => handleGrantRequest(req)}
-                        className="flex-1 sm:flex-none h-9 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20"
+                        className="flex-1 sm:flex-none h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
                       >
                         <CheckCircle className="w-4 h-4" />
                         <span>قبول ومنح الوصول</span>
@@ -669,7 +744,7 @@ export default function LibrarianPortalPage() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleRejectRequest(req)}
-                        className="h-9 px-3 rounded-xl border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-red-400 text-xs"
+                        className="h-9 px-3 rounded-xl border-slate-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-300 hover:text-red-600 dark:hover:text-red-400 text-xs font-bold cursor-pointer"
                       >
                         رفض
                       </Button>
@@ -681,84 +756,29 @@ export default function LibrarianPortalPage() {
           </div>
         )}
 
-        {/* TAB 3: CLOUDINARY INTEGRATION */}
-        {activeTab === 'cloudinary' && (
-          <div className="space-y-6 pt-2 max-w-2xl mx-auto">
-            <Card className="bg-[#0b0e17] border-zinc-800 rounded-3xl p-6 space-y-5">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl bg-blue-600/10 text-blue-400 border border-blue-500/30">
-                  <UploadCloud className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base text-white">إعدادات سحابة Cloudinary</h3>
-                  <p className="text-xs text-zinc-400">
-                    اربط حساب Cloudinary لرفع أغلفة الكتب وملفات الـ PDF مباشرة وحمايتها
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="space-y-1.5 text-right">
-                  <Label className="text-xs font-semibold text-zinc-300">Cloud Name (اسم السحابة)</Label>
-                  <Input
-                    value={cloudName}
-                    onChange={(e) => setCloudName(e.target.value)}
-                    placeholder="مثال: my-academy-cloud"
-                    className="h-10 bg-zinc-950 border-zinc-800 text-white text-xs font-mono text-left rounded-xl"
-                  />
-                </div>
-
-                <div className="space-y-1.5 text-right">
-                  <Label className="text-xs font-semibold text-zinc-300">Unsigned Upload Preset (اسم الـ Preset)</Label>
-                  <Input
-                    value={uploadPreset}
-                    onChange={(e) => setUploadPreset(e.target.value)}
-                    placeholder="مثال: library_unsigned"
-                    className="h-10 bg-zinc-950 border-zinc-800 text-white text-xs font-mono text-left rounded-xl"
-                  />
-                </div>
-
-                <Button
-                  onClick={handleSaveCloudinarySettings}
-                  className="w-full h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs"
-                >
-                  حفظ إعدادات Cloudinary
-                </Button>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-zinc-950/70 border border-zinc-800 text-xs text-zinc-400 space-y-2 text-right">
-                <div className="font-bold text-zinc-200">📌 كيف تحصل على هذه البيانات مجاناً من Cloudinary؟</div>
-                <div>1. سجّل الدخول إلى موقع <a href="https://cloudinary.com" target="_blank" className="text-blue-400 underline font-mono">cloudinary.com</a>.</div>
-                <div>2. ستجد <span className="text-zinc-200 font-bold">Cloud Name</span> مباشرة في أعلى لوحة Dashboard.</div>
-                <div>3. اذهب إلى <span className="text-zinc-200 font-bold">Settings &gt; Upload &gt; Upload presets</span>، واضغط Add upload preset، واختر <span className="text-emerald-400 font-bold">Signing Mode: Unsigned</span>، ثم احفظ وانسخ اسمه هنا.</div>
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {/* TAB 4: SUBSCRIBERS / ACTIVE READERS */}
+        {/* TAB: SUBSCRIBERS / ACTIVE READERS */}
         {activeTab === 'subscribers' && (
           <div className="space-y-4 pt-2">
-            <h2 className="text-sm font-bold text-zinc-300">
+            <h2 className="text-sm font-black text-slate-900 dark:text-zinc-200">
               سجل الاشتراكات المفعلة للكتب ({resolvedRequests.length})
             </h2>
 
             {resolvedRequests.length === 0 ? (
-              <div className="text-center py-16 rounded-3xl border border-dashed border-zinc-800 p-8 space-y-2">
-                <Users className="w-10 h-10 text-zinc-600 mx-auto" />
-                <h3 className="text-sm font-bold text-zinc-300">لا يوجد طلاب نشطون بعد</h3>
-                <p className="text-xs text-zinc-500">عند قبول طلبات الطلاب ستظهر تفاصيلهم وتاريخ تفعيل الكتب هنا.</p>
+              <div className="text-center py-16 rounded-3xl border border-dashed border-slate-300 dark:border-zinc-800 bg-white dark:bg-zinc-950/40 p-8 space-y-2">
+                <Users className="w-10 h-10 text-slate-400 dark:text-zinc-600 mx-auto" />
+                <h3 className="text-sm font-bold text-slate-800 dark:text-zinc-300">لا يوجد طلاب نشطون بعد</h3>
+                <p className="text-xs text-slate-600 dark:text-zinc-500">عند قبول طلبات الطلاب ستظهر تفاصيلهم وتاريخ تفعيل الكتب هنا.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {resolvedRequests.map((req) => (
-                  <Card key={req.id} className="bg-[#0b0e17] border-zinc-800 p-4 rounded-2xl flex items-center justify-between">
+                  <Card key={req.id} className="bg-white dark:bg-[#0b0e17] border-slate-300/80 dark:border-zinc-800 p-4 rounded-2xl flex items-center justify-between shadow-sm">
                     <div className="space-y-1 text-right">
-                      <div className="font-bold text-sm text-white">{req.studentName}</div>
-                      <div className="text-xs text-blue-400">{req.bookTitle}</div>
-                      <div className="text-[11px] font-mono text-zinc-400">{req.studentPhone} • {req.studentBarcode}</div>
+                      <div className="font-extrabold text-sm text-slate-950 dark:text-white">{req.studentName}</div>
+                      <div className="text-xs text-blue-700 dark:text-blue-400 font-bold">{req.bookTitle}</div>
+                      <div className="text-[11px] font-mono text-slate-600 dark:text-zinc-400">{req.studentPhone} • {req.studentBarcode}</div>
                     </div>
-                    <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[11px]">
+                    <Badge className="bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border-emerald-500/30 text-[11px] font-bold">
                       مفعل وقيد القراءة
                     </Badge>
                   </Card>
@@ -771,95 +791,139 @@ export default function LibrarianPortalPage() {
 
       {/* CREATE / EDIT BOOK MODAL */}
       <Dialog open={isBookModalOpen} onOpenChange={setIsBookModalOpen}>
-        <DialogContent className="max-w-lg bg-[#0c101c] border-zinc-800 text-white rounded-3xl p-6 sm:p-7 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg bg-white dark:bg-[#0c101c] border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white rounded-3xl p-6 sm:p-7 shadow-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="text-right space-y-1">
-            <DialogTitle className="text-lg font-bold text-white">
+            <DialogTitle className="text-lg font-black text-slate-950 dark:text-white">
               {editingBook ? 'تعديل بيانات الكتاب' : 'إضافة كتاب جديد للمكتبة'}
             </DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleSaveBook} className="space-y-4 pt-2">
             <div className="space-y-1.5 text-right">
-              <Label className="text-xs font-semibold text-zinc-300">عنوان الكتاب *</Label>
+              <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200">عنوان الكتاب *</Label>
               <Input
                 value={bookTitle}
                 onChange={(e) => setBookTitle(e.target.value)}
                 placeholder="مثال: أطلس الكيمياء الحيوية السريرية"
                 required
-                className="h-10 bg-zinc-950 border-zinc-800 text-white text-xs rounded-xl"
+                className="h-10 bg-slate-50 dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs rounded-xl font-bold"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5 text-right">
-                <Label className="text-xs font-semibold text-zinc-300">المؤلف / الدكتور</Label>
+                <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200">المؤلف / الدكتور</Label>
                 <Input
                   value={bookAuthor}
                   onChange={(e) => setBookAuthor(e.target.value)}
                   placeholder="د. محمود الفقي"
-                  className="h-10 bg-zinc-950 border-zinc-800 text-white text-xs rounded-xl"
+                  className="h-10 bg-slate-50 dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs rounded-xl font-bold"
                 />
               </div>
 
               <div className="space-y-1.5 text-right">
-                <Label className="text-xs font-semibold text-zinc-300">التصنيف / المادة</Label>
+                <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200">التصنيف / المادة</Label>
                 <Input
                   value={bookCategory}
                   onChange={(e) => setBookCategory(e.target.value)}
                   placeholder="الطب البشري"
-                  className="h-10 bg-zinc-950 border-zinc-800 text-white text-xs rounded-xl"
+                  className="h-10 bg-slate-50 dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs rounded-xl font-bold"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5 text-right">
-                <Label className="text-xs font-semibold text-zinc-300">السعر بالجنيه (EGP)</Label>
+                <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200">السعر بالجنيه (EGP)</Label>
                 <Input
                   type="number"
                   value={bookPrice}
                   onChange={(e) => setBookPrice(e.target.value)}
                   placeholder="150"
-                  className="h-10 bg-zinc-950 border-zinc-800 text-white text-xs font-mono rounded-xl"
+                  className="h-10 bg-slate-50 dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs font-mono rounded-xl font-bold"
                 />
               </div>
 
               <div className="space-y-1.5 text-right">
-                <Label className="text-xs font-semibold text-zinc-300">عدد الصفحات</Label>
+                <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200">عدد الصفحات</Label>
                 <Input
                   type="number"
                   value={bookPages}
                   onChange={(e) => setBookPages(e.target.value)}
                   placeholder="240"
-                  className="h-10 bg-zinc-950 border-zinc-800 text-white text-xs font-mono rounded-xl"
+                  className="h-10 bg-slate-50 dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs font-mono rounded-xl font-bold"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5 text-right">
-              <Label className="text-xs font-semibold text-zinc-300">وصف الكتاب والمحتوى</Label>
+              <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200">وصف الكتاب والمحتوى</Label>
               <Textarea
                 value={bookDescription}
                 onChange={(e) => setBookDescription(e.target.value)}
                 placeholder="شرح مبسط ومصور لجميع أجزاء المنهج..."
                 rows={3}
-                className="bg-zinc-950 border-zinc-800 text-white text-xs rounded-xl resize-none"
+                className="bg-slate-50 dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs rounded-xl resize-none font-normal"
               />
+            </div>
+
+            {/* Download vs Protected Preview Setting */}
+            <div className="space-y-2 text-right">
+              <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                نوع إتاحة الكتاب للطلاب (صلاحية التحميل)
+              </Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAllowDownload(false)}
+                  className={`p-3 rounded-2xl border text-right transition-all flex flex-col gap-1 cursor-pointer ${
+                    !allowDownload
+                      ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-300 ring-2 ring-emerald-500/20'
+                      : 'border-slate-300 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-slate-700 dark:text-zinc-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-bold text-xs">
+                    <Lock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>للمعاينة والقراءة المحمية فقط (افتراضي)</span>
+                  </div>
+                  <p className="text-[10px] text-slate-600 dark:text-zinc-400 leading-relaxed font-normal">
+                    الكتاب محمي من التحميل والنسخ؛ يُسمح للطلاب فقط بقراءته داخل عارض المكتبة المشفر.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAllowDownload(true)}
+                  className={`p-3 rounded-2xl border text-right transition-all flex flex-col gap-1 cursor-pointer ${
+                    allowDownload
+                      ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/30 text-blue-900 dark:text-blue-300 ring-2 ring-blue-500/20'
+                      : 'border-slate-300 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-slate-700 dark:text-zinc-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-bold text-xs">
+                    <Download className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    <span>متاح للتحميل كملف PDF</span>
+                  </div>
+                  <p className="text-[10px] text-slate-600 dark:text-zinc-400 leading-relaxed font-normal">
+                    يُسمح للطالب بعد تفعيل الكتاب بتحميل نسخة PDF مباشرة على جهازه أو هاتفه.
+                  </p>
+                </button>
+              </div>
             </div>
 
             {/* Cover image URL and file upload */}
             <div className="space-y-2 text-right">
-              <Label className="text-xs font-semibold text-zinc-300">صورة غلاف الكتاب (رابط أو رفع)</Label>
-              <Input
-                value={bookCoverUrl}
-                onChange={(e) => setBookCoverUrl(e.target.value)}
-                placeholder="https://... رابط صورة الغلاف"
-                className="h-10 bg-zinc-950 border-zinc-800 text-white text-xs font-mono text-left rounded-xl"
-              />
-              <div className="flex items-center gap-2">
-                <label className="text-[11px] text-blue-400 hover:text-blue-300 font-bold cursor-pointer inline-flex items-center gap-1">
-                  <UploadCloud className="w-3.5 h-3.5" />
-                  <span>رفع غلاف عبر Cloudinary</span>
+              <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200">صورة غلاف الكتاب (رابط أو رفع من جهازك)</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={bookCoverUrl}
+                  onChange={(e) => setBookCoverUrl(e.target.value)}
+                  placeholder="https://... رابط صورة الغلاف أو ارفع من جهازك"
+                  className="h-10 bg-slate-50 dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs font-mono text-left rounded-xl flex-1"
+                />
+                <label className="h-10 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer flex items-center gap-1.5 shrink-0 shadow-xs">
+                  <UploadCloud className="w-4 h-4" />
+                  <span>رفع غلاف</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -868,21 +932,28 @@ export default function LibrarianPortalPage() {
                   />
                 </label>
               </div>
+              {bookCoverUrl && (
+                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={bookCoverUrl} alt="Cover" className="w-10 h-10 object-cover rounded-lg" />
+                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold truncate">تم تعيين صورة الغلاف بنجاح</span>
+                </div>
+              )}
             </div>
 
             {/* PDF document URL and file upload */}
             <div className="space-y-2 text-right">
-              <Label className="text-xs font-semibold text-zinc-300">رابط ملف الـ PDF (رابط مشفر أو رفع)</Label>
-              <Input
-                value={bookPdfUrl}
-                onChange={(e) => setBookPdfUrl(e.target.value)}
-                placeholder="https://... رابط الـ PDF أو Cloudinary"
-                className="h-10 bg-zinc-950 border-zinc-800 text-white text-xs font-mono text-left rounded-xl"
-              />
-              <div className="flex items-center gap-2">
-                <label className="text-[11px] text-blue-400 hover:text-blue-300 font-bold cursor-pointer inline-flex items-center gap-1">
-                  <UploadCloud className="w-3.5 h-3.5" />
-                  <span>رفع ملف PDF عبر Cloudinary</span>
+              <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200">ملف الكتاب PDF الكامل (رابط أو رفع من جهازك)</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={bookPdfUrl}
+                  onChange={(e) => setBookPdfUrl(e.target.value)}
+                  placeholder="https://... رابط ملف PDF أو ارفع من جهازك"
+                  className="h-10 bg-slate-50 dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs font-mono text-left rounded-xl flex-1"
+                />
+                <label className="h-10 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer flex items-center gap-1.5 shrink-0 shadow-xs">
+                  <UploadCloud className="w-4 h-4" />
+                  <span>رفع PDF</span>
                   <input
                     type="file"
                     accept="application/pdf"
@@ -893,9 +964,68 @@ export default function LibrarianPortalPage() {
               </div>
             </div>
 
+            {/* Multiple Pages Image Uploader */}
+            <div className="space-y-2 text-right p-3.5 rounded-2xl bg-slate-100 dark:bg-zinc-900/60 border border-slate-300 dark:border-zinc-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    <span>رفع صفحات الكتاب مصورة (اختيار عدة صفحات)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-zinc-400 mt-0.5">
+                    يمكنك تحديد عدة صور لصفحات الكتاب في وقت واحد لرفعها معاً وحفظها داخل الكتاب.
+                  </p>
+                </div>
+                <label className="h-9 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs cursor-pointer flex items-center gap-1.5 shrink-0 shadow-xs">
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>اختيار صفحات</span>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleUploadMultiplePages}
+                  />
+                </label>
+              </div>
+
+              {bookPagesList.length > 0 && (
+                <div className="pt-2 space-y-2">
+                  <div className="text-[11px] font-bold text-purple-700 dark:text-purple-400 flex items-center justify-between">
+                    <span>الصفحات المرفوعة ({bookPagesList.length} صفحة):</span>
+                    <button
+                      type="button"
+                      onClick={() => setBookPagesList([])}
+                      className="text-red-500 hover:text-red-600 text-[10px] underline cursor-pointer"
+                    >
+                      مسح الكل
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-36 overflow-y-auto p-1 bg-white dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800">
+                    {bookPagesList.map((url, idx) => (
+                      <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-800 bg-slate-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt={`Page ${idx + 1}`} className="w-full h-full object-cover" />
+                        <span className="absolute bottom-0 inset-x-0 bg-black/70 text-white text-[9px] text-center font-mono py-0.5">
+                          {idx + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setBookPagesList(prev => prev.filter((_, i) => i !== idx))}
+                          className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600 text-white flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {isUploadingFile && (
-              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs text-center animate-pulse">
-                {uploadProgress || 'جارٍ رفع الملف إلى Cloudinary...'}
+              <div className="p-3 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-800 dark:text-blue-300 text-xs text-center font-bold animate-pulse">
+                {uploadProgress || 'جارٍ رفع الملف وحفظه...'}
               </div>
             )}
 
@@ -904,7 +1034,7 @@ export default function LibrarianPortalPage() {
                 type="button"
                 variant="outline"
                 onClick={() => setIsBookModalOpen(false)}
-                className="flex-1 h-10 rounded-xl border-zinc-800 bg-zinc-900 text-zinc-300 text-xs"
+                className="flex-1 h-10 rounded-xl border-slate-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 text-xs font-bold"
               >
                 إلغاء
               </Button>

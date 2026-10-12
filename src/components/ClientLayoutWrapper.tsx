@@ -20,6 +20,7 @@ import { ShieldAlert } from 'lucide-react';
 
 import { ScreenProtectionGuard } from '@/components/security/ScreenProtectionGuard';
 import { NotificationListener } from '@/components/NotificationListener';
+import { DynamicBrandingManager } from '@/components/DynamicBrandingManager';
 import { useOnlineStatus } from '@/hooks/use-online-status';
 import { WifiOff } from 'lucide-react';
 
@@ -210,6 +211,7 @@ export function ClientLayoutWrapper({ children }: { children: React.ReactNode })
     <I18nextProvider i18n={i18n}>
       <ScreenProtectionGuard />
       <NotificationListener />
+      <DynamicBrandingManager />
       <div className="relative flex min-h-screen w-full flex-col bg-background text-foreground overflow-x-hidden screen-protected transition-colors">
         {!isOnline && (
           <div className="w-full bg-red-600/90 text-white text-xs font-semibold py-1.5 px-4 flex items-center justify-center gap-2 sticky top-0 z-[100] backdrop-blur-md shadow-md" id="pwa-offline-top-banner">

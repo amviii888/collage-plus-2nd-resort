@@ -23,6 +23,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { parseVideoSource, isBunnyStreamUrl, type ParsedVideoSource } from '@/lib/bunnyStream';
+import { DynamicWatermark } from '@/components/security/DynamicWatermark';
 
 
 const CourseComments = lazy(() => import('@/components/CourseComments').then(module => ({ default: module.CourseComments })));
@@ -342,8 +343,7 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
 
     const [isUnlockOpen, setUnlockOpen] = useState(false);
     const [isHomeworkOpen, setIsHomeworkOpen] = useState(false);
-    const [signedEmbedUrl, setSignedEmbedUrl] = useState<string | null>(null);
-    const [useModernPlayer, setUseModernPlayer] = useState(false);
+    const [optimisticViewDelta, setOptimisticViewDelta] = useState(0);
     const viewCountIncremented = useRef(false);
     
     // Realtime data hooks
@@ -434,7 +434,7 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
         
         if (effectiveCourseAccess) {
             if (effectiveCourseAccess.fullAccess || effectiveCourseAccess.granted) {
-                const limit = effectiveCourseAccess.viewLimit ?? 3;
+                const limit = effectiveCourseAccess.viewLimit ?? currentCourse?.viewLimit ?? 3;
                 if (limit === 0) return true;
                 return (effectiveCourseAccess.viewCount ?? 0) < limit;
             }
@@ -442,14 +442,29 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
         return false;
     }, [course, isOwner, effectiveCourseAccess]);
 
+    // Check if views are exhausted
+    const isViewsExhausted = useMemo(() => {
+        if (!effectiveCourseAccess || isOwner || !course?.locked) return false;
+        const limit = effectiveCourseAccess.viewLimit ?? course?.viewLimit ?? 3;
+        if (limit <= 0) return false;
+        return (effectiveCourseAccess.viewCount ?? 0) >= limit;
+    }, [effectiveCourseAccess, isOwner, course]);
+
     // Unlocked unit IDs
     const unlockedUnitIdsSet = useMemo(() => {
-        if (hasFullAccess || !course?.locked) {
+        if (!course?.locked) {
+            return new Set((units || []).map(u => u.id));
+        }
+        if (isViewsExhausted) {
+            // View limit reached! All units are locked
+            return new Set<string>();
+        }
+        if (hasFullAccess) {
             return new Set((units || []).map(u => u.id));
         }
         const uIds = effectiveCourseAccess?.unlockedUnitIds || [];
         return new Set(uIds);
-    }, [hasFullAccess, course, units, effectiveCourseAccess]);
+    }, [hasFullAccess, isViewsExhausted, course, units, effectiveCourseAccess]);
 
     // Initialize or adapt current video to an unlocked unit video
     useEffect(() => {
@@ -479,34 +494,6 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
 
     const currentVideo = useMemo(() => flatVideos.find(v => v.id === currentVideoId) || flatVideos[0] || null, [flatVideos, currentVideoId]);
     const embedUrl = getVideoEmbedUrl(currentVideo?.url || '');
-    const isCurrentVideoBunny = useMemo(() => isBunnyStreamUrl(currentVideo?.url || ''), [currentVideo?.url]);
-
-    useEffect(() => {
-        if (!currentVideo?.url) {
-            setSignedEmbedUrl(null);
-            return;
-        }
-
-        const isBunny = isBunnyStreamUrl(currentVideo.url);
-        if (!isBunny) {
-            setSignedEmbedUrl(null);
-            return;
-        }
-
-        const parsed = parseVideoSource(currentVideo.url);
-        if (parsed?.videoId) {
-            fetch(`/api/bunny/player-token?videoId=${parsed.videoId}`)
-                .then(r => r.json())
-                .then(data => {
-                    if (data?.success) {
-                        setSignedEmbedUrl(useModernPlayer ? data.modernEmbedUrl : data.embedUrl);
-                    }
-                })
-                .catch(() => {});
-        }
-    }, [currentVideo?.url, useModernPlayer]);
-
-    const effectiveEmbedUrl = signedEmbedUrl || embedUrl;
 
     const { data: history, isLoading: isHistoryLoading } = useDoc<WatchHistory>(useMemoFirebase(() => {
         const targetId = activeStudentId || user?.uid;
@@ -638,31 +625,71 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
     }, [firestore, user, teacherId, courseId, currentVideoId, course, currentStudentProfile]);
 
     useEffect(() => {
-        // This effect runs when the component mounts or dependencies change.
-        // It's designed to increment the view count once per session for a student accessing a locked course.
-        if (
-            hasAccess &&
-            course?.locked &&
-            user?.isAnonymous &&
-            firestore &&
-            courseId &&
-            !viewCountIncremented.current // Prevents incrementing multiple times in one session
-        ) {
-            const accessRef = doc(firestore, `students/${user.uid}/courseAccess`, courseId);
-
-            // Increment the view count in Firestore
-            updateDoc(accessRef, {
-                viewCount: increment(1)
-            }).then(() => {
-                // Set the ref to true so we don't increment again on re-renders
-                viewCountIncremented.current = true;
-            }).catch(e => {
-                console.error("Failed to update view count:", e);
-                // Optionally notify the user if the count update fails,
-                // but for now, we'll fail silently to not disrupt the viewing experience.
-            });
+        // Increment the view count when a student visits/enters this course
+        const targetStudentId = activeStudentId || user?.uid;
+        if (!targetStudentId || isOwner || !firestore || !courseId || viewCountIncremented.current) {
+            return;
         }
-    }, [hasAccess, course, user, firestore, courseId]);
+
+        // Only count view if this course is locked and has access granted/unlocked
+        if (!course?.locked) {
+            return;
+        }
+
+        const isGranted = Boolean(
+            hasAccess ||
+            hasFullAccess ||
+            (effectiveCourseAccess && (
+                effectiveCourseAccess.granted || 
+                effectiveCourseAccess.fullAccess || 
+                (effectiveCourseAccess.unlockedUnitIds && effectiveCourseAccess.unlockedUnitIds.length > 0)
+            ))
+        );
+
+        if (!isGranted) {
+            return;
+        }
+
+        viewCountIncremented.current = true;
+
+        const accessRef = doc(firestore, `students/${targetStudentId}/courseAccess`, courseId);
+
+        // Increment the view count in Firestore
+        setDoc(accessRef, {
+            courseId: courseId,
+            teacherId: teacherId || '',
+            viewCount: increment(1),
+            lastViewedAt: serverTimestamp(),
+        }, { merge: true }).then(() => {
+            // Update local storage cache immediately so UI reflects the new viewCount
+            try {
+                const cacheKey = `student_course_access_${courseId}`;
+                const raw = localStorage.getItem(cacheKey);
+                const parsed = raw ? JSON.parse(raw) : (effectiveCourseAccess ? { ...effectiveCourseAccess } : {});
+                parsed.viewCount = (parsed.viewCount || 0) + 1;
+                localStorage.setItem(cacheKey, JSON.stringify(parsed));
+            } catch(e) {}
+        }).catch(e => {
+            console.error("Failed to update view count in Firestore:", e);
+            try {
+                const cacheKey = `student_course_access_${courseId}`;
+                const raw = localStorage.getItem(cacheKey);
+                const parsed = raw ? JSON.parse(raw) : (effectiveCourseAccess ? { ...effectiveCourseAccess } : {});
+                parsed.viewCount = (parsed.viewCount || 0) + 1;
+                localStorage.setItem(cacheKey, JSON.stringify(parsed));
+            } catch(err) {}
+        });
+
+        // Also increment course total views for teacher analytics
+        if (teacherId) {
+            const courseDocRef = doc(firestore, `teachers/${teacherId}/courses/${courseId}`);
+            setDoc(courseDocRef, {
+                viewCount: increment(1),
+                totalViews: increment(1),
+                updatedAt: serverTimestamp(),
+            }, { merge: true }).catch(() => {});
+        }
+    }, [hasAccess, hasFullAccess, isOwner, firestore, courseId, activeStudentId, user?.uid, effectiveCourseAccess, teacherId, course?.locked]);
 
     const handleMarkAsComplete = async (videoId: string) => {
         const targetStudentId = activeStudentId || user?.uid;
@@ -750,10 +777,14 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                         <div className="w-full aspect-video bg-black flex flex-col items-center justify-center text-center p-4">
                             <Lock className="w-16 h-16 text-emerald-400 mb-4" />
                             <h2 className="text-2xl font-bold text-white">
-                                {activeVideoUnit ? `Unit: ${activeVideoUnit.title} is Locked` : 'This Course is Locked'}
+                                {isViewsExhausted 
+                                    ? 'انتهت عدد المشاهدات المتاحة لك لهذا الكورس' 
+                                    : activeVideoUnit ? `Unit: ${activeVideoUnit.title} is Locked` : 'This Course is Locked'}
                             </h2>
                             <p className="text-muted-foreground mt-2 max-w-md">
-                                Request access to this specific unit or the whole course directly from your professor, or redeem a share code.
+                                {isViewsExhausted 
+                                    ? 'لقد استنفدت جميع المشاهدات المسموح بها لهذا المحتوى. يمكنك طلب الوصول مرة أخرى من أستاذ المادة أو إدخال كود جديد.' 
+                                    : 'Request access to this specific unit or the whole course directly from your professor, or redeem a share code.'}
                             </p>
                              <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
                                 {unlockedUnitIdsSet.size > 0 && (
@@ -831,63 +862,39 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                     </Badge>
                                 )}
                             </div>
-                            <div className="relative w-full aspect-video bg-black flex-shrink-0 overflow-hidden">
-                                {effectiveEmbedUrl ? (
+                            <div 
+                                className="relative w-full aspect-video bg-black flex-shrink-0 overflow-hidden select-none protected-media no-capture"
+                                onContextMenu={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    return false;
+                                }}
+                            >
+                                {embedUrl ? (
                                     <>
                                         <iframe
                                             className="relative z-0"
                                             width="100%"
                                             height="100%"
-                                            src={effectiveEmbedUrl}
+                                            src={embedUrl}
                                             title={title}
                                             frameBorder="0"
                                             referrerPolicy="strict-origin-when-cross-origin"
                                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                             allowFullScreen
                                         ></iframe>
-                                        {user?.uid && <VideoWatermark studentId={user.uid} />}
+                                        {/* Dynamic Ultra Watermark automatically applied to every video */}
+                                        {(activeStudentId || user?.uid) && (
+                                            <DynamicWatermark 
+                                                studentId={activeStudentId || user?.uid} 
+                                                teacherId={teacherId}
+                                            />
+                                        )}
                                     </>
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-destructive-foreground bg-destructive">Invalid Video URL</div>
                                 )}
                             </div>
-                            {isCurrentVideoBunny && (
-                                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 bg-zinc-950/95 border-b border-zinc-800 text-[11px] text-zinc-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
-                                        <span className="font-semibold text-zinc-300">سيرفر Bunny Stream</span>
-                                        {useModernPlayer ? (
-                                            <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-400">Modern Player v2</Badge>
-                                        ) : (
-                                            <Badge variant="outline" className="text-[10px] border-zinc-700 text-zinc-400">Standard Embed</Badge>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-7 px-2 text-[10px] text-zinc-300 hover:text-white hover:bg-zinc-800"
-                                            onClick={() => setUseModernPlayer(prev => !prev)}
-                                        >
-                                            {useModernPlayer ? 'تبديل للمشغل الكلاسيكي' : 'تبديل للمشغل الحديث v2'}
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-7 px-2 text-[10px] text-amber-400 hover:text-amber-300 hover:bg-amber-950/30"
-                                            onClick={() => {
-                                                toast({
-                                                    title: '💡 تنبيه أمان Bunny.net (حل شاشة 403)',
-                                                    description: 'إذا ظهرت شاشة 403، يرجى الدخول إلى حساب Bunny.net > Stream > Library #775464 > Security والتأكد من إضافة نطاق الموقع إلى Allowed Referrers أو إيقاف Embed view token authentication.',
-                                                    duration: 9000,
-                                                });
-                                            }}
-                                        >
-                                            ⚠️ يظهر خطأ 403؟
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     )}
 

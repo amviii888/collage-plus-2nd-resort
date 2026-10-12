@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Home, LogOut, ShieldCheck, Percent, Send, Clapperboard, Edit, UserCog, UserCircle, ShieldAlert, Camera, LineChart, ChevronLeft, ChevronRight, Trophy, SlidersHorizontal, Globe } from 'lucide-react';
+import { Home, LogOut, ShieldCheck, Percent, Send, Clapperboard, Edit, UserCog, UserCircle, ShieldAlert, Camera, LineChart, ChevronLeft, ChevronRight, Trophy, SlidersHorizontal, Globe, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from 'react-i18next';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -34,6 +34,7 @@ const superAdminNav = [
     { href: '/admin/features', label: 'Feature Management', icon: SlidersHorizontal },
     { href: '/admin/management', label: 'Management', icon: ShieldCheck },
     { href: '/admin/teachers', label: 'Teachers & Branding', icon: Edit },
+    { href: '/admin/notifications', label: 'Notifications', icon: Bell },
     { href: '/admin/offers', label: 'Plans & Offers', icon: Percent },
     { href: '/admin/seasons', label: 'Themes & Branding', icon: Trophy },
     { href: '/admin/marketing', label: 'Marketing', icon: Send },

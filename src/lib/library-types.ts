@@ -7,6 +7,8 @@ export interface LibraryBook {
   category: string;
   coverUrl?: string;
   pdfUrl?: string; // Cloudinary / Secure PDF URL
+  pages?: string[]; // Cloudinary URLs of multiple pages
+  allowDownload?: boolean; // True: students can download, False: preview/read-only protected
   pageCount?: number;
   isAvailable?: boolean;
   edition?: string;

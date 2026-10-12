@@ -103,6 +103,21 @@ export function ScreenProtectionGuard() {
         return false;
       }
 
+      // DevTools Inspection Interception (F12, Ctrl+Shift+I/J/C, Cmd+Option+I/J/C, Ctrl+U)
+      if (
+        e.key === 'F12' ||
+        e.keyCode === 123 ||
+        (isCmdOrCtrl && e.shiftKey && ['i', 'j', 'c'].includes(key)) ||
+        (e.metaKey && e.altKey && ['i', 'j', 'c', 'u'].includes(key)) ||
+        (isCmdOrCtrl && key === 'u')
+      ) {
+        applyInstantBlackout();
+        e.preventDefault();
+        e.stopPropagation();
+        showSecurityWarning('Developer inspect tools are disabled on protected academic content.', 4000);
+        return false;
+      }
+
       if (isCmdOrCtrl) {
         // macOS Screenshot combos: Cmd + Shift + 3 / 4 / 5 / 6
         if (e.shiftKey && ['3', '4', '5', '6', 's'].includes(key)) {
@@ -134,7 +149,98 @@ export function ScreenProtectionGuard() {
       }
     };
 
-    // 4. Window Blur & Visibility - do not black out or block on normal tab/window switches
+    // 4. Apple AirPlay & Remote Playback Enforcement
+    const enforceNoAirPlayOnMedia = () => {
+      if (typeof document === 'undefined') return;
+      const mediaElements = document.querySelectorAll('video, audio, iframe');
+      mediaElements.forEach((el: any) => {
+        try {
+          el.disableRemotePlayback = true;
+          el.setAttribute('disableRemotePlayback', 'true');
+          el.setAttribute('x-webkit-airplay', 'deny');
+          el.setAttribute('webkit-playsinline', 'true');
+          el.setAttribute('playsinline', 'true');
+          if (el.remote && typeof el.remote.cancelWatchAvailability === 'function') {
+            el.remote.cancelWatchAvailability().catch(() => {});
+          }
+        } catch {}
+      });
+    };
+
+    const handleAirPlayTarget = (e: any) => {
+      if (e.target && e.availability === 'available') {
+        e.preventDefault?.();
+      }
+      if (e.target?.webkitCurrentPlaybackTargetIsWireless) {
+        applyInstantBlackout();
+        showSecurityWarning('Apple AirPlay & wireless screen mirroring are strictly blocked by institutional policy.', 6000);
+      }
+    };
+
+    document.addEventListener('webkitplaybacktargetavailabilitychanged', handleAirPlayTarget, true);
+    enforceNoAirPlayOnMedia();
+
+    // 5. Audio Peripherals Check (Wired Headphones, Earbuds, AirPods, Bluetooth headsets)
+    const checkAudioPeripherals = async () => {
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return;
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+        
+        const forbiddenTerms = [
+          'headphone', 'headset', 'earbud', 'airpod', 'buds', 'bluetooth', 
+          'wireless', 'external', 'wired', 'usb audio', 'analog output', 'dongle', 'line out'
+        ];
+        
+        const foundForbidden = audioOutputs.find(dev => {
+          const label = (dev.label || '').toLowerCase();
+          return forbiddenTerms.some(term => label.includes(term));
+        });
+
+        if (foundForbidden) {
+          applyInstantBlackout();
+          showSecurityWarning(
+            'External audio devices (wired headphones, earbuds, AirPods, or Bluetooth audio) detected. Academic security requires direct device speaker playback.',
+            6000
+          );
+        }
+      } catch {}
+    };
+
+    // Check device changes on peripheral hotplug
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
+      navigator.mediaDevices.addEventListener('devicechange', checkAudioPeripherals);
+      checkAudioPeripherals();
+    }
+    const peripheralInterval = setInterval(checkAudioPeripherals, 6000);
+
+    // 6. Watermark Anti-Tampering DOM Observer
+    const watermarkObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'childList') {
+          mutation.removedNodes.forEach((node: any) => {
+            if (node.nodeType === 1) {
+              const isWatermark = 
+                node.id === 'dynamic-watermark-overlay' || 
+                node.classList?.contains('watermark-shield') ||
+                node.classList?.contains('protected-watermark') ||
+                node.tagName === 'CANVAS';
+              if (isWatermark) {
+                applyInstantBlackout();
+                showSecurityWarning('Security warning: Watermark tampering intercepted. Playback halted.', 6000);
+                window.dispatchEvent(new Event('watermark_tamper_detected'));
+              }
+            }
+          });
+        }
+      }
+    });
+
+    try {
+      watermarkObserver.observe(document.body, { childList: true, subtree: true });
+    } catch {}
+
+    // 7. Window Blur & Visibility - do not black out or block on normal tab/window switches
     const handleWindowBlur = () => {
       // Kept passive to allow copying error logs and switching to dev tools
     };
@@ -194,6 +300,14 @@ export function ScreenProtectionGuard() {
     document.addEventListener('dragstart', handleDragStart);
 
     return () => {
+      clearInterval(peripheralInterval);
+      try {
+        watermarkObserver.disconnect();
+      } catch {}
+      document.removeEventListener('webkitplaybacktargetavailabilitychanged', handleAirPlayTarget, true);
+      if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
+        navigator.mediaDevices.removeEventListener('devicechange', checkAudioPeripherals);
+      }
       window.removeEventListener('keydown', handleKeyDown, { capture: true });
       window.removeEventListener('keyup', handleKeyUp, { capture: true });
       window.removeEventListener('blur', handleWindowBlur);

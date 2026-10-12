@@ -2628,6 +2628,13 @@ export default function ProfilePage() {
       return <SAdminProfile userId={user.uid} />;
   }
 
+  if (userEmailLower === 'librarian123@gmail.com' || userEmailLower?.includes('librarian')) {
+      if (typeof window !== 'undefined') {
+          window.location.replace('/librarian');
+      }
+      return null;
+  }
+
   // Robust Student Role Check: checks mol5saty.student, universe.student, or local student sessions
   const hasLocalStudent = typeof window !== 'undefined' && (
       !!localStorage.getItem('cached_student_profile_' + user.uid) ||

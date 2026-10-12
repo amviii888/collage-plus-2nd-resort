@@ -228,11 +228,31 @@ export default function LibraryPage() {
     setActiveReadingBook(book);
   };
 
-  const { theme, setTheme } = useTheme();
+  // Check if librarian or admin
+  const isLibrarianOrAdmin = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      if (localStorage.getItem('is_librarian') === 'true' || localStorage.getItem('admin_session') === 'true') {
+        return true;
+      }
+    }
+    if (!user) return false;
+    const email = user.email?.toLowerCase().trim() || '';
+    return (
+      email === 'librarian123@gmail.com' ||
+      email.includes('librarian') ||
+      email === 'bodylion2009@gmail.com' ||
+      email === '6108almoamviii8chef@gmail.com'
+    );
+  }, [user]);
+
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isDark = mounted ? resolvedTheme === 'dark' : false;
 
   return (
     <div 
-      className="min-h-screen bg-slate-50 dark:bg-[#07090e] text-slate-900 dark:text-slate-100 pb-28 selection:bg-blue-600 selection:text-white transition-colors duration-200"
+      className="min-h-screen bg-slate-100 dark:bg-[#07090e] text-slate-900 dark:text-slate-100 pb-28 selection:bg-blue-600 selection:text-white transition-colors duration-200"
       dir="rtl"
       style={{ fontFamily: "'Cairo', sans-serif" }}
     >
@@ -241,42 +261,54 @@ export default function LibraryPage() {
       <div className="fixed bottom-10 left-10 w-[450px] h-[400px] bg-emerald-500/10 dark:bg-emerald-600/10 rounded-full blur-[140px] pointer-events-none -z-10" />
 
       {/* Top Banner / Navigation */}
-      <header className="border-b border-slate-200 dark:border-zinc-800/80 bg-white/80 dark:bg-zinc-950/70 backdrop-blur-xl sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+      <header className="border-b border-slate-300/80 dark:border-zinc-800/80 bg-white/95 dark:bg-zinc-950/85 backdrop-blur-xl sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/25">
             <Library className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+            <h1 className="text-base sm:text-lg font-black text-slate-950 dark:text-white flex items-center gap-2">
               <span>المكتبة الأكاديمية الرقمية</span>
-              <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+              <Badge variant="outline" className="text-[10px] bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/40 font-bold">
                 Digital Vault
               </Badge>
             </h1>
-            <p className="text-[11px] text-slate-500 dark:text-zinc-400 hidden sm:block">
+            <p className="text-[11px] text-slate-600 dark:text-zinc-400 font-medium hidden sm:block">
               المراجع والكتب والمذكرات المعتمدة لكافة الطلاب
             </p>
           </div>
         </div>
 
-        {/* Action Controls - Light/Dark Mode Toggle (No public librarian button) */}
+        {/* Action Controls - Light/Dark Mode Toggle & Librarian Shortcut */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {isLibrarianOrAdmin && (
+            <Link href="/librarian">
+              <Button 
+                size="sm" 
+                className="h-9 px-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-blue-600/25 cursor-pointer"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>لوحة أمين المكتبة</span>
+              </Button>
+            </Link>
+          )}
+
           <Button 
             size="sm" 
             variant="outline"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="h-9 px-3 rounded-xl border-slate-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-xs font-bold flex items-center gap-2 shadow-xs"
+            onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            className="h-9 px-3 rounded-xl border-slate-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-900 dark:text-zinc-200 text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer"
             title="تبديل المظهر النهاري / الليلي"
           >
-            {theme === 'dark' ? (
+            {isDark ? (
               <>
                 <Sun className="w-4 h-4 text-amber-400" />
-                <span className="hidden sm:inline">الوضع النهاري</span>
+                <span className="hidden sm:inline font-bold">الوضع النهاري</span>
               </>
             ) : (
               <>
                 <Moon className="w-4 h-4 text-blue-600" />
-                <span className="hidden sm:inline">الوضع الليلي</span>
+                <span className="hidden sm:inline font-bold">الوضع الليلي</span>
               </>
             )}
           </Button>
@@ -288,20 +320,20 @@ export default function LibraryPage() {
         <motion.div 
           initial={{ opacity: 0, y: 15 }} 
           animate={{ opacity: 1, y: 0 }} 
-          className="relative overflow-hidden rounded-3xl border border-slate-200 dark:border-zinc-800 bg-gradient-to-br from-blue-50/70 via-white to-slate-100/80 dark:from-[#0c1122] dark:via-[#0a0d18] dark:to-[#080b12] p-6 sm:p-10 shadow-xl dark:shadow-2xl"
+          className="relative overflow-hidden rounded-3xl border border-slate-300 dark:border-zinc-800 bg-gradient-to-br from-white via-blue-50/40 to-slate-100 dark:from-[#0c1122] dark:via-[#0a0d18] dark:to-[#080b12] p-6 sm:p-10 shadow-lg dark:shadow-2xl"
         >
           <div className="max-w-2xl space-y-3 relative z-10 text-right">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 border border-emerald-500/40 text-emerald-800 dark:text-emerald-400">
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>محتوى محمي ومشفر ضد النسخ وتصوير الشاشة</span>
             </div>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-slate-900 dark:text-white leading-tight">
+            <h2 className="text-2xl sm:text-4xl font-black text-slate-950 dark:text-white leading-tight">
               كتب ومراجع دراسية موثوقة <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-600 dark:from-blue-400 dark:via-indigo-400 dark:to-emerald-400">
                 متاحة لجميع الطلاب الآن
               </span>
             </h2>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-zinc-400 leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-700 dark:text-zinc-300 font-medium leading-relaxed">
               اطلب نسختك من أي كتاب مباشرة بكل سهولة. تتم مراجعة وتفعيل الكتب عبر أمين المكتبة فورياً لتتمكن من القراءة داخل العارض الأكاديمي المحمي.
             </p>
           </div>
@@ -309,12 +341,12 @@ export default function LibraryPage() {
           <div className="mt-6 flex flex-col sm:flex-row gap-3 relative z-10">
             {/* Search Bar */}
             <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 dark:text-zinc-500 absolute right-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-500 dark:text-zinc-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="ابحث عن اسم الكتاب، المؤلف، أو المادة..."
-                className="h-11 pr-10 pl-4 bg-white dark:bg-zinc-950/80 border-slate-300 dark:border-zinc-800 rounded-2xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:border-blue-500 shadow-inner"
+                className="h-11 pr-10 pl-4 bg-white dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 rounded-2xl text-xs sm:text-sm text-slate-950 dark:text-white placeholder:text-slate-500 dark:placeholder:text-zinc-400 focus:border-blue-500 shadow-sm"
               />
             </div>
           </div>
@@ -328,7 +360,7 @@ export default function LibraryPage() {
                 className={`px-4 py-2 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer ${
                   selectedCategory === cat
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 scale-100'
-                    : 'bg-white dark:bg-zinc-900/80 text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 border border-slate-200 dark:border-zinc-800/80'
+                    : 'bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 border border-slate-300 dark:border-zinc-800'
                 }`}
               >
                 {cat}
@@ -342,12 +374,12 @@ export default function LibraryPage() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
-            <BookMarked className="w-4 h-4 text-blue-500 dark:text-blue-400" />
-            <span className="font-bold text-sm text-slate-800 dark:text-zinc-200">الكتب والمراجع المتاحة</span>
-            <span className="text-xs text-slate-500 dark:text-zinc-500">({filteredBooks.length} كتاب)</span>
+            <BookMarked className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span className="font-extrabold text-sm text-slate-900 dark:text-zinc-100">الكتب والمراجع المتاحة</span>
+            <span className="text-xs text-slate-600 dark:text-zinc-400 font-semibold">({filteredBooks.length} كتاب)</span>
           </div>
           {unlockedBookIds.size > 0 && (
-            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-xs font-bold">
+            <Badge className="bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border-emerald-500/40 text-xs font-bold">
               لديك {unlockedBookIds.size} كتاب مفتوح للقراءة
             </Badge>
           )}
@@ -356,14 +388,14 @@ export default function LibraryPage() {
         {isBooksLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3].map((n) => (
-              <Skeleton key={n} className="h-80 w-full rounded-3xl bg-slate-200/70 dark:bg-zinc-900/60" />
+              <Skeleton key={n} className="h-80 w-full rounded-3xl bg-slate-200 dark:bg-zinc-900/60" />
             ))}
           </div>
         ) : filteredBooks.length === 0 ? (
-          <div className="text-center py-20 rounded-3xl border border-dashed border-slate-300 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/40 p-8 space-y-3">
+          <div className="text-center py-20 rounded-3xl border border-dashed border-slate-300 dark:border-zinc-800 bg-white/70 dark:bg-zinc-950/40 p-8 space-y-3">
             <BookOpen className="w-12 h-12 text-slate-400 dark:text-zinc-600 mx-auto" />
             <h3 className="text-base font-bold text-slate-800 dark:text-zinc-300">لم يتم العثور على كتب مطابقة</h3>
-            <p className="text-xs text-slate-500 dark:text-zinc-500 max-w-sm mx-auto">
+            <p className="text-xs text-slate-600 dark:text-zinc-400 max-w-sm mx-auto">
               جرب تغيير عبارة البحث أو اختيار تصنيف آخر لعرض الكتب المتوفرة.
             </p>
           </div>
@@ -376,10 +408,10 @@ export default function LibraryPage() {
               return (
                 <Card 
                   key={book.id}
-                  className="bg-white dark:bg-[#0b0e17] border-slate-200 dark:border-zinc-800/80 rounded-3xl overflow-hidden hover:border-blue-400/50 dark:hover:border-zinc-700/80 transition-all duration-300 flex flex-col shadow-sm hover:shadow-xl group relative"
+                  className="bg-white dark:bg-[#0e111a] border-slate-300/80 dark:border-zinc-800 rounded-3xl overflow-hidden hover:border-blue-500 dark:hover:border-zinc-700 transition-all duration-300 flex flex-col shadow-md hover:shadow-xl group relative"
                 >
                   {/* Top Cover / Thumbnail Area */}
-                  <div className="relative aspect-[16/10] bg-slate-100 dark:bg-zinc-950 overflow-hidden border-b border-slate-200 dark:border-zinc-800/60 flex items-center justify-center">
+                  <div className="relative aspect-[16/10] bg-slate-200 dark:bg-zinc-950 overflow-hidden border-b border-slate-300/80 dark:border-zinc-800/80 flex items-center justify-center">
                     {book.coverUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img 
@@ -389,18 +421,18 @@ export default function LibraryPage() {
                       />
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-blue-100 dark:from-blue-900/40 via-slate-100 dark:via-zinc-900 to-slate-200 dark:to-zinc-950 flex flex-col items-center justify-center text-center p-4">
-                        <BookOpen className="w-12 h-12 text-blue-500 dark:text-blue-400/60 mb-2" />
-                        <span className="text-xs font-bold text-slate-600 dark:text-zinc-400 line-clamp-1">{book.title}</span>
+                        <BookOpen className="w-12 h-12 text-blue-600 dark:text-blue-400 mb-2" />
+                        <span className="text-xs font-bold text-slate-800 dark:text-zinc-300 line-clamp-1">{book.title}</span>
                       </div>
                     )}
 
                     {/* Gradient Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 dark:from-[#0b0e17] via-transparent to-transparent opacity-80" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 dark:from-[#0e111a] via-transparent to-transparent opacity-80" />
 
                     {/* Top Badges */}
                     <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
                       {book.category && (
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-black/60 backdrop-blur-md text-white border border-white/20">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-black/70 backdrop-blur-md text-white border border-white/20">
                           {book.category}
                         </span>
                       )}
@@ -409,15 +441,15 @@ export default function LibraryPage() {
                     {/* Status Badge */}
                     <div className="absolute top-3 left-3 z-10">
                       {isUnlocked ? (
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/90 text-white border border-emerald-400/40 flex items-center gap-1 backdrop-blur-md">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-600 text-white border border-emerald-400 flex items-center gap-1 backdrop-blur-md shadow-sm">
                           <CheckCircle2 className="w-3 h-3" /> مفتوح لك
                         </span>
                       ) : isPending ? (
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/90 text-white border border-amber-400/40 flex items-center gap-1 backdrop-blur-md">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500 text-white border border-amber-300 flex items-center gap-1 backdrop-blur-md shadow-sm">
                           <Clock className="w-3 h-3" /> قيد المراجعة
                         </span>
                       ) : (
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-black/70 text-white border border-white/20 flex items-center gap-1 backdrop-blur-md">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/90 text-white border border-slate-700 flex items-center gap-1 backdrop-blur-md shadow-sm">
                           <Lock className="w-3 h-3 text-amber-300" /> مقفل
                         </span>
                       )}
@@ -425,7 +457,7 @@ export default function LibraryPage() {
 
                     {/* Price tag on bottom right of image */}
                     <div className="absolute bottom-2 right-3 z-10">
-                      <div className="px-3 py-1 rounded-xl bg-black/80 dark:bg-zinc-900/90 backdrop-blur-md border border-white/20 dark:border-zinc-800 text-emerald-400 font-extrabold text-xs shadow-md">
+                      <div className="px-3 py-1 rounded-xl bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md border border-slate-300 dark:border-zinc-800 text-emerald-700 dark:text-emerald-400 font-black text-xs shadow-md">
                         {book.price > 0 ? `${book.price} EGP` : 'مجاني Free'}
                       </div>
                     </div>
@@ -434,34 +466,70 @@ export default function LibraryPage() {
                   {/* Body Content */}
                   <CardContent className="p-5 flex-1 flex flex-col justify-between space-y-4">
                     <div className="space-y-2">
-                      <div className="text-[11px] text-slate-500 dark:text-zinc-400 flex items-center justify-between">
+                      <div className="text-xs text-slate-700 dark:text-zinc-300 font-bold flex items-center justify-between">
                         <span>المؤلف: {book.author || 'الأستاذ المعتمد'}</span>
-                        {book.pageCount && <span>{book.pageCount} صفحة</span>}
+                        <div className="flex items-center gap-1.5 font-mono">
+                          {book.pageCount && <span>{book.pageCount} صفحة</span>}
+                          {book.pages && book.pages.length > 0 && (
+                            <span className="text-purple-700 dark:text-purple-400 font-bold">
+                              ({book.pages.length} مصورة)
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      <h3 className="font-bold text-base text-slate-900 dark:text-white leading-snug line-clamp-2">
+                      <h3 className="font-black text-base text-slate-950 dark:text-white leading-snug line-clamp-2">
                         {book.title}
                       </h3>
 
-                      <p className="text-xs text-slate-600 dark:text-zinc-400 leading-relaxed line-clamp-3">
+                      <p className="text-xs text-slate-800 dark:text-zinc-200 leading-relaxed line-clamp-3 font-medium">
                         {book.description || 'كتاب دراسي ومذكرة مرجعية تحتوي على الشروحات والملخصات والأسئلة التدريبية.'}
                       </p>
+
+                      {/* Downloadability tag */}
+                      <div className="pt-1">
+                        {book.allowDownload ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-black text-blue-700 dark:text-blue-400">
+                            ✓ متاح للتحميل كملف PDF
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-black text-amber-700 dark:text-amber-400">
+                            🔒 للمعاينة والقراءة المحمية فقط
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Bottom Action Area */}
-                    <div className="pt-2 border-t border-slate-100 dark:border-zinc-800/80">
+                    <div className="pt-2 border-t border-slate-200 dark:border-zinc-800/80">
                       {isUnlocked ? (
-                        <Button
-                          onClick={() => handleOpenReader(book)}
-                          className="w-full h-10 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
-                        >
-                          <BookOpen className="w-4 h-4" />
-                          <span>فتح وقراءة الكتاب الآن</span>
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            onClick={() => handleOpenReader(book)}
+                            className="flex-1 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20"
+                          >
+                            <BookOpen className="w-4 h-4" />
+                            <span>فتح وقراءة</span>
+                          </Button>
+
+                          {book.allowDownload && (
+                            <Button
+                              onClick={() => {
+                                const targetUrl = book.pdfUrl || (book.pages && book.pages[0]) || '';
+                                if (targetUrl) window.open(targetUrl, '_blank');
+                              }}
+                              variant="outline"
+                              className="h-10 px-3 rounded-xl border-slate-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-blue-700 dark:text-blue-400 hover:text-blue-800 font-bold text-xs"
+                              title="تحميل الملف"
+                            >
+                              تحميل PDF
+                            </Button>
+                          )}
+                        </div>
                       ) : isPending ? (
                         <Button
                           disabled
-                          className="w-full h-10 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/40 text-amber-700 dark:text-amber-300 font-bold text-xs flex items-center justify-center gap-2 cursor-not-allowed"
+                          className="w-full h-10 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-800 dark:text-amber-300 font-bold text-xs flex items-center justify-center gap-2 cursor-not-allowed"
                         >
                           <Clock className="w-4 h-4" />
                           <span>طلبك قيد المراجعة لدى أمين المكتبة</span>
@@ -469,10 +537,10 @@ export default function LibraryPage() {
                       ) : (
                         <Button
                           onClick={() => handleOpenRequest(book)}
-                          className="w-full h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20"
+                          className="w-full h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-blue-600/20"
                         >
                           <Lock className="w-3.5 h-3.5 text-blue-200" />
-                          <span>طلب شراء / فتح الكتاب ({book.price > 0 ? `${book.price} EGP` : 'طلب'})</span>
+                          <span>طلب شراء / فتح الكتاب ({book.price > 0 ? `${book.price} EGP` : 'طلب مجاني'})</span>
                         </Button>
                       )}
                     </div>

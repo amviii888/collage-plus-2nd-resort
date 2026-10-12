@@ -11,7 +11,11 @@ import {
   BookOpen, 
   Lock, 
   Eye, 
-  AlertTriangle 
+  AlertTriangle,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  Layers
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -33,10 +37,14 @@ export function ProtectedBookReader({
   onClose
 }: ProtectedBookReaderProps) {
   const [zoom, setZoom] = useState<number>(100);
+  const [currentPage, setCurrentPage] = useState<number>(0);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [cornerIndex, setCornerIndex] = useState<number>(0);
   const [securityWarning, setSecurityWarning] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const hasMultiplePages = Boolean(book.pages && book.pages.length > 0);
+  const totalPagesCount = hasMultiplePages ? (book.pages?.length || 0) : 0;
 
   // Dynamic watermark movement: cycles position smoothly every 7 seconds
   useEffect(() => {
@@ -130,6 +138,53 @@ export function ProtectedBookReader({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Download button if allowDownload is enabled */}
+          {book.allowDownload ? (
+            <Button
+              size="sm"
+              onClick={() => {
+                const targetUrl = book.pdfUrl || (book.pages && book.pages[0]) || '';
+                if (targetUrl) {
+                  window.open(targetUrl, '_blank');
+                }
+              }}
+              className="h-9 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-blue-600/20 cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>تحميل الكتاب</span>
+            </Button>
+          ) : (
+            <Badge className="bg-amber-500/15 border-amber-500/30 text-amber-300 text-[10px] font-bold hidden sm:flex items-center gap-1">
+              <Lock className="w-3 h-3" />
+              <span>معاينة محمية فقط</span>
+            </Badge>
+          )}
+
+          {/* Multi-page controls if book has multiple pages */}
+          {hasMultiplePages && (
+            <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl px-2 py-1 text-xs">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+                disabled={currentPage === 0}
+                className="p-1 text-zinc-300 hover:text-white disabled:opacity-30 cursor-pointer"
+                title="الصفحة السابقة"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <span className="font-mono text-zinc-200 px-1 font-bold">
+                {currentPage + 1} / {totalPagesCount}
+              </span>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPagesCount - 1, prev + 1))}
+                disabled={currentPage >= totalPagesCount - 1}
+                className="p-1 text-zinc-300 hover:text-white disabled:opacity-30 cursor-pointer"
+                title="الصفحة التالية"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {/* Zoom controls */}
           <div className="hidden sm:flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl px-2 py-1 text-xs font-mono">
             <button 
@@ -139,7 +194,7 @@ export function ProtectedBookReader({
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="px-1 text-zinc-400">{zoom}%</span>
+            <span className="px-1 text-zinc-300 font-bold">{zoom}%</span>
             <button 
               onClick={() => setZoom(prev => Math.min(160, prev + 15))}
               className="p-1 hover:text-blue-400 cursor-pointer"
@@ -193,15 +248,15 @@ export function ProtectedBookReader({
         <div 
           className={`absolute z-40 pointer-events-none select-none transition-all duration-1000 ease-in-out ${watermarkPositions[cornerIndex]}`}
         >
-          <div className="px-3.5 py-2 rounded-xl bg-black/60 backdrop-blur-xs border border-white/10 text-white/40 font-mono text-[11px] sm:text-xs font-bold uppercase tracking-wider text-center shadow-2xl">
-            <div className="text-emerald-400/80 font-bold">{studentName || 'Student'}</div>
-            <div className="text-zinc-400/70 text-[10px]">ID: {studentBarcode || studentId || 'N/A'}</div>
-            <div className="text-zinc-500/60 text-[9px]">{currentDate} • Digital Rights Protected</div>
+          <div className="px-3.5 py-2 rounded-xl bg-black/75 backdrop-blur-xs border border-white/15 text-white font-mono text-[11px] sm:text-xs font-bold uppercase tracking-wider text-center shadow-2xl">
+            <div className="text-emerald-400 font-extrabold">{studentName || 'Student'}</div>
+            <div className="text-zinc-300 text-[10px]">ID: {studentBarcode || studentId || 'N/A'}</div>
+            <div className="text-zinc-400 text-[9px]">{currentDate} • Digital Rights Protected</div>
           </div>
         </div>
 
         {/* Diagonal Repeated Background Watermark Pattern */}
-        <div className="absolute inset-0 pointer-events-none select-none opacity-[0.035] flex items-center justify-center overflow-hidden z-20">
+        <div className="absolute inset-0 pointer-events-none select-none opacity-[0.04] flex items-center justify-center overflow-hidden z-20">
           <div className="rotate-[-25deg] text-2xl font-mono font-black text-white whitespace-nowrap leading-loose">
             {Array.from({ length: 14 }).map((_, i) => (
               <div key={i}>
@@ -213,47 +268,88 @@ export function ProtectedBookReader({
 
         {/* Content Viewer */}
         <div 
-          className="relative z-10 w-full max-w-4xl h-full flex flex-col items-center transition-transform duration-200"
+          className="relative z-10 w-full max-w-4xl h-full flex flex-col items-center justify-center transition-transform duration-200"
           style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
         >
-          {book.pdfUrl ? (
+          {/* Case 1: Multiple Pages uploaded as images */}
+          {hasMultiplePages && book.pages && book.pages.length > 0 ? (
+            <div className="w-full max-w-3xl flex flex-col items-center gap-3">
+              <div className="relative rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-950 shadow-2xl w-full max-h-[75vh] flex items-center justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={book.pages[currentPage]}
+                  alt={`الصفحة ${currentPage + 1}`}
+                  className="max-h-[75vh] w-auto object-contain select-none pointer-events-none"
+                  onContextMenu={(e) => e.preventDefault()}
+                />
+              </div>
+
+              {/* Bottom Quick Page Scroller */}
+              <div className="flex items-center gap-2 overflow-x-auto max-w-full p-2 bg-zinc-950/80 rounded-2xl border border-zinc-800/80">
+                {book.pages.map((pgUrl, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCurrentPage(idx)}
+                    className={`relative w-12 h-16 rounded-lg overflow-hidden border transition-all shrink-0 cursor-pointer ${
+                      currentPage === idx
+                        ? 'border-blue-500 ring-2 ring-blue-500/40 scale-105'
+                        : 'border-zinc-800 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={pgUrl} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+                    <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[9px] text-white font-mono text-center">
+                      {idx + 1}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : book.pdfUrl ? (
+            /* Case 2: Full PDF URL */
             <div className="w-full h-full rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-950 shadow-2xl relative">
               <iframe
                 src={`${book.pdfUrl}#toolbar=0&navpanes=0&scrollbar=1`}
                 className="w-full h-full border-0 pointer-events-auto"
                 title={book.title}
               />
-              {/* Transparent shield layer on top of PDF to block right click downloads */}
               <div 
                 className="absolute inset-0 pointer-events-none" 
                 onContextMenu={(e) => e.preventDefault()} 
               />
             </div>
           ) : (
-            /* Digital Reader Card when PDF URL is being prepared */
+            /* Case 3: Cover and Details if file not yet uploaded */
             <div className="w-full max-w-2xl bg-[#0c101c] border border-zinc-800 rounded-3xl p-6 sm:p-10 shadow-2xl text-center space-y-6 my-auto">
               <div className="w-20 h-20 rounded-3xl bg-blue-500/10 border border-blue-500/30 text-blue-400 mx-auto flex items-center justify-center">
                 <BookOpen className="w-10 h-10" />
               </div>
 
               <div>
-                <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10 mb-2">
+                <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10 mb-2 font-bold">
                   تم التحقق من صلاحية الوصول
                 </Badge>
-                <h1 className="text-2xl font-bold text-white">{book.title}</h1>
-                <p className="text-xs text-zinc-400 mt-1">
+                <h1 className="text-2xl font-black text-white">{book.title}</h1>
+                <p className="text-xs text-zinc-300 mt-1">
                   المؤلف: {book.author || 'الأستاذ المعتمد'} • {book.pageCount ? `${book.pageCount} صفحة` : 'نسخة رقمية معتمدة'}
                 </p>
               </div>
 
+              {book.coverUrl && (
+                <div className="max-w-xs mx-auto rounded-2xl overflow-hidden border border-zinc-800 shadow-lg">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={book.coverUrl} alt="Cover" className="w-full h-auto object-cover" />
+                </div>
+              )}
+
               <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800/80 text-right space-y-2 text-sm text-zinc-300">
                 <div className="font-bold text-xs text-blue-400">نبذة عن الكتاب:</div>
-                <p className="leading-relaxed text-xs text-zinc-400">
+                <p className="leading-relaxed text-xs text-zinc-300 font-medium">
                   {book.description || 'كتاب دراسي ومذكرة مرجعية مخصصة للمطالعة الأكاديمية ومراجعة المحاضرات.'}
                 </p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-300/90 flex items-center justify-center gap-2">
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-center justify-center gap-2 font-bold">
                 <ShieldAlert className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span>هذا الكتاب مرخص رسمياً لحسابك. جميع صفحات الكتاب محمية برقم الهوية الأكاديمية الخاص بك.</span>
               </div>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -10,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useFirestore } from '@/firebase';
 import { collection, query, where, getDocs, limit, updateDoc, doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Check, Copy, KeyRound, MessageCircle, ShieldCheck, UserCheck } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ForgotPasswordPage() {
@@ -21,191 +20,332 @@ export default function ForgotPasswordPage() {
     const [step, setStep] = useState<1 | 2>(1);
     const [isLoading, setIsLoading] = useState(false);
 
-    // Step 1 states
+    // Step 1 states (Only Student Code and Student Phone Number)
     const [studentCode, setStudentCode] = useState('');
     const [studentPhone, setStudentPhone] = useState('');
-    const [parentPhone, setParentPhone] = useState('');
     const [studentDocId, setStudentDocId] = useState<string | null>(null);
 
-    // Step 2 states
+    // Verified details & received password
+    const [verifiedStudentName, setVerifiedStudentName] = useState<string>('');
+    const [receivedPassword, setReceivedPassword] = useState<string>('');
+    const [copied, setCopied] = useState(false);
+
+    // Optional Step 2 state (Set new password)
+    const [showChangePassword, setShowChangePassword] = useState(false);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [isResetting, setIsResetting] = useState(false);
 
     const handleValidationStep = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
 
+        const cleanCode = studentCode.trim();
+        const cleanPhone = studentPhone.trim();
+
+        if (!cleanCode || !cleanPhone) {
+            toast({
+                variant: 'destructive',
+                title: 'تنبيه (Notice)',
+                description: 'يرجى إدخال كود الطالب ورقم هاتفه (Please enter student code and phone number).'
+            });
+            setIsLoading(false);
+            return;
+        }
+
         try {
-            // First attempt server-side verification if available
-            let data: any = { fallbackToClient: true };
+            // 1. Attempt API verification first
+            let verifiedViaApi = false;
             try {
                 const res = await fetch('/api/auth/verify-reset-info', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        studentCode: studentCode.trim(),
-                        phoneNumber: studentPhone.trim(),
-                        parentPhoneNumber: parentPhone.trim()
+                        studentCode: cleanCode,
+                        phoneNumber: cleanPhone
                     })
                 });
 
-                const contentType = res.headers.get('content-type') || '';
-                if (contentType.includes('application/json')) {
-                    data = await res.json();
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.verified) {
+                        setStudentDocId(data.studentId || null);
+                        setVerifiedStudentName(data.studentName || '');
+                        setReceivedPassword(data.currentPassword || cleanPhone);
+                        verifiedViaApi = true;
+                        setStep(2);
+                        toast({ 
+                            title: 'تم التحقق بنجاح (Identity Verified)', 
+                            description: `مرحباً بك ${data.studentName || ''}. تم استرجاع كلمة المرور.` 
+                        });
+                        return;
+                    }
                 }
-
-                if (res.ok && data.verified) {
-                    setStudentDocId(data.studentId || null);
-                    setStep(2);
-                    toast({ title: 'Identity Verified', description: 'Please set your new password.' });
-                    return;
-                }
-
-                // If API explicitly rejected verification with wrong info
-                if (!res.ok && data.error && !data.fallbackToClient) {
-                    throw new Error(data.error);
-                }
-            } catch (fetchErr: any) {
-                if (fetchErr.message && !fetchErr.message.includes('JSON')) {
-                    throw fetchErr;
-                }
+            } catch (apiErr) {
+                console.warn('API verification fallback to client:', apiErr);
             }
 
-            // Fallback to client-side verification if server API requested fallback
+            // 2. Client-side Firestore verification fallback
             if (firestore) {
                 const studentsRef = collection(firestore, 'students');
-                const q = query(studentsRef, where("barcodeId", "==", studentCode.trim()), limit(1));
+                const q = query(studentsRef, where("barcodeId", "==", cleanCode), limit(1));
                 const querySnapshot = await getDocs(q);
 
                 if (querySnapshot.empty) {
-                    throw new Error("Student code not found. Please check your information.");
+                    throw new Error("كود الطالب غير موجود. يرجى التأكد من الكود المدخل.");
                 }
 
                 const studentDoc = querySnapshot.docs[0];
                 const sData = studentDoc.data();
 
-                const recPhone = (sData.phoneNumber || '').trim();
-                const recParentPhone = (sData.parentPhoneNumber || '').trim();
-                const inPhone = studentPhone.trim();
-                const inParentPhone = parentPhone.trim();
-
-                const phoneMatch = (!inPhone || recPhone === inPhone) && 
-                                   (!inParentPhone || recParentPhone === inParentPhone) &&
-                                   ((inPhone && recPhone === inPhone) || (inParentPhone && recParentPhone === inParentPhone));
-
-                if (!phoneMatch) {
-                    throw new Error("The phone numbers entered do not match our student records.");
+                const recordPhone = (sData.phoneNumber || '').trim();
+                if (recordPhone !== cleanPhone) {
+                    throw new Error("رقم الهاتف غير مطابق لكود الطالب في السجلات.");
                 }
 
+                const resolvedPassword = sData.password || sData.phoneNumber || cleanPhone;
                 setStudentDocId(studentDoc.id);
+                setVerifiedStudentName(sData.name || '');
+                setReceivedPassword(resolvedPassword);
                 setStep(2);
-                toast({ title: 'Identity Verified', description: 'Please set your new password.' });
-            } else {
-                throw new Error(data.error || "Verification failed. Please try again.");
+                toast({ 
+                    title: 'تم التحقق بنجاح (Identity Verified)', 
+                    description: `مرحباً بك ${sData.name || ''}. تم استرجاع كلمة المرور الخاصة بك.` 
+                });
+            } else if (!verifiedViaApi) {
+                throw new Error("تعذر الاتصال بقاعدة البيانات. يرجى التحقق من اتصال الإنترنت.");
             }
         } catch (error: any) {
             toast({ 
                 variant: 'destructive', 
-                title: 'Verification Failed', 
-                description: error.message || 'Incorrect information provided.' 
+                title: 'فشل استرجاع الحساب (Failed)', 
+                description: error.message || 'البيانات المدخلة غير صحيحة.' 
             });
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleCopyPassword = () => {
+        if (!receivedPassword) return;
+        navigator.clipboard.writeText(receivedPassword);
+        setCopied(true);
+        toast({ title: 'تم النسخ (Copied)', description: 'تم نسخ كلمة المرور إلى الحافظة.' });
+        setTimeout(() => setCopied(false), 3000);
+    };
+
+    const handleOpenWhatsApp = () => {
+        const phone = studentPhone.trim().replace(/^0+/, '');
+        const text = encodeURIComponent(
+            `مرحباً، تم استرجاع كلمة المرور الخاصة بحسابي في منصة ملخصاتي:\nاسم الطالب: ${verifiedStudentName}\nكود الطالب: ${studentCode}\nرقم الهاتف: ${studentPhone}`
+        );
+        window.open(`https://wa.me/?text=${text}`, '_blank');
     };
 
     const handlePasswordReset = async (e: React.FormEvent) => {
         e.preventDefault();
         if (newPassword !== confirmPassword) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Passwords do not match.' });
+            toast({ variant: 'destructive', title: 'خطأ', description: 'كلمتا المرور غير متطابقتين.' });
             return;
         }
 
-        setIsLoading(true);
+        setIsResetting(true);
         try {
-            const res = await fetch('/api/auth/reset-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    studentCode: studentCode.trim(),
-                    newPassword: newPassword,
-                    phoneNumber: studentPhone.trim(),
-                    parentPhoneNumber: parentPhone.trim()
-                })
-            });
+            // Update via API
+            try {
+                await fetch('/api/auth/reset-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        studentCode: studentCode.trim(),
+                        newPassword: newPassword,
+                        phoneNumber: studentPhone.trim()
+                    })
+                });
+            } catch {}
 
-            const contentType = res.headers.get('content-type') || '';
-            const data = contentType.includes('application/json') ? await res.json() : {};
-            if (!res.ok) {
-                // If it's our backend mock message, we'll inform the user but also update Firestore with a fallback hash so they can login.
-                // In a perfect world the API alone resets standard Firebase Auth. 
-                if (data.error && data.error.includes("Backend authentication service is not fully configured")) {
-                    toast({ 
-                        variant: 'destructive', 
-                        title: 'Production Setup Required', 
-                        description: data.error 
-                    });
-                    return; // Stop here, backend is needed.
-                }
-                throw new Error(data.error || 'Failed to reset password. Please check your credentials.');
+            // Update in Firestore student document directly
+            if (firestore && studentDocId) {
+                await updateDoc(doc(firestore, 'students', studentDocId), {
+                    password: newPassword,
+                    updatedAt: new Date().toISOString()
+                });
             }
 
-            toast({ title: 'Password Reset Successful!', description: 'You can now log in with your new password.' });
-            router.replace('/login?role=student');
+            setReceivedPassword(newPassword);
+            setShowChangePassword(false);
+            toast({ 
+                title: 'تم تغيير كلمة المرور بنجاح!', 
+                description: 'تم تحديث كلمة المرور الجديدة. يمكنك الدخول بها الآن.' 
+            });
         } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Reset Error', description: error.message || 'An unexpected error occurred.' });
+            toast({ variant: 'destructive', title: 'خطأ', description: error.message || 'حدث خطأ أثناء حفظ كلمة المرور.' });
         } finally {
-            setIsLoading(false);
+            setIsResetting(false);
         }
     };
 
     return (
-        <div className="flex min-h-screen w-full items-center justify-center p-4 bg-muted/30">
-            <Card className="mx-auto w-full max-w-md">
+        <div className="flex min-h-screen w-full items-center justify-center p-4 bg-zinc-950 text-zinc-100">
+            <Card className="mx-auto w-full max-w-md bg-zinc-900 border-zinc-800 shadow-2xl">
                 <CardHeader>
-                    <div className="mb-4">
-                         <Button variant="ghost" size="sm" asChild className="pl-0 gap-1">
-                            <Link href="/login"><ArrowLeft className="w-4 h-4"/> Back to Login</Link>
-                         </Button>
+                    <div className="mb-2">
+                        <Button variant="ghost" size="sm" asChild className="pl-0 gap-1 text-zinc-400 hover:text-white">
+                            <Link href="/login"><ArrowLeft className="w-4 h-4"/> العودة لتسجيل الدخول (Back to Login)</Link>
+                        </Button>
                     </div>
-                    <CardTitle className="text-2xl font-bold">Password Recovery</CardTitle>
-                    <CardDescription>
-                        {step === 1 ? 'Verify your identity to reset your password.' : 'Create a new secure password for your account.'}
+                    <CardTitle className="text-2xl font-bold text-white flex items-center gap-2">
+                        <KeyRound className="w-6 h-6 text-emerald-400" />
+                        استرجاع كلمة المرور
+                    </CardTitle>
+                    <CardDescription className="text-zinc-400">
+                        {step === 1 
+                            ? 'أدخل كود الطالب ورقم هاتفك لاسترجاع كلمة المرور فوراً.' 
+                            : 'تم تأكيد هويتك واسترجاع كلمة المرور بنجاح.'}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     {step === 1 ? (
                         <form onSubmit={handleValidationStep} className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="studentCode">Student Code</Label>
-                                <Input id="studentCode" required value={studentCode} onChange={(e) => setStudentCode(e.target.value)} placeholder="e.g. 12345" />
+                                <Label htmlFor="studentCode" className="text-zinc-200 font-semibold">
+                                    كود الطالب (Student Code)
+                                </Label>
+                                <Input 
+                                    id="studentCode" 
+                                    required 
+                                    value={studentCode} 
+                                    onChange={(e) => setStudentCode(e.target.value)} 
+                                    placeholder="مثال: 2026-94 أو 123456" 
+                                    className="bg-zinc-950 border-zinc-800 text-white placeholder:text-zinc-600 focus:border-emerald-500"
+                                />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="studentPhone">Your Phone Number</Label>
-                                <Input id="studentPhone" type="tel" required value={studentPhone} onChange={(e) => setStudentPhone(e.target.value)} placeholder="01xxxxxxxxx" />
+                                <Label htmlFor="studentPhone" className="text-zinc-200 font-semibold">
+                                    رقم هاتف الطالب (Student Phone Number)
+                                </Label>
+                                <Input 
+                                    id="studentPhone" 
+                                    type="tel" 
+                                    required 
+                                    value={studentPhone} 
+                                    onChange={(e) => setStudentPhone(e.target.value)} 
+                                    placeholder="01xxxxxxxxx" 
+                                    className="bg-zinc-950 border-zinc-800 text-white placeholder:text-zinc-600 focus:border-emerald-500"
+                                />
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="parentPhone">Parent&apos;s Phone Number</Label>
-                                <Input id="parentPhone" type="tel" required value={parentPhone} onChange={(e) => setParentPhone(e.target.value)} placeholder="01xxxxxxxxx" />
-                            </div>
-                            <Button type="submit" className="w-full" disabled={isLoading}>
-                                {isLoading ? 'Verifying...' : 'Verify Identity'}
+                            <Button 
+                                type="submit" 
+                                className="w-full bg-emerald-500 hover:bg-emerald-600 text-black font-bold h-11 text-base shadow-lg shadow-emerald-500/20" 
+                                disabled={isLoading}
+                            >
+                                {isLoading ? 'جاري التحقق والاسترجاع...' : 'استرجاع كلمة المرور (Receive Password)'}
                             </Button>
                         </form>
                     ) : (
-                        <form onSubmit={handlePasswordReset} className="space-y-4">
-                             <div className="space-y-2">
-                                <Label htmlFor="newPassword">New Password</Label>
-                                <Input id="newPassword" type="password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" />
+                        <div className="space-y-6 animate-in fade-in duration-200">
+                            {/* Verified Student Badge */}
+                            <div className="p-4 rounded-2xl bg-zinc-950 border border-emerald-500/30 space-y-3">
+                                <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                                    <UserCheck className="w-5 h-5 shrink-0" />
+                                    <span>تم التحقق من بيانات الطالب:</span>
+                                </div>
+                                <div className="text-white text-base font-bold">
+                                    {verifiedStudentName || 'طالب مسجل'}
+                                </div>
+                                <div className="text-xs text-zinc-400 font-mono">
+                                    كود الطالب: <span className="text-amber-400 font-bold">{studentCode}</span> • الهاتف: {studentPhone}
+                                </div>
+
+                                {/* Received Password Display Box */}
+                                <div className="pt-2 border-t border-zinc-800/80">
+                                    <div className="text-xs text-zinc-400 mb-1 font-semibold">
+                                        كلمة المرور الخاصة بحسابك (Your Password):
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-zinc-900 border border-zinc-700">
+                                        <span className="font-mono text-lg font-bold text-emerald-400 tracking-wider">
+                                            {receivedPassword}
+                                        </span>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            onClick={handleCopyPassword}
+                                            variant="outline"
+                                            className="h-8 px-3 border-zinc-600 text-zinc-200 hover:bg-zinc-800 flex items-center gap-1.5"
+                                        >
+                                            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                                            <span className="text-xs">{copied ? 'تم النسخ' : 'نسخ'}</span>
+                                        </Button>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                                <Input id="confirmPassword" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" />
+
+                            {/* Actions: Log In & WhatsApp Verification */}
+                            <div className="space-y-2.5">
+                                <Button
+                                    type="button"
+                                    onClick={() => router.push(`/login?role=student&identifier=${encodeURIComponent(studentCode)}`)}
+                                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-black font-bold h-11 text-sm shadow-md"
+                                >
+                                    تسجيل الدخول الآن بهذه الكلمة (Log In Now)
+                                </Button>
+
+                                <Button
+                                    type="button"
+                                    onClick={handleOpenWhatsApp}
+                                    variant="outline"
+                                    className="w-full border-zinc-700 bg-zinc-950 hover:bg-zinc-800 text-zinc-200 font-semibold h-10 text-xs flex items-center justify-center gap-2"
+                                >
+                                    <MessageCircle className="w-4 h-4 text-emerald-400" />
+                                    مشاركة وتأكيد عبر واتساب (WhatsApp)
+                                </Button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setShowChangePassword(!showChangePassword)}
+                                    className="w-full text-center text-xs text-zinc-400 hover:text-white underline pt-1 cursor-pointer"
+                                >
+                                    {showChangePassword ? 'إلغاء تغيير كلمة المرور' : 'أو تعيين كلمة مرور جديدة مخصصة؟'}
+                                </button>
                             </div>
-                            <Button type="submit" className="w-full" disabled={isLoading || !newPassword}>
-                                {isLoading ? 'Resetting...' : 'Save New Password'}
-                            </Button>
-                        </form>
+
+                            {/* Optional: Change Password Section */}
+                            {showChangePassword && (
+                                <form onSubmit={handlePasswordReset} className="pt-3 border-t border-zinc-800 space-y-3">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="newPassword" className="text-xs text-zinc-300">كلمة المرور الجديدة</Label>
+                                        <Input 
+                                            id="newPassword" 
+                                            type="password" 
+                                            required 
+                                            value={newPassword} 
+                                            onChange={(e) => setNewPassword(e.target.value)} 
+                                            placeholder="أدخل كلمة مرور جديدة" 
+                                            className="bg-zinc-950 border-zinc-800 text-white"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="confirmPassword" className="text-xs text-zinc-300">تأكيد كلمة المرور</Label>
+                                        <Input 
+                                            id="confirmPassword" 
+                                            type="password" 
+                                            required 
+                                            value={confirmPassword} 
+                                            onChange={(e) => setConfirmPassword(e.target.value)} 
+                                            placeholder="أعد إدخال كلمة المرور" 
+                                            className="bg-zinc-950 border-zinc-800 text-white"
+                                        />
+                                    </div>
+                                    <Button 
+                                        type="submit" 
+                                        className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold h-10 text-xs" 
+                                        disabled={isResetting || !newPassword}
+                                    >
+                                        {isResetting ? 'جاري الحفظ...' : 'حفظ كلمة المرور الجديدة'}
+                                    </Button>
+                                </form>
+                            )}
+                        </div>
                     )}
                 </CardContent>
             </Card>

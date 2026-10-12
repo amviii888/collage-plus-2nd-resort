@@ -29,14 +29,14 @@ export async function POST(req: NextRequest) {
 
         // Honeypot Field Check for Bots
         const body = await req.json();
-        const { studentCode, newPassword, phoneNumber, parentPhoneNumber, website } = body;
+        const { studentCode, newPassword, phoneNumber, website } = body;
 
         if (website) {
             // Bot simulation success
             return NextResponse.json({ success: true });
         }
 
-        if (!studentCode || !newPassword || (!phoneNumber && !parentPhoneNumber)) {
+        if (!studentCode || !newPassword || !phoneNumber) {
             return NextResponse.json({ error: 'Incorrect student code or verification details.' }, { status: 400 });
         }
 
@@ -65,25 +65,36 @@ export async function POST(req: NextRequest) {
         const studentDoc = studentQuery.docs[0];
         const studentData = studentDoc.data();
 
-        // Strict verification of phone or parent phone
+        // Strict verification of phone
         const incomingPhone = (phoneNumber || '').trim();
-        const incomingParentPhone = (parentPhoneNumber || '').trim();
         const recordPhone = (studentData.phoneNumber || '').trim();
-        const recordParentPhone = (studentData.parentPhoneNumber || '').trim();
 
-        const isPhoneVerified = (incomingPhone && recordPhone === incomingPhone) ||
-                                (incomingParentPhone && recordParentPhone === incomingParentPhone);
-
-        if (!isPhoneVerified) {
+        if (recordPhone !== incomingPhone) {
             return NextResponse.json({ error: 'Incorrect student code or verification details.' }, { status: 400 });
         }
 
-        const studentEmail = `${studentCode.trim()}@universe.student`;
-        const userRecord = await auth.getUserByEmail(studentEmail);
-        
-        await auth.updateUser(userRecord.uid, {
-            password: newPassword
+        // Update student document in Firestore with new password
+        await studentDoc.ref.update({
+            password: newPassword,
+            updatedAt: new Date().toISOString()
         });
+
+        // Try updating Firebase Auth user for both @mol5saty.student and @universe.student
+        try {
+            const studentEmail1 = `${studentCode.trim()}@mol5saty.student`;
+            const userRecord = await auth.getUserByEmail(studentEmail1).catch(() => null);
+            if (userRecord) {
+                await auth.updateUser(userRecord.uid, { password: newPassword });
+            }
+        } catch {}
+
+        try {
+            const studentEmail2 = `${studentCode.trim()}@universe.student`;
+            const userRecord2 = await auth.getUserByEmail(studentEmail2).catch(() => null);
+            if (userRecord2) {
+                await auth.updateUser(userRecord2.uid, { password: newPassword });
+            }
+        } catch {}
 
         return NextResponse.json({ success: true });
 

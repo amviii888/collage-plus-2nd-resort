@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from 'react-i18next';
 import { 
@@ -27,6 +28,7 @@ import {
   Save,
   CheckCircle2,
   ShieldCheck,
+  ShieldAlert,
   BookOpen,
   Library,
   HelpCircle,
@@ -44,6 +46,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import type { Teacher } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { WatermarkStudioTab } from '@/components/teacher/WatermarkStudioTab';
 
 export default function TeacherThemeEditorPage() {
   const { user } = useUser();
@@ -334,10 +337,10 @@ export default function TeacherThemeEditorPage() {
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
               <Palette className="w-6 h-6 text-purple-400" />
-              <span>استوديو تخصيص ثيم وهوية الأستاذ</span>
+              <span>استوديو مظهر وهوية وحماية الأستاذ</span>
             </h1>
             <p className="text-xs text-zinc-400">
-              صمم الألوان والهوية البصرية التي ستظهر تلقائياً لجميع طلابك عند دخولهم مقرراتك أو حسابك
+              تخصيص الثيم الأكاديمي الشامل والعلامة المائية الذكية لجميع فيديوهات ومقررات طلابك
             </p>
           </div>
         </div>
@@ -352,7 +355,40 @@ export default function TeacherThemeEditorPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Primary Navigation Tabs: Theme Studio vs Dynamic Watermark */}
+      <Tabs defaultValue="watermark" className="w-full space-y-6">
+        <div className="flex items-center justify-start">
+          <TabsList className="p-1.5 h-auto rounded-2xl bg-zinc-900 border border-zinc-800 shadow-md flex gap-2">
+            <TabsTrigger
+              value="watermark"
+              className="rounded-xl px-5 py-2.5 text-xs sm:text-sm font-black data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all flex items-center gap-2"
+            >
+              <ShieldAlert className="w-4 h-4 text-emerald-300" />
+              <span>العلامة المائية الذكية (Dynamic Watermark)</span>
+            </TabsTrigger>
+
+            <TabsTrigger
+              value="theme"
+              className="rounded-xl px-5 py-2.5 text-xs sm:text-sm font-black data-[state=active]:bg-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all flex items-center gap-2"
+            >
+              <Palette className="w-4 h-4 text-purple-300" />
+              <span>ثيم وألوان المنصة (Theme Studio)</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* Tab 1: Dynamic Watermark */}
+        <TabsContent value="watermark" className="mt-0 focus-visible:outline-none">
+          <WatermarkStudioTab
+            teacherId={teacherId || undefined}
+            firestore={firestore}
+            teacherData={teacherData}
+          />
+        </TabsContent>
+
+        {/* Tab 2: Theme Customizer */}
+        <TabsContent value="theme" className="mt-0 focus-visible:outline-none">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Customization Controls (6 Cols) */}
         <div className="lg:col-span-6 space-y-6">
           {/* 1. Presets Toolbar */}
@@ -1093,6 +1129,8 @@ export default function TeacherThemeEditorPage() {
           </div>
         </div>
       </div>
+      </TabsContent>
+      </Tabs>
     </div>
   );
 }

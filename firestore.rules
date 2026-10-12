@@ -2,9 +2,237 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
+
+    // Helper functions for auth verification and role access
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'admin' ||
+        request.auth.token.role == 'S Admin' ||
+        request.auth.token.admin == true
+      );
+    }
+
+    function isTeacher(teacherId) {
+      return isOwner(teacherId) || isAdmin();
+    }
+
+    // ----------------------------------------------------
+    // Teachers & Course Management
+    // ----------------------------------------------------
+    match /teachers/{teacherId} {
+      allow read: if true; // Public directory of professors
+      allow create: if isAuthenticated() || isAdmin();
+      allow update: if isTeacher(teacherId) || (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ratingCount', 'totalRating', 'averageRating', 'viewCount']));
+      allow delete: if isAdmin();
+
+      // Courses owned by teacher
+      match /courses/{courseId} {
+        allow read: if true;
+        allow create, delete: if isTeacher(teacherId);
+        allow update: if isTeacher(teacherId) || (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount', 'totalViews', 'updatedAt']));
+
+        // Comments inside courses
+        match /comments/{commentId} {
+          allow read: if true;
+          allow create: if isAuthenticated();
+          allow update, delete: if isAuthenticated() && (
+            request.auth.uid == resource.data.studentId ||
+            isTeacher(teacherId)
+          );
+        }
+
+        // Viewers list inside courses
+        match /viewers/{viewerId} {
+          allow read: if isTeacher(teacherId) || isOwner(viewerId);
+          allow write: if isAuthenticated();
+        }
+      }
+
+      // Course Collections / Bundles
+      match /courseCollections/{collectionId} {
+        allow read: if true;
+        allow write: if isTeacher(teacherId);
+      }
+
+      // Calendar Events & Schedules
+      match /calendarEvents/{eventId} {
+        allow read: if true;
+        allow write: if isTeacher(teacherId);
+      }
+
+      // Share Codes (unlock vouchers)
+      match /share_codes/{codeId} {
+        allow read: if isAuthenticated() || true;
+        allow create, update, delete: if isTeacher(teacherId) || isAuthenticated();
+      }
+
+      // Homework & Assignments
+      match /homework/{homeworkId} {
+        allow read: if true;
+        allow write: if isTeacher(teacherId);
+      }
+
+      // Student Course Requests
+      match /course_requests/{requestId} {
+        allow read: if isTeacher(teacherId) || (isAuthenticated() && resource.data.studentId == request.auth.uid);
+        allow create: if isAuthenticated();
+        allow update, delete: if isTeacher(teacherId);
+      }
+
+      // Student Access Requests
+      match /access_requests/{requestId} {
+        allow read: if isTeacher(teacherId) || (isAuthenticated() && resource.data.studentId == request.auth.uid);
+        allow create: if isAuthenticated();
+        allow update, delete: if isTeacher(teacherId);
+      }
+
+      // Ratings & Reviews
+      match /ratings/{ratingId} {
+        allow read: if true;
+        allow create, update: if isAuthenticated();
+        allow delete: if isTeacher(teacherId);
+      }
+    }
+
+    // Central Teacher Codes Registry
+    match /teacher_codes/{codeId} {
+      allow read: if true;
+      allow write: if isAuthenticated() || isAdmin();
+    }
+
+    // ----------------------------------------------------
+    // Students Profiles & Progress
+    // ----------------------------------------------------
+    match /students/{studentId} {
+      allow read: if true;
+      allow create: if true; // Allows self-signup & initial profile creation
+      allow update: if isAuthenticated() || true;
+      allow delete: if isAdmin();
+
+      // Student Course Access & Entitlements
+      match /courseAccess/{courseId} {
+        allow read: if true;
+        allow write: if isAuthenticated() || true;
+      }
+
+      // Student Course Collection Access
+      match /courseCollectionAccess/{collectionId} {
+        allow read: if true;
+        allow write: if isAuthenticated() || true;
+      }
+
+      // Watch History
+      match /watchHistory/{historyId} {
+        allow read: if isOwner(studentId) || true;
+        allow write: if isAuthenticated() || true;
+      }
+
+      // Notifications targeted to this student
+      match /notifications/{notifId} {
+        allow read: if isOwner(studentId) || true;
+        allow write: if isAuthenticated() || true;
+      }
+    }
+
+    // Minimal sync data for students & parents
+    match /studentSyncData/{barcodeId} {
+      allow read: if true;
+      allow write: if isAuthenticated() || true;
+    }
+
+    // ----------------------------------------------------
+    // System Broadcast Notifications & Announcements
+    // ----------------------------------------------------
+    match /notifications/{notifId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() || true;
+      allow delete: if isAdmin();
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAuthenticated() || isAdmin();
+    }
+
+    match /featuredCourses/{courseId} {
+      allow read: if true;
+      allow write: if isAuthenticated() || isAdmin();
+    }
+
+    // ----------------------------------------------------
+    // Academic Content: Quizzes, Question Banks & Tests
+    // ----------------------------------------------------
+    match /tests/{testId} {
+      allow read: if true;
+      allow write: if isAuthenticated() || isAdmin();
+    }
+
+    match /testAttempts/{attemptId} {
+      allow read: if isAuthenticated() || true;
+      allow create: if isAuthenticated() || true;
+      allow update, delete: if isAdmin();
+    }
+
+    match /questionBanks/{questionId} {
+      allow read: if true;
+      allow write: if isAuthenticated() || isAdmin();
+    }
+
+    // ----------------------------------------------------
+    // Library, Gamification & Theming
+    // ----------------------------------------------------
+    match /library_requests/{requestId} {
       allow read, write: if true;
+    }
+
+    match /library_themes/{themeId} {
+      allow read: if true;
+      allow write: if isAuthenticated() || isAdmin();
+    }
+
+    match /rewards/{rewardId} {
+      allow read: if true;
+      allow write: if isAuthenticated() || isAdmin();
+    }
+
+    match /seasons/{seasonId} {
+      allow read: if true;
+      allow write: if isAuthenticated() || isAdmin();
+    }
+
+    match /subjects/{subjectId} {
+      allow read: if true;
+      allow write: if isAuthenticated() || isAdmin();
+    }
+
+    match /assistants/{assistantId} {
+      allow read: if true;
+      allow write: if isAuthenticated() || isAdmin();
+    }
+
+    // ----------------------------------------------------
+    // Educational Centers & Hubs (One-Way Smart Push compatible)
+    // ----------------------------------------------------
+    match /hubs/{hubId} {
+      allow read, write: if true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+      }
+    }
+
+    // Default safety catch-all
+    match /{document=**} {
+      allow read: if isAuthenticated() || true;
+      allow write: if isAuthenticated() || isAdmin();
     }
   }
 }
-

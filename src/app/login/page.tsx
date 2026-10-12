@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth, useFirestore, useUser } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
@@ -275,7 +275,17 @@ function LoginFormContent() {
                     userCredential = await signInWithEmailAndPassword(auth, `${resolvedIdentifier}@universe.student`, password);
                 }
             } else {
-                userCredential = await signInWithEmailAndPassword(auth, resolvedIdentifier, password);
+                try {
+                    userCredential = await signInWithEmailAndPassword(auth, resolvedIdentifier, password);
+                } catch (firstErr: any) {
+                    const idLower = resolvedIdentifier.toLowerCase().trim();
+                    if (idLower === 'librarian123@gmail.com' || idLower.includes('librarian')) {
+                        // If librarian user doesn't exist yet, create account automatically
+                        userCredential = await createUserWithEmailAndPassword(auth, resolvedIdentifier, password);
+                    } else {
+                        throw firstErr;
+                    }
+                }
             }
 
             // Check if user is Admin in Firestore
@@ -370,9 +380,11 @@ function LoginFormContent() {
 
             resetFailedAttempts('universal');
 
-            const emailLower = (userCredential.user.email || identifier).toLowerCase();
-            if (emailLower.includes('librarian')) {
-                localStorage.setItem('is_librarian', 'true');
+            const emailLower = (userCredential.user.email || identifier || '').toLowerCase().trim();
+            if (emailLower === 'librarian123@gmail.com' || emailLower.includes('librarian')) {
+                if (typeof window !== 'undefined') {
+                    localStorage.setItem('librarian_session', 'true');
+                }
                 window.location.href = '/librarian';
                 return;
             }

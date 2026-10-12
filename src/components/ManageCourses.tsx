@@ -54,6 +54,7 @@ import {
   X,
   Check,
   Film,
+  Repeat,
 } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { Checkbox } from './ui/checkbox';
@@ -1250,8 +1251,85 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [courseToEdit, setCourseToEdit] = useState<Course | undefined>(undefined);
   const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
+
+  // Repost & Bump state
+  const [repostingCourse, setRepostingCourse] = useState<Course | null>(null);
+  const [isRepostModalOpen, setIsRepostModalOpen] = useState(false);
+  const [repostTitle, setRepostTitle] = useState('');
+  const [repostDescription, setRepostDescription] = useState('');
+  const [isReposting, setIsReposting] = useState(false);
+
   const { toast } = useToast();
   const { t } = useTranslation();
+
+  const handleOpenRepost = (course: Course) => {
+    setRepostingCourse(course);
+    setRepostTitle(course.title || '');
+    setRepostDescription(course.description || '');
+    setIsRepostModalOpen(true);
+  };
+
+  const handleExecuteRepost = async () => {
+    if (!repostingCourse || !firestore || !teacherId) return;
+    setIsReposting(true);
+
+    try {
+      const courseRef = doc(firestore, 'teachers', teacherId, 'courses', repostingCourse.id);
+      const featuredRef = doc(firestore, 'featuredCourses', repostingCourse.id);
+
+      const updateData = {
+        title: repostTitle.trim() || repostingCourse.title,
+        description: repostDescription.trim() || repostingCourse.description,
+        repostedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp(), // Brings course straight to the top of date-sorted queries!
+      };
+
+      await updateDoc(courseRef, updateData);
+
+      if (repostingCourse.isFeatured) {
+        await updateDoc(featuredRef, updateData).catch(() => {});
+      }
+
+      // Update offline local storage cache immediately
+      try {
+        const localKey = `offline_teacher_courses_${teacherId}`;
+        const existing: Course[] = JSON.parse(localStorage.getItem(localKey) || '[]');
+        const idx = existing.findIndex(c => c.id === repostingCourse.id);
+        const updatedObj = {
+          ...repostingCourse,
+          title: updateData.title,
+          description: updateData.description,
+          updatedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        };
+        if (idx !== -1) {
+          existing[idx] = updatedObj;
+        } else {
+          existing.unshift(updatedObj);
+        }
+        localStorage.setItem(localKey, JSON.stringify(existing));
+        setOfflineCourses(existing);
+      } catch (e) {}
+
+      AppCache.clear(`coll_teachers/${teacherId}/courses`);
+      AppCache.clear(`doc_teachers/${teacherId}/courses`);
+      AppCache.clear(`query_teachers/${teacherId}/courses`);
+      AppCache.clear(`coll_featuredCourses`);
+      AppCache.clear(`query_featuredCourses`);
+
+      setIsRepostModalOpen(false);
+      setRepostingCourse(null);
+      toast({
+        title: t('Course Reposted Successfully!'),
+        description: t('The course has been bumped to the top of your list and home page.'),
+      });
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: t('Repost failed'), description: e.message });
+    } finally {
+      setIsReposting(false);
+    }
+  };
 
   const coursesQuery = useMemoFirebase(() => {
     if (!firestore || !teacherId) return null;
@@ -1469,12 +1547,22 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
                       </Link>
                     </Button>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenRepost(course)}
+                      className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 text-xs px-2.5 font-bold flex items-center gap-1.5"
+                    >
+                      <Repeat className="h-3.5 w-3.5 text-emerald-500" />
+                      <span>إعادة نشر (Repost)</span>
+                    </Button>
+
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleEdit(course)}
-                      className="text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white text-xs"
+                      className="text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white text-xs px-2"
                     >
                       <Edit className="mr-1 h-3.5 w-3.5" /> Edit
                     </Button>
@@ -1551,6 +1639,72 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
               courseToEdit={courseToEdit}
               tests={tests || []}
             />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Repost & Bump Course Modal */}
+      <Dialog open={isRepostModalOpen} onOpenChange={setIsRepostModalOpen}>
+        <DialogContent className="max-w-md w-[95vw] rounded-3xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white p-6 shadow-2xl space-y-4">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-emerald-500 dark:text-emerald-400">
+              <Repeat className="w-5 h-5" />
+              إعادة نشر الكورس ورفعه للأعلى (Repost Course)
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 dark:text-zinc-400">
+              سيتم رفع هذا الكورس إلى مقدمة القائمة والصفحة الرئيسية مباشرة. الفيديوهات والوحدات ستظل كما هي بدون أي تعديل.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold">عنوان الكورس (Course Title)</Label>
+              <Input
+                value={repostTitle}
+                onChange={(e) => setRepostTitle(e.target.value)}
+                placeholder="عنوان الكورس..."
+                className="bg-slate-50 dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-sm text-slate-900 dark:text-white"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold">وصف الكورس (Description)</Label>
+              <Textarea
+                value={repostDescription}
+                onChange={(e) => setRepostDescription(e.target.value)}
+                placeholder="وصف الكورس أوالتحديثات الجديدة..."
+                className="bg-slate-50 dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-xs text-slate-900 dark:text-white h-24"
+              />
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300 space-y-1">
+              <div className="font-bold flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>نفس الفيديوهات والروابط بدون إعادة رفع:</span>
+              </div>
+              <p className="text-[11px] text-slate-600 dark:text-zinc-400 leading-relaxed">
+                يحتوي الكورس على <span className="font-bold text-amber-500">{repostingCourse?.units?.length || 1} وحدات</span> وفيديوهات مرتبطة بنفس الخادم. إعادة النشر تضمن ظهور الكورس في أول قائمة الطلاب فوراً.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-zinc-900">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsRepostModalOpen(false)}
+              className="text-xs text-slate-500"
+            >
+              إلغاء
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleExecuteRepost}
+              disabled={isReposting}
+              className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs px-5 shadow-md shadow-emerald-500/20"
+            >
+              {isReposting ? 'جاري إعادة النشر...' : 'إعادة النشر فوراً للأعلى (Repost Now)'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

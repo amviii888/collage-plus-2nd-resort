@@ -168,29 +168,29 @@ export function RequestBookDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="max-w-md bg-[#0c101c] border-zinc-800 text-white rounded-3xl p-6 sm:p-7 shadow-2xl">
+      <DialogContent className="max-w-md bg-white dark:bg-[#0c101c] border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white rounded-3xl p-6 sm:p-7 shadow-2xl">
         <DialogHeader className="text-right space-y-2">
-          <div className="flex items-center gap-2 text-blue-400 font-bold text-xs">
+          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-bold text-xs">
             <BookOpen className="w-4 h-4" />
             <span>طلب نسخة من الكتاب الأكاديمي</span>
           </div>
-          <DialogTitle className="text-xl font-bold text-white leading-snug">
+          <DialogTitle className="text-xl font-black text-slate-950 dark:text-white leading-snug">
             {book.title}
           </DialogTitle>
-          <DialogDescription className="text-xs text-zinc-400">
+          <DialogDescription className="text-xs text-slate-600 dark:text-zinc-400 font-medium">
             يتم جلب بياناتك تلقائياً وبشكل حصري من حسابك المعتمد وإرسالها لأمين المكتبة لتفعيل الكتاب.
           </DialogDescription>
         </DialogHeader>
 
         {/* Book summary card */}
-        <div className="p-3.5 rounded-2xl bg-zinc-900/90 border border-zinc-800/80 flex items-center justify-between text-xs">
+        <div className="p-3.5 rounded-2xl bg-slate-100 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-800/80 flex items-center justify-between text-xs">
           <div>
-            <div className="text-zinc-400 text-[11px]">سعر النسخة الرقمية:</div>
-            <div className="text-emerald-400 font-bold text-base mt-0.5">
+            <div className="text-slate-600 dark:text-zinc-400 text-[11px] font-medium">سعر النسخة الرقمية:</div>
+            <div className="text-emerald-700 dark:text-emerald-400 font-black text-base mt-0.5">
               {book.price > 0 ? `${book.price} EGP` : 'مجاني Free'}
             </div>
           </div>
-          <div className="text-left text-zinc-400 text-[11px]">
+          <div className="text-left text-slate-600 dark:text-zinc-400 text-[11px] font-medium">
             <div>المؤلف: {book.author || 'معتمد'}</div>
             <div>{book.pageCount ? `${book.pageCount} صفحة` : 'نسخة كاملة'}</div>
           </div>
@@ -199,37 +199,37 @@ export function RequestBookDialog({
         {/* Missing Profile Warning */}
         {isMissingProfile ? (
           <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-right space-y-2">
-            <div className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+            <div className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
               <Lock className="w-4 h-4" />
               <span>يجب تسجيل الدخول بحساب الطالب</span>
             </div>
-            <p className="text-[11px] text-zinc-300 leading-relaxed">
+            <p className="text-[11px] text-slate-700 dark:text-zinc-300 leading-relaxed font-medium">
               بيانات الطالب (الاسم، الهاتف، والكود) تُجلب حصرياً من ملفك الجامعي المعتمد وهي غير قابلة للتعديل اليدوي لمنع انتحال الشخصية.
             </p>
             <div className="pt-1 flex gap-2">
               <Button asChild size="sm" className="h-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold">
                 <Link href="/login">تسجيل الدخول</Link>
               </Button>
-              <Button asChild size="sm" variant="outline" className="h-8 rounded-xl border-zinc-700 text-zinc-300 text-xs">
+              <Button asChild size="sm" variant="outline" className="h-8 rounded-xl border-slate-300 dark:border-zinc-700 text-slate-800 dark:text-zinc-300 text-xs font-bold">
                 <Link href="/student-signup">حساب جديد</Link>
               </Button>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-            <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-between text-[11px] text-blue-300">
-              <div className="flex items-center gap-1.5 font-semibold">
-                <ShieldCheck className="w-4 h-4 text-blue-400" />
+            <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/25 flex items-center justify-between text-[11px] text-blue-800 dark:text-blue-300">
+              <div className="flex items-center gap-1.5 font-bold">
+                <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 <span>بيانات الطالب الرسمية (تم الجلب تلقائياً - للقراءة فقط)</span>
               </div>
-              <span className="font-mono text-[10px] bg-blue-500/20 px-2 py-0.5 rounded-md font-bold">Read-Only</span>
+              <span className="font-mono text-[10px] bg-blue-600/10 dark:bg-blue-500/20 px-2 py-0.5 rounded-md font-bold text-blue-700 dark:text-blue-300">Read-Only</span>
             </div>
 
             {/* Read-only Student Name */}
             <div className="space-y-1.5 text-right">
-              <Label className="text-xs font-semibold text-zinc-300 flex items-center justify-between">
+              <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center justify-between">
                 <span>اسم الطالب المعتمد</span>
-                <span className="text-[10px] text-zinc-500 flex items-center gap-1">
+                <span className="text-[10px] text-slate-500 dark:text-zinc-500 flex items-center gap-1">
                   <Lock className="w-3 h-3" /> ثابت
                 </span>
               </Label>
@@ -237,16 +237,16 @@ export function RequestBookDialog({
                 value={studentName || 'جارٍ الجلب من الحساب...'}
                 readOnly
                 disabled
-                className="h-10 bg-zinc-950/90 border-zinc-800 text-white text-xs rounded-xl font-bold cursor-not-allowed select-none opacity-90"
+                className="h-10 bg-slate-100 dark:bg-zinc-950/90 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs rounded-xl font-bold cursor-not-allowed select-none opacity-90"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               {/* Read-only Phone Number */}
               <div className="space-y-1.5 text-right">
-                <Label className="text-xs font-semibold text-zinc-300 flex items-center justify-between">
+                <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center justify-between">
                   <span>رقم الهاتف المعتمد</span>
-                  <span className="text-[10px] text-zinc-500 flex items-center gap-1">
+                  <span className="text-[10px] text-slate-500 dark:text-zinc-500 flex items-center gap-1">
                     <Lock className="w-3 h-3" /> ثابت
                   </span>
                 </Label>
@@ -254,15 +254,15 @@ export function RequestBookDialog({
                   value={studentPhone || 'غير متوفر'}
                   readOnly
                   disabled
-                  className="h-10 bg-zinc-950/90 border-zinc-800 text-emerald-400 text-xs rounded-xl font-mono font-bold text-left cursor-not-allowed select-none opacity-90"
+                  className="h-10 bg-slate-100 dark:bg-zinc-950/90 border-slate-300 dark:border-zinc-800 text-emerald-700 dark:text-emerald-400 text-xs rounded-xl font-mono font-bold text-left cursor-not-allowed select-none opacity-90"
                 />
               </div>
 
               {/* Read-only Barcode / Student Code */}
               <div className="space-y-1.5 text-right">
-                <Label className="text-xs font-semibold text-zinc-300 flex items-center justify-between">
+                <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center justify-between">
                   <span>كود الطالب / الباركود</span>
-                  <span className="text-[10px] text-zinc-500 flex items-center gap-1">
+                  <span className="text-[10px] text-slate-500 dark:text-zinc-500 flex items-center gap-1">
                     <Lock className="w-3 h-3" /> ثابت
                   </span>
                 </Label>
@@ -270,24 +270,24 @@ export function RequestBookDialog({
                   value={studentBarcode || 'N/A'}
                   readOnly
                   disabled
-                  className="h-10 bg-zinc-950/90 border-zinc-800 text-blue-400 text-xs rounded-xl font-mono font-bold text-left cursor-not-allowed select-none opacity-90"
+                  className="h-10 bg-slate-100 dark:bg-zinc-950/90 border-slate-300 dark:border-zinc-800 text-blue-700 dark:text-blue-400 text-xs rounded-xl font-mono font-bold text-left cursor-not-allowed select-none opacity-90"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5 text-right">
-              <Label className="text-xs font-semibold text-zinc-300">ملاحظات إضافية لأمين المكتبة (اختياري)</Label>
+              <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200">ملاحظات إضافية لأمين المكتبة (اختياري)</Label>
               <Textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="أي تفاصيل أو ملاحظات بخصوص عملية الدفع أو الاستلام..."
                 rows={2}
-                className="bg-zinc-950/70 border-zinc-800 text-white text-xs rounded-xl resize-none focus:border-blue-500"
+                className="bg-white dark:bg-zinc-950/70 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs rounded-xl resize-none focus:border-blue-500 placeholder:text-slate-400 dark:placeholder:text-zinc-500"
               />
             </div>
 
-            <div className="p-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-[11px] text-emerald-300 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/20 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center gap-2 font-medium">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <span>سيتم تفعيل القراءة المحمية المشفرة فور اعتماد الطلب من أمين المكتبة.</span>
             </div>
 
@@ -296,7 +296,7 @@ export function RequestBookDialog({
                 type="button"
                 variant="outline"
                 onClick={() => setIsOpen(false)}
-                className="flex-1 h-10 rounded-xl border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 text-xs"
+                className="flex-1 h-10 rounded-xl border-slate-300 dark:border-zinc-800 bg-slate-100 dark:bg-zinc-900 text-slate-800 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-800 text-xs font-bold"
               >
                 إلغاء
               </Button>
