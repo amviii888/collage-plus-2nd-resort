@@ -1,12 +1,18 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ShieldAlert, EyeOff, Lock } from 'lucide-react';
 
 export function ScreenProtectionGuard() {
   const [isBlackedOut, setIsBlackedOut] = useState(false);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
   const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const applyInstantBlackout = () => {
     if (typeof document !== 'undefined') {
@@ -63,7 +69,7 @@ export function ScreenProtectionGuard() {
     if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
       try {
         navigator.mediaDevices.getDisplayMedia = async function (...args) {
-          showSecurityWarning('Screen recording and screen sharing are strictly prohibited by institutional policy.', 6000);
+          showSecurityWarning('ممنوع مشاركة أو تسجيل الشاشة بقرار أكاديمي حاسم.', 6000);
           throw new DOMException('Screen sharing is prohibited by Mol5asati security policy.', 'NotAllowedError');
         };
       } catch {
@@ -90,7 +96,7 @@ export function ScreenProtectionGuard() {
         wipeClipboard();
         e.preventDefault();
         e.stopPropagation();
-        showSecurityWarning('Screenshot attempt intercepted and blocked.');
+        showSecurityWarning('تم رصد وتجميد محاولة التقاط الشاشة (Screenshot Attempt Blocked).');
         return false;
       }
 
@@ -100,7 +106,7 @@ export function ScreenProtectionGuard() {
         wipeClipboard();
         e.preventDefault();
         e.stopPropagation();
-        showSecurityWarning('Screen capture / snipping tool detected and blocked.');
+        showSecurityWarning('تم حظر أداة التقاط الشاشة Snipping Tool لحماية المواد الأكاديمية.');
         return false;
       }
 
@@ -120,11 +126,11 @@ export function ScreenProtectionGuard() {
         try {
           console.clear();
           console.log(
-            '%c⛔ VIOLATION DETECTED: This is a violation. Developer tools and inspect capabilities are strictly locked.',
-            'color: #ef4444; font-size: 22px; font-weight: 900; background: #000; padding: 12px; border: 2px solid #ef4444;'
+            '%c⛔ VIOLATION DETECTED: Developer tools are strictly locked.',
+            'color: #ef4444; font-size: 22px; font-weight: 900; background: #000; padding: 12px;'
           );
         } catch {}
-        showSecurityWarning('⛔ VIOLATION: Developer inspect tools (F12 / F2 / Inspect) are strictly locked.', 4000);
+        showSecurityWarning('⛔ تنبيه أمني: أدوات الفحص المتقدمة F12 / Inspect مغلقة بحكم الحماية.', 4000);
         return false;
       }
 
@@ -134,7 +140,7 @@ export function ScreenProtectionGuard() {
           applyInstantBlackout();
           e.preventDefault();
           e.stopPropagation();
-          showSecurityWarning('Screen capture is restricted.');
+          showSecurityWarning('التقاط الشاشة محظور للحفاظ على سرية المحتوى.');
           return false;
         }
 
@@ -144,7 +150,7 @@ export function ScreenProtectionGuard() {
           applyInstantBlackout();
           e.preventDefault();
           e.stopPropagation();
-          showSecurityWarning('Printing and saving pages are restricted.');
+          showSecurityWarning('الطباعة وحفظ الصفحات محظوران بشكل تام.');
           return false;
         }
       }
@@ -155,7 +161,7 @@ export function ScreenProtectionGuard() {
         applyInstantBlackout();
         e.preventDefault();
         e.stopPropagation();
-        showSecurityWarning('Screenshot attempt intercepted.');
+        showSecurityWarning('تم اعتراض محاولة التقاط الشاشة.');
       }
     };
 
@@ -183,7 +189,7 @@ export function ScreenProtectionGuard() {
       }
       if (e.target?.webkitCurrentPlaybackTargetIsWireless) {
         applyInstantBlackout();
-        showSecurityWarning('Apple AirPlay & wireless screen mirroring are strictly blocked by institutional policy.', 6000);
+        showSecurityWarning('البث اللاسلكي وAirPlay محظوران.', 6000);
       }
     };
 
@@ -203,7 +209,7 @@ export function ScreenProtectionGuard() {
                 node.tagName === 'CANVAS';
               if (isWatermark) {
                 applyInstantBlackout();
-                showSecurityWarning('Security warning: Watermark tampering intercepted. Playback halted.', 6000);
+                showSecurityWarning('تحذير أمني: تم رصد محاولة إزالة العلامة المائية.', 6000);
                 window.dispatchEvent(new Event('watermark_tamper_detected'));
               }
             }
@@ -256,7 +262,7 @@ export function ScreenProtectionGuard() {
       }
     };
 
-    // 9. Sub-Millisecond High-Frequency Animation Frame Watchdog (60 FPS focus check)
+    // 9. Sub-Millisecond High-Frequency Animation Frame Watchdog
     let rafId: number;
     const checkFocusLoop = () => {
       if (typeof document !== 'undefined' && (!document.hasFocus() || document.hidden)) {
@@ -275,26 +281,22 @@ export function ScreenProtectionGuard() {
       if (isOpen) {
         applyInstantBlackout();
         setIsBlackedOut(true);
-        setWarningMessage('⛔ VIOLATION DETECTED: Developer Tools (F12 / Inspect) are strictly prohibited.');
+        setWarningMessage('⛔ تم رصد أدوات التطوير DevTools وهي محظورة تماماً.');
         try {
           console.clear();
-          console.log(
-            '%c⛔ VIOLATION DETECTED: Accessing Developer Tools is strictly prohibited. All activity is logged.',
-            'color: #ef4444; font-size: 22px; font-weight: 900; background: #000; padding: 12px; border: 2px solid #ef4444;'
-          );
         } catch {}
       }
     }, 1500);
 
-    // 10. Right-Click Context Menu Prevention (Intercepts Inspect Element)
+    // 10. Right-Click Context Menu Prevention
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      showSecurityWarning('القائمة الجانبية وأدوات الفحص معطلة (Right-click & Inspect are disabled).', 2500);
+      showSecurityWarning('القائمة الجانبية وأدوات الفحص معطلة.', 2500);
       return false;
     };
 
-    // 7. Drag and Drop Prevention (Prevents saving dragged media)
+    // 7. Drag and Drop Prevention
     const handleDragStart = (e: DragEvent) => {
       const target = e.target as HTMLElement;
       if (
@@ -307,7 +309,6 @@ export function ScreenProtectionGuard() {
       }
     };
 
-    // Attach with capture = true for highest priority event dispatch
     window.addEventListener('keydown', handleKeyDown, { capture: true, passive: false });
     window.addEventListener('keyup', handleKeyUp, { capture: true, passive: false });
     window.addEventListener('blur', handleWindowBlur, { passive: true });
@@ -335,7 +336,7 @@ export function ScreenProtectionGuard() {
     };
   }, [warningMessage]);
 
-  return (
+  const modalOverlay = (
     <>
       {/* Global CSS injection for instant hardware blackout and print blockage */}
       <style jsx global>{`
@@ -367,7 +368,7 @@ export function ScreenProtectionGuard() {
         }
       `}</style>
 
-      {/* Millisecond Blackout Curtain (Protects against app snapshots, screen recording, and window blur / tab switching) */}
+      {/* Millisecond Blackout Curtain Portaled directly to body */}
       {isBlackedOut && (
         <div 
           id="screen-protection-curtain"
@@ -381,17 +382,17 @@ export function ScreenProtectionGuard() {
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-zinc-950 border border-zinc-800 p-8 rounded-3xl max-w-md text-center shadow-2xl space-y-4 animate-in fade-in duration-75 cursor-default"
+            className="bg-zinc-950 border border-emerald-500/30 p-8 rounded-3xl max-w-md text-center shadow-2xl space-y-4 animate-in fade-in duration-75 cursor-default"
           >
-            <div className="mx-auto w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-inner">
               <EyeOff className="w-8 h-8" />
             </div>
             <h3 className="text-xl font-bold tracking-tight text-white flex items-center justify-center gap-2">
               <Lock className="w-5 h-5 text-emerald-400" />
-              Protected Academic Content
+              <span>محتوى أكاديمي محمي (Protected Content)</span>
             </h3>
-            <p className="text-sm text-zinc-400 leading-relaxed">
-              Screen recording, screenshots, background capturing, and window sharing are disabled to safeguard institutional lectures and exam content.
+            <p className="text-sm text-zinc-300 leading-relaxed font-sans">
+              تم حظر وتجميد الشاشة تلقائياً أثناء التقاط الشاشة، استخدام أداة Snipping Tool، أو مغادرة نافذة التطبيق لحماية المواد الأكاديمية والمحاضرات.
             </p>
             <div className="pt-2 flex flex-col items-center gap-2">
               <button
@@ -401,19 +402,19 @@ export function ScreenProtectionGuard() {
                   setWarningMessage(null);
                   removeInstantBlackout();
                 }}
-                className="px-4 py-2 text-xs font-semibold rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition-colors"
+                className="px-5 py-2.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg transition-colors cursor-pointer"
               >
-                Dismiss Notice (Esc)
+                إغلاق التنبيه واستئناف المشاهدة (Esc)
               </button>
-              <div className="text-[11px] font-mono text-zinc-500">
-                DRM Protection Active • Mol5asati Secure Flag
+              <div className="text-[11px] font-mono text-zinc-400">
+                DRM Hardware Protection • Mol5asati Security Flag
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Floating Security Banner Warning */}
+      {/* Floating Security Banner Warning Portaled directly to body */}
       {warningMessage && (
         <div 
           id="screen-protection-warning"
@@ -425,5 +426,10 @@ export function ScreenProtectionGuard() {
       )}
     </>
   );
+
+  if (!mounted || typeof document === 'undefined') return null;
+
+  return createPortal(modalOverlay, document.body);
 }
+
 

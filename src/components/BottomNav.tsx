@@ -62,8 +62,9 @@ export function BottomNav() {
 
     // Default for all students (authenticated, anonymous, student barcode, or visitor):
     return [
-        { href: '/discover', icon: Compass, label: 'الأساتذة والمحاضرون' },
-        { href: '/profile', icon: GraduationCap, label: 'هوية الطالب' }
+        { href: '/discover', icon: Compass, label: 'الأساتذة' },
+        { href: '/library', icon: BookOpen, label: 'المكتبة' },
+        { href: '/profile', icon: GraduationCap, label: 'بوابتي' }
     ];
 
   }, [isAssistant, user, isStudentSession]);

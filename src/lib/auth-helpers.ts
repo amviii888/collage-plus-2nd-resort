@@ -29,55 +29,23 @@ export const isStudentSessionOrUser = (user?: any, studentSessionId?: string | n
   return false;
 };
 
-/**
- * Records that a student voluntarily logged out on this specific device.
- */
-export const recordDeviceLogoutLockout = (studentCode?: string) => {
-  if (typeof window === 'undefined') return;
-  try {
-    const codeKey = studentCode ? studentCode.trim().toLowerCase() : 'general';
-    localStorage.setItem('student_device_lockout_' + codeKey, 'true');
-    localStorage.setItem('student_device_lockout_general', 'true');
-    localStorage.setItem('student_device_logout_timestamp', Date.now().toString());
-  } catch (e) {}
+export const recordDeviceLogoutLockout = (_studentCode?: string) => {
+  // Disabled
 };
 
-/**
- * Checks if this device was previously logged out of by this student.
- */
-export const isDeviceLockedOutForStudent = (studentCode?: string): boolean => {
-  if (typeof window === 'undefined') return false;
-  try {
-    const codeKey = studentCode ? studentCode.trim().toLowerCase() : '';
-    if (codeKey && localStorage.getItem('student_device_lockout_' + codeKey) === 'true') {
-      return true;
-    }
-    return localStorage.getItem('student_device_lockout_general') === 'true';
-  } catch (e) {
-    return false;
-  }
+export const isDeviceLockedOutForStudent = (_studentCode?: string): boolean => {
+  return false;
 };
 
-/**
- * Unlocks a previously locked-out device upon entering the valid Teacher Login Code.
- */
-export const unlockDeviceForStudent = (studentCode?: string) => {
-  if (typeof window === 'undefined') return;
-  try {
-    const codeKey = studentCode ? studentCode.trim().toLowerCase() : '';
-    if (codeKey) {
-      localStorage.removeItem('student_device_lockout_' + codeKey);
-    }
-    localStorage.removeItem('student_device_lockout_general');
-    localStorage.removeItem('student_device_logout_timestamp');
-  } catch (e) {}
+export const unlockDeviceForStudent = (_studentCode?: string) => {
+  // Disabled
 };
 
 /**
  * Completely purges all student session keys, cached student profiles,
  * and teacher code branding from local storage.
  */
-export const clearAllStudentAuthSessions = (studentCodeForLockout?: string, markDeviceLockout = true) => {
+export const clearAllStudentAuthSessions = (_studentCodeForLockout?: string, _markDeviceLockout = false) => {
   if (typeof window === 'undefined') return;
   try {
     const activeCode = studentCodeForLockout || 

@@ -5,7 +5,7 @@ import { doc, runTransaction, serverTimestamp, setDoc, arrayUnion, Timestamp, in
 import type { Course, CourseRating, Teacher, WatchHistory, Video, CourseAccess, Unit, CourseRequest } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useMemo, useEffect, lazy, Suspense, useRef } from 'react';
-import { Star, Download, FileText, Info, User, BookOpen, Clock, CheckCircle, ArrowLeft, Lock, ClipboardList, ShoppingCart, KeyRound, Play, Layers } from 'lucide-react';
+import { Star, Download, FileText, Info, User, BookOpen, Clock, CheckCircle, ArrowLeft, Lock, ClipboardList, ShoppingCart, KeyRound, Play, Layers, Maximize2, Minimize2 } from 'lucide-react';
 import { cn, toJsDate } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -427,6 +427,44 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
 
     const isOwner = user && !user.isAnonymous && user.uid === teacherId;
     const [selectedUnitForUnlock, setSelectedUnitForUnlock] = useState<string | undefined>(undefined);
+
+    // Fullscreen state & container ref for forcing watermark on top in video fullscreen mode
+    const playerContainerRef = useRef<HTMLDivElement>(null);
+    const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
+
+    useEffect(() => {
+        const handleFsChange = () => {
+            if (typeof document !== 'undefined') {
+                const activeFs = document.fullscreenElement || (document as any).webkitFullscreenElement;
+                setIsPlayerFullscreen(!!activeFs);
+            }
+        };
+        document.addEventListener('fullscreenchange', handleFsChange);
+        document.addEventListener('webkitfullscreenchange', handleFsChange);
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFsChange);
+            document.removeEventListener('webkitfullscreenchange', handleFsChange);
+        };
+    }, []);
+
+    const togglePlayerFullscreen = () => {
+        if (typeof document === 'undefined') return;
+        const activeFs = document.fullscreenElement || (document as any).webkitFullscreenElement;
+        if (activeFs) {
+            if (document.exitFullscreen) {
+                document.exitFullscreen().catch(() => {});
+            } else if ((document as any).webkitExitFullscreen) {
+                (document as any).webkitExitFullscreen();
+            }
+        } else if (playerContainerRef.current) {
+            const container = playerContainerRef.current as any;
+            if (container.requestFullscreen) {
+                container.requestFullscreen().catch(() => {});
+            } else if (container.webkitRequestFullscreen) {
+                container.webkitRequestFullscreen();
+            }
+        }
+    };
     
     // Check if user has full access to the entire course
     const hasFullAccess = useMemo(() => {
@@ -865,7 +903,8 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                 )}
                             </div>
                             <div 
-                                className="relative w-full aspect-video bg-black flex-shrink-0 overflow-hidden select-none protected-media no-capture"
+                                ref={playerContainerRef}
+                                className="relative w-full aspect-video bg-black flex-shrink-0 overflow-hidden select-none protected-media no-capture group"
                                 onContextMenu={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
@@ -875,7 +914,7 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                 {embedUrl ? (
                                     <>
                                         <iframe
-                                            className="relative z-0"
+                                            className="relative z-0 w-full h-full"
                                             width="100%"
                                             height="100%"
                                             src={embedUrl}
@@ -885,6 +924,27 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                             allowFullScreen
                                         ></iframe>
+
+                                        {/* High-Visibility Protected Fullscreen Toggle Button */}
+                                        <button
+                                            type="button"
+                                            onClick={togglePlayerFullscreen}
+                                            className="absolute top-3 right-3 z-30 bg-black/80 hover:bg-black text-emerald-400 hover:text-emerald-300 border border-emerald-500/50 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xl transition-all active:scale-95 cursor-pointer"
+                                            title="تفعيل العرض بالشاشة الكاملة مع العلامة المائية للحماية"
+                                        >
+                                            {isPlayerFullscreen ? (
+                                                <>
+                                                    <Minimize2 className="w-3.5 h-3.5 text-emerald-400" />
+                                                    <span>خروج من الشاشة الكاملة</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
+                                                    <span>شاشة كاملة محمية (Fullscreen)</span>
+                                                </>
+                                            )}
+                                        </button>
+
                                         {/* Dynamic Ultra Watermark automatically applied to every video */}
                                         {(activeStudentId || user?.uid) && (
                                             <DynamicWatermark 

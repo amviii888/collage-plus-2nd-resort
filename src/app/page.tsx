@@ -394,7 +394,7 @@ export default function LandingPage() {
 
             <Link
               href="/login"
-              className={`hidden sm:inline-flex px-4 py-2 rounded-xl text-xs font-bold border transition-all shadow-xs ${
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold border transition-all shadow-xs ${
                 isDarkMode 
                   ? 'border-white/10 bg-white/5 hover:bg-white/10 text-white' 
                   : 'border-slate-300 bg-white hover:bg-slate-100 text-slate-900 font-bold'

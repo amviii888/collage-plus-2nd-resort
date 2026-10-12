@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useStudent, useUser } from '@/firebase';
 import type { DynamicWatermarkConfig } from '@/lib/watermark-types';
 import { DEFAULT_WATERMARK_CONFIG } from '@/lib/watermark-types';
@@ -460,6 +461,27 @@ export function DynamicWatermark({
     ctx.restore();
   }, [studentName, studentCode, studentPhone, studentUniversity, cfg.showUniversity]);
 
+  // Fullscreen top-layer portal detection to force watermark on top of full-screen players
+  const [fullscreenEl, setFullscreenEl] = useState<Element | null>(null);
+
+  useEffect(() => {
+    const checkFs = () => {
+      if (typeof document !== 'undefined') {
+        const activeFs = document.fullscreenElement || (document as any).webkitFullscreenElement || (document as any).mozFullScreenElement;
+        setFullscreenEl(activeFs || null);
+      }
+    };
+    checkFs();
+    document.addEventListener('fullscreenchange', checkFs);
+    document.addEventListener('webkitfullscreenchange', checkFs);
+    document.addEventListener('mozfullscreenchange', checkFs);
+    return () => {
+      document.removeEventListener('fullscreenchange', checkFs);
+      document.removeEventListener('webkitfullscreenchange', checkFs);
+      document.removeEventListener('mozfullscreenchange', checkFs);
+    };
+  }, []);
+
   if (!cfg.enabled) return null;
 
   // Compute Coordinates / Classes based on movement type
@@ -531,7 +553,7 @@ export function DynamicWatermark({
   // Active opacity (handles flicker)
   const currentOpacity = isFlickering ? 0.95 : cfg.opacity;
 
-  return (
+  const watermarkNodes = (
     <>
       {/* 1. HTML5 Canvas Security Stamp (Raster layer rendered directly on screen) */}
       <canvas
@@ -685,4 +707,19 @@ export function DynamicWatermark({
       )}
     </>
   );
+
+  // If a top-level fullscreen element is active (e.g. video player went full screen), portal directly into it
+  if (fullscreenEl && typeof document !== 'undefined') {
+    const targetNode = fullscreenEl.tagName === 'IFRAME' && fullscreenEl.parentElement 
+      ? fullscreenEl.parentElement 
+      : fullscreenEl;
+    return createPortal(
+      <div className="absolute inset-0 z-[2147483647] pointer-events-none w-full h-full overflow-hidden">
+        {watermarkNodes}
+      </div>,
+      targetNode
+    );
+  }
+
+  return watermarkNodes;
 }
