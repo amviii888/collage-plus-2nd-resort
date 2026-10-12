@@ -11,17 +11,12 @@ export function ScreenProtectionGuard() {
   const applyInstantBlackout = () => {
     if (typeof document !== 'undefined') {
       document.body?.classList.add('mol5asaty-guard-protected');
-      // Sub-millisecond direct DOM style injection to beat OS Snipping Tool before React state render loop
-      document.documentElement.style.setProperty('filter', 'blur(50px) brightness(0)', 'important');
-      document.documentElement.style.setProperty('background-color', '#000000', 'important');
     }
   };
 
   const removeInstantBlackout = () => {
     if (typeof document !== 'undefined') {
       document.body?.classList.remove('mol5asaty-guard-protected');
-      document.documentElement.style.removeProperty('filter');
-      document.documentElement.style.removeProperty('background-color');
     }
   };
 
@@ -195,40 +190,6 @@ export function ScreenProtectionGuard() {
     document.addEventListener('webkitplaybacktargetavailabilitychanged', handleAirPlayTarget, true);
     enforceNoAirPlayOnMedia();
 
-    // 5. Audio Peripherals Check (Wired Headphones, Earbuds, AirPods, Bluetooth headsets)
-    const checkAudioPeripherals = async () => {
-      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return;
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
-        
-        const forbiddenTerms = [
-          'headphone', 'headset', 'earbud', 'airpod', 'buds', 'bluetooth', 
-          'wireless', 'external', 'wired', 'usb audio', 'analog output', 'dongle', 'line out'
-        ];
-        
-        const foundForbidden = audioOutputs.find(dev => {
-          const label = (dev.label || '').toLowerCase();
-          return forbiddenTerms.some(term => label.includes(term));
-        });
-
-        if (foundForbidden) {
-          applyInstantBlackout();
-          showSecurityWarning(
-            'External audio devices (wired headphones, earbuds, AirPods, or Bluetooth audio) detected. Academic security requires direct device speaker playback.',
-            6000
-          );
-        }
-      } catch {}
-    };
-
-    // Check device changes on peripheral hotplug
-    if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
-      navigator.mediaDevices.addEventListener('devicechange', checkAudioPeripherals);
-      checkAudioPeripherals();
-    }
-    const peripheralInterval = setInterval(checkAudioPeripherals, 6000);
-
     // 6. Watermark Anti-Tampering DOM Observer
     const watermarkObserver = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
@@ -257,14 +218,20 @@ export function ScreenProtectionGuard() {
 
     // 7. Window Blur & Visibility (Snipping Tool & Background Screenshot Interception)
     const handleWindowBlur = () => {
-      // Snipping Tool steals window focus upon activation (e.g. clicking "New" or pressing snippet shortcuts)
       applyInstantBlackout();
       setIsBlackedOut(true);
       setWarningMessage('أداة التقاط الشاشة / النافذة غير نشطة (Screen Capture / Snipping Tool Intercepted).');
     };
 
+    const handleMouseLeave = (e: MouseEvent) => {
+      // Trigger instant blackout if cursor leaves browser viewport towards Snipping Tool or OS taskbar
+      if (e.clientY <= 0 || e.clientX <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+        applyInstantBlackout();
+        setIsBlackedOut(true);
+      }
+    };
+
     const handleWindowFocus = () => {
-      // Clear blackout seamlessly when returning focus to the browser tab
       setTimeout(() => {
         if (!document.hidden && document.hasFocus && document.hasFocus()) {
           setIsBlackedOut(false);
@@ -288,6 +255,17 @@ export function ScreenProtectionGuard() {
         }, 200);
       }
     };
+
+    // 9. Sub-Millisecond High-Frequency Animation Frame Watchdog (60 FPS focus check)
+    let rafId: number;
+    const checkFocusLoop = () => {
+      if (typeof document !== 'undefined' && (!document.hasFocus() || document.hidden)) {
+        applyInstantBlackout();
+        setIsBlackedOut(true);
+      }
+      rafId = requestAnimationFrame(checkFocusLoop);
+    };
+    rafId = requestAnimationFrame(checkFocusLoop);
 
     // 9. Active DevTools Detection & Console Shield
     const devToolsCheck = setInterval(() => {
@@ -334,24 +312,23 @@ export function ScreenProtectionGuard() {
     window.addEventListener('keyup', handleKeyUp, { capture: true, passive: false });
     window.addEventListener('blur', handleWindowBlur, { passive: true });
     window.addEventListener('focus', handleWindowFocus, { passive: true });
+    document.addEventListener('mouseleave', handleMouseLeave);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('dragstart', handleDragStart);
 
     return () => {
-      clearInterval(peripheralInterval);
+      cancelAnimationFrame(rafId);
       clearInterval(devToolsCheck);
       try {
         watermarkObserver.disconnect();
       } catch {}
       document.removeEventListener('webkitplaybacktargetavailabilitychanged', handleAirPlayTarget, true);
-      if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
-        navigator.mediaDevices.removeEventListener('devicechange', checkAudioPeripherals);
-      }
       window.removeEventListener('keydown', handleKeyDown, { capture: true });
       window.removeEventListener('keyup', handleKeyUp, { capture: true });
       window.removeEventListener('blur', handleWindowBlur);
       window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('mouseleave', handleMouseLeave);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('dragstart', handleDragStart);
@@ -368,12 +345,20 @@ export function ScreenProtectionGuard() {
             visibility: hidden !important;
           }
         }
+        body.mol5asaty-guard-protected {
+          background-color: #000000 !important;
+        }
         body.mol5asaty-guard-protected > *:not(#screen-protection-curtain):not(#screen-protection-warning) {
-          filter: blur(32px) brightness(0) !important;
+          filter: blur(50px) brightness(0) !important;
           opacity: 0 !important;
           pointer-events: none !important;
           user-select: none !important;
           visibility: hidden !important;
+        }
+        #screen-protection-curtain, #screen-protection-warning {
+          filter: none !important;
+          opacity: 1 !important;
+          visibility: visible !important;
         }
         pre, code, [data-error], [role="alert"], [data-radix-toast-announce], .toaster, .toast, .font-mono, [data-selectable], .selectable-text {
           user-select: text !important;
