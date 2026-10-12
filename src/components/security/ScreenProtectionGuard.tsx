@@ -11,12 +11,17 @@ export function ScreenProtectionGuard() {
   const applyInstantBlackout = () => {
     if (typeof document !== 'undefined') {
       document.body?.classList.add('mol5asaty-guard-protected');
+      // Sub-millisecond direct DOM style injection to beat OS Snipping Tool before React state render loop
+      document.documentElement.style.setProperty('filter', 'blur(50px) brightness(0)', 'important');
+      document.documentElement.style.setProperty('background-color', '#000000', 'important');
     }
   };
 
   const removeInstantBlackout = () => {
     if (typeof document !== 'undefined') {
       document.body?.classList.remove('mol5asaty-guard-protected');
+      document.documentElement.style.removeProperty('filter');
+      document.documentElement.style.removeProperty('background-color');
     }
   };
 

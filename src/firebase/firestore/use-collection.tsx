@@ -37,7 +37,7 @@ function getQueryCacheKey(queryOrRef: any): string {
 
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: (CollectionReference<DocumentData> | Query<DocumentData>) | null,
-    ttlMs: number = 300_000 // 5 minutes default cache TTL
+    ttlMs: number = 86_400_000 // 24 hours heavy persistent cache TTL
 ): UseCollectionResult<T> {
   type ResultItemType = WithId<T>;
   type StateDataType = ResultItemType[] | null;
@@ -54,16 +54,26 @@ export function useCollection<T = any>(
     }
 
     const cacheKey = getQueryCacheKey(memoizedTargetRefOrQuery);
-    const cachedData = AppCache.get<ResultItemType[]>(cacheKey);
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    const cachedData = AppCache.get<ResultItemType[]>(cacheKey, { allowStale: isOffline });
 
     if (cachedData) {
       setData(cachedData);
       setIsLoading(false);
       // We already have cached data; avoid redundant network reads unless explicitly stale
-      return;
+      if (isOffline) {
+        return;
+      }
     }
 
-    setIsLoading(true);
+    if (!cachedData) {
+      setIsLoading(true);
+    }
+
+    // Skip network call if offline and we already have cached data
+    if (isOffline && cachedData) {
+      return;
+    }
 
     getDocs(memoizedTargetRefOrQuery)
         .then((querySnapshot: QuerySnapshot) => {
@@ -77,9 +87,15 @@ export function useCollection<T = any>(
             setError(null);
         })
         .catch((err: FirestoreError) => {
-            setError(err);
+            const staleFallback = AppCache.get<ResultItemType[]>(cacheKey, { allowStale: true });
+            if (staleFallback) {
+              setData(staleFallback);
+              setError(null);
+            } else {
+              setError(err);
+            }
             setIsLoading(false);
-            console.error("useCollection getDocs error:", err);
+            console.warn("useCollection getDocs offline/network note:", err?.message || err);
         });
     
   // eslint-disable-next-line react-hooks/exhaustive-deps

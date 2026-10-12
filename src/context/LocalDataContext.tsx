@@ -338,33 +338,66 @@ export function LocalDataProvider({ children, teacherId }: { children: React.Rea
         }
     }, [firestore, teacherId, setLocalStudents, setLocalPlans, setLocalTransactions, setLocalAttendance]);
 
-    // Handle auto sync on mount/online/periodically
+    // Handle fast auto sync on mount/online/boot (2.5-second initial delay)
     React.useEffect(() => {
         if (navigator.onLine && teacherId) {
             const timer = setTimeout(() => {
                 triggerTwoWaySync();
-            }, 8000); // Friendly 8-second delay on initial load
+            }, 2500); // Fast 2.5-second initial sync on app open
             return () => clearTimeout(timer);
         }
     }, [teacherId, triggerTwoWaySync]);
 
-    // Automatically trigger sync when dirty changes are made while online, debounced at 8 seconds after the most recent change
+    // Automatically trigger sync when dirty changes occur while online (fast 3-second debounce)
     React.useEffect(() => {
         if (navigator.onLine && isDirty && teacherId) {
             const timer = setTimeout(() => {
                 triggerTwoWaySync();
-            }, 8000); // Debounced 8-second wait after a change
+            }, 3000); // Snappy 3-second debounce after modifications
             return () => clearTimeout(timer);
         }
     }, [isDirty, localStudents, localPlans, localTransactions, localAttendance, teacherId, triggerTwoWaySync]);
 
+    // Connection recovery & iOS app lifecycle triggers (online, visibilitychange, pagehide, focus)
     React.useEffect(() => {
         const handleOnline = () => {
             triggerTwoWaySync();
         };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && navigator.onLine && teacherId) {
+                // iPhone resumed app: sync immediately
+                triggerTwoWaySync();
+            } else if (document.visibilityState === 'hidden' && navigator.onLine && isDirtyRef.current && teacherId) {
+                // iPhone app minimized / switched away: flush unsaved changes immediately
+                triggerTwoWaySync();
+            }
+        };
+
+        const handlePageHide = () => {
+            if (navigator.onLine && isDirtyRef.current && teacherId) {
+                triggerTwoWaySync();
+            }
+        };
+
+        const handleFocus = () => {
+            if (navigator.onLine && isDirtyRef.current && teacherId) {
+                triggerTwoWaySync();
+            }
+        };
+
         window.addEventListener('online', handleOnline);
-        return () => window.removeEventListener('online', handleOnline);
-    }, [triggerTwoWaySync]);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('pagehide', handlePageHide);
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('pagehide', handlePageHide);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [teacherId, triggerTwoWaySync]);
 
     React.useEffect(() => {
         return () => {

@@ -74,37 +74,46 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy A: Page / Navigation Requests (Network-First with Offline Fallback)
+  // Strategy A: Page / Navigation Requests (Fast Network-First with Immediate Offline Fallback)
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response.status === 200) {
+      (async () => {
+        // Fast race: network with 1500ms timeout so offline/poor connections on iPhones load instantly from cache
+        const networkPromise = fetch(request).then((response) => {
+          if (response && response.status === 200) {
             const responseToCache = response.clone();
             caches.open(PAGES_CACHE).then((cache) => {
               cache.put(request, responseToCache);
             });
           }
           return response;
-        })
-        .catch(async () => {
-          // Check if the specific page exists in cache
+        });
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Network timeout')), 1500)
+        );
+
+        try {
+          return await Promise.race([networkPromise, timeoutPromise]);
+        } catch (err) {
+          // Network failed or timed out -> serve from cache immediately
           const cachedPage = await caches.match(request);
           if (cachedPage) return cachedPage;
 
-          // Check if root shell is in cache
+          // Match root app shell from cache
           const homePage = await caches.match('/');
           if (homePage) return homePage;
 
-          // Fall back to dedicated offline notice page
+          // Dedicated offline fallback
           const offlineFallback = await caches.match('/offline');
           if (offlineFallback) return offlineFallback;
 
           return new Response(
-            '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline - Universe Academy</title><style>body{background:#09090b;color:#f8fafc;font-family:system-ui;text-align:center;padding:50px 20px;}h1{color:#84dc06;}</style></head><body><h1>Universe Academy</h1><p>You are currently offline. Your saved attendance and student data remain safely stored on this device.</p></body></html>',
-            { headers: { 'Content-Type': 'text/html' } }
+            '<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Universe Academy - وضع عدم الاتصال</title><style>body{background:#09090b;color:#f8fafc;font-family:system-ui,sans-serif;text-align:center;padding:60px 20px;}h1{color:#22c55e;font-size:24px;}p{color:#a1a1aa;font-size:14px;max-width:400px;margin:12px auto;line-height:1.6;}</style></head><body><h1>منصة Universe Academy</h1><p>أنت تتصفح حالياً في وضع عدم الاتصال (Offline). جميع سجلاتك وبيانات الطلاب محفوظة بأمان على جهازك.</p></body></html>',
+            { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
           );
-        })
+        }
+      })()
     );
     return;
   }
