@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ShieldAlert, EyeOff, Lock } from 'lucide-react';
+import { PrivacyScreen } from '@capacitor/privacy-screen';
 
 export function ScreenProtectionGuard() {
   const [isBlackedOut, setIsBlackedOut] = useState(false);
@@ -53,12 +54,11 @@ export function ScreenProtectionGuard() {
     if (typeof window === 'undefined') return;
     // 1. Android FLAG_SECURE Bridge (Capacitor / Cordova / Native Android WebView)
     try {
-      if (typeof window !== 'undefined') {
-        const cap = (window as any).Capacitor;
-        if (cap && cap.Plugins) {
-          if (cap.Plugins.PrivacyScreen?.enable) {
-            cap.Plugins.PrivacyScreen.enable();
-          }
+      PrivacyScreen.enable().catch(() => {});
+      const cap = (window as any).Capacitor;
+      if (cap && cap.Plugins) {
+        if (cap.Plugins.PrivacyScreen?.enable) {
+          cap.Plugins.PrivacyScreen.enable();
         }
       }
     } catch {

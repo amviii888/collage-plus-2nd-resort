@@ -19,6 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ShieldAlert } from 'lucide-react';
 
 import { ScreenProtectionGuard } from '@/components/security/ScreenProtectionGuard';
+import { DynamicWatermark } from '@/components/security/DynamicWatermark';
 import { NotificationListener } from '@/components/NotificationListener';
 import { DynamicBrandingManager } from '@/components/DynamicBrandingManager';
 import { useOnlineStatus } from '@/hooks/use-online-status';
@@ -210,6 +211,7 @@ export function ClientLayoutWrapper({ children }: { children: React.ReactNode })
   return (
     <I18nextProvider i18n={i18n}>
       <ScreenProtectionGuard />
+      <DynamicWatermark />
       <NotificationListener />
       <DynamicBrandingManager />
       <div className="relative flex min-h-screen w-full flex-col bg-background text-foreground overflow-x-hidden screen-protected transition-colors">

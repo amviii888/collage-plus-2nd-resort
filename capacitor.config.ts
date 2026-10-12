@@ -43,6 +43,12 @@ const config: CapacitorConfig = {
     },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert']
+    },
+    PrivacyScreen: {
+      enable: true,
+      iosBlur: 'dark',
+      image: 'splash',
+      protected: true
     }
   }
 };
