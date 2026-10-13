@@ -65,16 +65,50 @@ export function ScreenProtectionGuard() {
       // Ignored in standard browser context
     }
 
-    // 2. Intercept navigator.mediaDevices.getDisplayMedia to prevent Screen Sharing (Zoom, Teams, Meet, OBS)
+    // 2. Intercept Screen Capture & Screen Recording APIs (getDisplayMedia, MediaRecorder, getUserMedia display)
     if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
       try {
         navigator.mediaDevices.getDisplayMedia = async function (...args) {
-          showSecurityWarning('ممنوع مشاركة أو تسجيل الشاشة بقرار أكاديمي حاسم.', 6000);
-          throw new DOMException('Screen sharing is prohibited by Mol5asati security policy.', 'NotAllowedError');
+          // Mute all video and audio immediately
+          const allMedia = document.querySelectorAll('video, audio');
+          allMedia.forEach((m: any) => {
+            m.muted = true;
+            m.pause?.();
+          });
+          applyInstantBlackout();
+          showSecurityWarning('⛔ تم حظر تسجيل ومشاركة الشاشة وإيقاف الصوت والمحتوى تلقائياً.', 8000);
+          throw new DOMException('Screen sharing and recording are prohibited by Mol5asati security policy.', 'NotAllowedError');
         };
       } catch {
-        // Read-only in some environments
+        // Read-only in some browser contexts
       }
+    }
+
+    // Intercept MediaRecorder constructor to block browser extension screen recorders
+    if (typeof window !== 'undefined' && (window as any).MediaRecorder) {
+      try {
+        const OrigMediaRecorder = (window as any).MediaRecorder;
+        (window as any).MediaRecorder = function (...args: any[]) {
+          const stream = args[0];
+          if (stream && typeof stream.getVideoTracks === 'function') {
+            const tracks = stream.getVideoTracks();
+            tracks.forEach((t: MediaStreamTrack) => t.stop());
+          }
+          if (stream && typeof stream.getAudioTracks === 'function') {
+            const aTracks = stream.getAudioTracks();
+            aTracks.forEach((t: MediaStreamTrack) => t.stop());
+          }
+          const allMedia = document.querySelectorAll('video, audio');
+          allMedia.forEach((m: any) => {
+            m.muted = true;
+            m.pause?.();
+          });
+          applyInstantBlackout();
+          showSecurityWarning('⛔ تم رصد محاولة تسجيل الشاشة عبر البرامج أو الإضافات. تم إيقاف الصوت والفيديو.', 8000);
+          return new OrigMediaRecorder(new MediaStream());
+        };
+        (window as any).MediaRecorder.prototype = OrigMediaRecorder.prototype;
+      } catch {}
     }
 
     // 3. Ultra-Fast Synchronous Keyboard Event Capture for Screenshots
@@ -90,27 +124,32 @@ export function ScreenProtectionGuard() {
         return;
       }
 
-      // PrintScreen / PrtScn key (Immediate sync blackout)
+      // 1. PrintScreen / PrtScn key (Immediate synchronous blackout)
       if (e.key === 'PrintScreen' || e.keyCode === 44 || e.code === 'PrintScreen') {
         applyInstantBlackout();
-        wipeClipboard();
         e.preventDefault();
         e.stopPropagation();
         showSecurityWarning('تم رصد وتجميد محاولة التقاط الشاشة (Screenshot Attempt Blocked).');
         return false;
       }
 
-      // Windows Game Bar / Snipping Tool (Win + G, Win + Shift + S)
-      if (e.metaKey && (key === 'g' || (e.shiftKey && key === 's'))) {
+      // 2. Windows Snipping Tool & Game Bar & Screenshot Combos:
+      // - Win + Shift + S / Cmd + Shift + S
+      // - Ctrl + Shift + S
+      // - Win + G
+      if (
+        (e.shiftKey && (key === 's' || key === '3' || key === '4' || key === '5' || key === '6')) ||
+        (e.metaKey && (key === 'g' || key === 's')) ||
+        (isCmdOrCtrl && e.shiftKey && key === 's')
+      ) {
         applyInstantBlackout();
-        wipeClipboard();
         e.preventDefault();
         e.stopPropagation();
-        showSecurityWarning('تم حظر أداة التقاط الشاشة Snipping Tool لحماية المواد الأكاديمية.');
+        showSecurityWarning('تم حظر أداة التقاط الشاشة Snipping Tool / Screenshot Shortcuts لحماية المحتوى.');
         return false;
       }
 
-      // DevTools Inspection Interception (F12, F2, Ctrl+Shift+I/J/C, Cmd+Option+I/J/C, Ctrl+U)
+      // 3. DevTools Inspection Interception (F12, F2, Ctrl+Shift+I/J/C, Cmd+Option+I/J/C, Ctrl+U)
       if (
         e.key === 'F12' ||
         e.keyCode === 123 ||
@@ -125,25 +164,12 @@ export function ScreenProtectionGuard() {
         e.stopPropagation();
         try {
           console.clear();
-          console.log(
-            '%c⛔ VIOLATION DETECTED: Developer tools are strictly locked.',
-            'color: #ef4444; font-size: 22px; font-weight: 900; background: #000; padding: 12px;'
-          );
         } catch {}
         showSecurityWarning('⛔ تنبيه أمني: أدوات الفحص المتقدمة F12 / Inspect مغلقة بحكم الحماية.', 4000);
         return false;
       }
 
       if (isCmdOrCtrl) {
-        // macOS Screenshot combos: Cmd + Shift + 3 / 4 / 5 / 6
-        if (e.shiftKey && ['3', '4', '5', '6', 's'].includes(key)) {
-          applyInstantBlackout();
-          e.preventDefault();
-          e.stopPropagation();
-          showSecurityWarning('التقاط الشاشة محظور للحفاظ على سرية المحتوى.');
-          return false;
-        }
-
         // Print: Cmd/Ctrl + P
         // Save HTML: Cmd/Ctrl + S
         if (key === 'p' || key === 's') {
@@ -165,7 +191,7 @@ export function ScreenProtectionGuard() {
       }
     };
 
-    // 4. Apple AirPlay & Remote Playback Enforcement
+    // 4. Apple AirPlay & Remote Playback Enforcement + Bluetooth Audio Output Guard
     const enforceNoAirPlayOnMedia = () => {
       if (typeof document === 'undefined') return;
       const mediaElements = document.querySelectorAll('video, audio, iframe');
@@ -189,9 +215,42 @@ export function ScreenProtectionGuard() {
       }
       if (e.target?.webkitCurrentPlaybackTargetIsWireless) {
         applyInstantBlackout();
-        showSecurityWarning('البث اللاسلكي وAirPlay محظوران.', 6000);
+        showSecurityWarning('البث اللاسلكي وAirPlay محظوران لمنع تسجيل الصوت.', 6000);
       }
     };
+
+    // 5. Bluetooth & External Audio Output Device Interception (Allow Wired Headphones only)
+    const checkAudioOutputRouting = async () => {
+      try {
+        if (typeof navigator !== 'undefined' && navigator.mediaDevices?.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const bluetoothAudioDevice = devices.find(d => {
+            const label = (d.label || '').toLowerCase();
+            return (
+              (d.kind === 'audiooutput' || (d as any).kind === 'audio') &&
+              (label.includes('bluetooth') || label.includes('bth') || label.includes('wireless') || label.includes('airpods') || label.includes('tws') || label.includes('speaker'))
+            );
+          });
+
+          if (bluetoothAudioDevice) {
+            // Mute media elements if Bluetooth or external wireless audio sink is active
+            const media = document.querySelectorAll('video, audio');
+            media.forEach((m: any) => {
+              if (m && !m.muted) {
+                m.muted = true;
+                m.pause?.();
+              }
+            });
+            showSecurityWarning('⚠️ تنبيه أمني: استخدام أجهزة البلوتوث أو مكبرات الصوت الخارجية محظور. يرجى استخدام سماعات سلكية (Wired Headphones).', 5000);
+          }
+        }
+      } catch (err) {}
+    };
+
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.addEventListener) {
+      navigator.mediaDevices.addEventListener('devicechange', checkAudioOutputRouting);
+    }
+    checkAudioOutputRouting();
 
     document.addEventListener('webkitplaybacktargetavailabilitychanged', handleAirPlayTarget, true);
     enforceNoAirPlayOnMedia();
@@ -223,10 +282,29 @@ export function ScreenProtectionGuard() {
     } catch {}
 
     // 7. Window Blur & Visibility (Snipping Tool & Background Screenshot Interception)
+    const isPlayerOrIframeFocused = () => {
+      if (typeof document === 'undefined') return false;
+      const active = document.activeElement;
+      if (!active) return false;
+      if (active.tagName === 'IFRAME') return true;
+      if (active.closest && (active.closest('.protected-media') || active.closest('#player-container') || active.closest('[data-player]'))) return true;
+      return false;
+    };
+
     const handleWindowBlur = () => {
+      // Execute instant blackout
       applyInstantBlackout();
       setIsBlackedOut(true);
       setWarningMessage('أداة التقاط الشاشة / النافذة غير نشطة (Screen Capture / Snipping Tool Intercepted).');
+
+      // If student was just clicking inside the iframe/player controls, auto-restore smoothly after 120ms
+      setTimeout(() => {
+        if (isPlayerOrIframeFocused() && document.hasFocus && document.hasFocus()) {
+          setIsBlackedOut(false);
+          setWarningMessage(null);
+          removeInstantBlackout();
+        }
+      }, 120);
     };
 
     const handleMouseLeave = (e: MouseEvent) => {
@@ -239,12 +317,12 @@ export function ScreenProtectionGuard() {
 
     const handleWindowFocus = () => {
       setTimeout(() => {
-        if (!document.hidden && document.hasFocus && document.hasFocus()) {
+        if (!document.hidden && (document.hasFocus?.() || isPlayerOrIframeFocused())) {
           setIsBlackedOut(false);
           setWarningMessage(null);
           removeInstantBlackout();
         }
-      }, 250);
+      }, 200);
     };
 
     // 8. Visibility Change (Detect minimizing or tab switching)
@@ -254,7 +332,7 @@ export function ScreenProtectionGuard() {
         setIsBlackedOut(true);
       } else {
         setTimeout(() => {
-          if (!document.hidden && document.hasFocus && document.hasFocus()) {
+          if (!document.hidden && (document.hasFocus?.() || isPlayerOrIframeFocused())) {
             setIsBlackedOut(false);
             removeInstantBlackout();
           }
@@ -262,12 +340,18 @@ export function ScreenProtectionGuard() {
       }
     };
 
-    // 9. Sub-Millisecond High-Frequency Animation Frame Watchdog
+    // 9. Sub-Millisecond High-Frequency Animation Frame Watchdog (Only when truly hidden or lost focus to external app)
     let rafId: number;
     const checkFocusLoop = () => {
-      if (typeof document !== 'undefined' && (!document.hasFocus() || document.hidden)) {
-        applyInstantBlackout();
-        setIsBlackedOut(true);
+      if (typeof document !== 'undefined') {
+        if (document.hidden) {
+          applyInstantBlackout();
+          setIsBlackedOut(true);
+        } else if (!document.hasFocus() && !isPlayerOrIframeFocused()) {
+          // Verify it's genuinely lost focus and not just clicking the video player iframe
+          applyInstantBlackout();
+          setIsBlackedOut(true);
+        }
       }
       rafId = requestAnimationFrame(checkFocusLoop);
     };
@@ -275,7 +359,7 @@ export function ScreenProtectionGuard() {
 
     // 9. Active DevTools Detection & Console Shield
     const devToolsCheck = setInterval(() => {
-      const threshold = 160;
+      const threshold = 180;
       const isOpen = (window.outerWidth - window.innerWidth > threshold) ||
                      (window.outerHeight - window.innerHeight > threshold);
       if (isOpen) {

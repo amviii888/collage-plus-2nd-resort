@@ -115,9 +115,48 @@ export function DynamicWatermark({
   }, [effectiveStudentId]);
 
   // Display fields - strictly fetched from the watching student's profile, NOT the teacher
-  const studentName = previewStudent?.name || student?.name || localCachedStudent?.name || (user && !user.isAnonymous ? (user.displayName || user.email?.split('@')[0]) : '') || '';
-  const studentPhone = previewStudent?.phone || (student as any)?.phoneNumber || (student as any)?.phone || localCachedStudent?.phoneNumber || '';
-  const studentCode = previewStudent?.barcode || student?.barcodeId || localCachedStudent?.barcodeId || (user && !user.isAnonymous ? (user.email?.includes('@universe.student') ? user.email.split('@')[0] : user.uid.slice(0, 8).toUpperCase()) : '') || '';
+  const studentName = previewStudent?.name || 
+                      student?.name || 
+                      localCachedStudent?.name || 
+                      (typeof window !== 'undefined' ? (
+                        localStorage.getItem('student_name') || 
+                        localStorage.getItem('studentName') || 
+                        (JSON.parse(localStorage.getItem('mol5saty_active_student_profile') || '{}')?.name)
+                      ) : '') ||
+                      (user && !user.isAnonymous ? (user.displayName || user.email?.split('@')[0]) : '') || '';
+
+  const studentPhone = useMemo(() => {
+    if (previewStudent?.phone) return previewStudent.phone;
+    if (student?.phoneNumber) return student.phoneNumber;
+    if ((student as any)?.phone) return (student as any).phone;
+    if (localCachedStudent?.phoneNumber) return localCachedStudent.phoneNumber;
+    if (localCachedStudent?.phone) return localCachedStudent.phone;
+    if (typeof window !== 'undefined') {
+      try {
+        const mol5satyProfile = JSON.parse(localStorage.getItem('mol5saty_active_student_profile') || '{}');
+        if (mol5satyProfile?.phoneNumber) return mol5satyProfile.phoneNumber;
+        if (mol5satyProfile?.phone) return mol5satyProfile.phone;
+        const studentProfile = JSON.parse(localStorage.getItem('student_profile') || '{}');
+        if (studentProfile?.phoneNumber) return studentProfile.phoneNumber;
+        if (studentProfile?.phone) return studentProfile.phone;
+      } catch (e) {}
+      const directPhone = localStorage.getItem('student_phone') || 
+                          localStorage.getItem('studentPhoneNumber') || 
+                          localStorage.getItem('last_entered_phone');
+      if (directPhone) return directPhone;
+    }
+    return '';
+  }, [previewStudent, student, localCachedStudent]);
+
+  const studentCode = previewStudent?.barcode || 
+                      student?.barcodeId || 
+                      localCachedStudent?.barcodeId || 
+                      (typeof window !== 'undefined' ? (
+                        localStorage.getItem('student_barcode') || 
+                        localStorage.getItem('studentBarcode') || 
+                        localStorage.getItem('studentCode')
+                      ) : '') ||
+                      (user && !user.isAnonymous ? (user.email?.includes('@universe.student') ? user.email.split('@')[0] : user.uid.slice(0, 8).toUpperCase()) : '') || '';
 
   // University dynamically retrieved from student profile
   const studentUniversity = useMemo(() => {
@@ -253,34 +292,53 @@ export function DynamicWatermark({
       utterance.pitch = pitch;
       utterance.rate = rate;
       utterance.volume = 0.95;
+      utterance.lang = 'ar-SA';
 
-      // Auto-detect matching Arabic voice if available on system
-      const voices = window.speechSynthesis.getVoices();
-      const arVoices = voices.filter(v => v.lang.startsWith('ar') || v.name.toLowerCase().includes('arabic') || v.lang.includes('ar-EG') || v.lang.includes('ar-SA'));
-      
-      if (arVoices.length > 0) {
-        if (voiceStyle === 'male') {
-          const maleAr = arVoices.find(v => 
-            v.name.toLowerCase().includes('male') || 
-            v.name.toLowerCase().includes('maged') || 
-            v.name.toLowerCase().includes('tarik') ||
-            v.name.toLowerCase().includes('shakir')
-          );
-          utterance.voice = maleAr || arVoices[0];
-        } else if (voiceStyle === 'female') {
-          const femaleAr = arVoices.find(v => 
-            v.name.toLowerCase().includes('female') || 
-            v.name.toLowerCase().includes('salma') || 
-            v.name.toLowerCase().includes('hoda') || 
-            v.name.toLowerCase().includes('laila')
-          );
-          utterance.voice = femaleAr || arVoices[0];
-        } else {
-          utterance.voice = arVoices[0];
-        }
+      const applyVoiceAndSpeak = () => {
+        try {
+          const voices = window.speechSynthesis.getVoices();
+          const arVoices = voices.filter(v => v.lang.startsWith('ar') || v.name.toLowerCase().includes('arabic') || v.lang.includes('ar-EG') || v.lang.includes('ar-SA'));
+          
+          if (arVoices.length > 0) {
+            if (voiceStyle === 'male') {
+              const maleAr = arVoices.find(v => 
+                v.name.toLowerCase().includes('male') || 
+                v.name.toLowerCase().includes('maged') || 
+                v.name.toLowerCase().includes('tarik') ||
+                v.name.toLowerCase().includes('shakir')
+              );
+              utterance.voice = maleAr || arVoices[0];
+            } else if (voiceStyle === 'female') {
+              const femaleAr = arVoices.find(v => 
+                v.name.toLowerCase().includes('female') || 
+                v.name.toLowerCase().includes('salma') || 
+                v.name.toLowerCase().includes('hoda') || 
+                v.name.toLowerCase().includes('laila')
+              );
+              utterance.voice = femaleAr || arVoices[0];
+            } else {
+              utterance.voice = arVoices[0];
+            }
+          }
+
+          window.speechSynthesis.speak(utterance);
+        } catch (err) {}
+      };
+
+      const initialVoices = window.speechSynthesis.getVoices();
+      if (initialVoices.length === 0) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          applyVoiceAndSpeak();
+          window.speechSynthesis.onvoiceschanged = null;
+        };
+        setTimeout(() => {
+          if (!window.speechSynthesis.speaking) {
+            applyVoiceAndSpeak();
+          }
+        }, 300);
+      } else {
+        applyVoiceAndSpeak();
       }
-
-      window.speechSynthesis.speak(utterance);
     } catch (e) {
       console.warn('TTS watermark speak notice:', e);
     }

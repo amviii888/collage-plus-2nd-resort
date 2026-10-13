@@ -77,10 +77,12 @@ export function WatermarkStudioTab({
 
   // Test Speech locally with natural Arabic voice auto-selection & voice personalities
   const handleTestSpeech = () => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    if (typeof window === 'undefined') return;
+
+    if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
       toast({
-        title: 'محرك الصوت غير مدعوم',
-        description: 'متصفحك لا يدعم قراءة النصوص بالصوت محلياً.',
+        title: 'محرك الصوت غير مدعوم في المتصفح',
+        description: 'متصفحك الحالي لا يدعم Web Speech API. يرجى استخدام متصفح حديث (Chrome / Edge / Safari).',
         variant: 'destructive',
       });
       return;
@@ -109,40 +111,70 @@ export function WatermarkStudioTab({
       utterance.pitch = pitch;
       utterance.rate = rate;
       utterance.volume = 1.0;
+      utterance.lang = 'ar-SA';
 
-      const voices = window.speechSynthesis.getVoices();
-      const arVoices = voices.filter(v => v.lang.startsWith('ar') || v.name.toLowerCase().includes('arabic') || v.lang.includes('ar-EG') || v.lang.includes('ar-SA'));
-      
-      if (arVoices.length > 0) {
-        if (voiceStyle === 'male') {
-          const maleAr = arVoices.find(v => 
-            v.name.toLowerCase().includes('male') || 
-            v.name.toLowerCase().includes('maged') || 
-            v.name.toLowerCase().includes('tarik') ||
-            v.name.toLowerCase().includes('shakir')
-          );
-          utterance.voice = maleAr || arVoices[0];
-        } else if (voiceStyle === 'female') {
-          const femaleAr = arVoices.find(v => 
-            v.name.toLowerCase().includes('female') || 
-            v.name.toLowerCase().includes('salma') || 
-            v.name.toLowerCase().includes('hoda') || 
-            v.name.toLowerCase().includes('laila')
-          );
-          utterance.voice = femaleAr || arVoices[0];
-        } else {
-          utterance.voice = arVoices[0];
+      const assignVoiceAndSpeak = () => {
+        try {
+          const voices = window.speechSynthesis.getVoices();
+          const arVoices = voices.filter(v => v.lang.startsWith('ar') || v.name.toLowerCase().includes('arabic') || v.lang.includes('ar-EG') || v.lang.includes('ar-SA'));
+          
+          if (arVoices.length > 0) {
+            if (voiceStyle === 'male') {
+              const maleAr = arVoices.find(v => 
+                v.name.toLowerCase().includes('male') || 
+                v.name.toLowerCase().includes('maged') || 
+                v.name.toLowerCase().includes('tarik') ||
+                v.name.toLowerCase().includes('shakir')
+              );
+              utterance.voice = maleAr || arVoices[0];
+            } else if (voiceStyle === 'female') {
+              const femaleAr = arVoices.find(v => 
+                v.name.toLowerCase().includes('female') || 
+                v.name.toLowerCase().includes('salma') || 
+                v.name.toLowerCase().includes('hoda') || 
+                v.name.toLowerCase().includes('laila')
+              );
+              utterance.voice = femaleAr || arVoices[0];
+            } else {
+              utterance.voice = arVoices[0];
+            }
+          }
+
+          utterance.onend = () => setIsTestingSpeech(false);
+          utterance.onerror = (err) => {
+            console.warn('Utterance error:', err);
+            setIsTestingSpeech(false);
+          };
+
+          window.speechSynthesis.speak(utterance);
+          toast({
+            title: '🔊 جاري تجربة البصمة الصوتية (Audio Watermark Test)',
+            description: `تم تشغيل البصمة الصوتية بنمط (${voiceStyle === 'child' ? 'صوت طفل' : voiceStyle === 'male' ? 'صوت رجل' : 'صوت أنثوي'}).`,
+          });
+        } catch (e: any) {
+          setIsTestingSpeech(false);
+          toast({
+            title: 'تنبيه محرك الصوت',
+            description: 'تعذر تشغيل الصوت تلقائياً. تأكد من تفعيل أذونات الصوت في جهازك.',
+            variant: 'destructive',
+          });
         }
+      };
+
+      const initialVoices = window.speechSynthesis.getVoices();
+      if (initialVoices.length === 0) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          assignVoiceAndSpeak();
+          window.speechSynthesis.onvoiceschanged = null;
+        };
+        // Fallback speak in case onvoiceschanged does not fire
+        setTimeout(() => {
+          if (window.speechSynthesis.speaking) return;
+          assignVoiceAndSpeak();
+        }, 300);
+      } else {
+        assignVoiceAndSpeak();
       }
-
-      utterance.onend = () => setIsTestingSpeech(false);
-      utterance.onerror = () => setIsTestingSpeech(false);
-
-      window.speechSynthesis.speak(utterance);
-      toast({
-        title: '🔊 جاري تجربة البصمة الصوتية (Audio Watermark Test)',
-        description: `تم تشغيل البصمة الصوتية بنمط (${voiceStyle === 'child' ? 'صوت طفل' : voiceStyle === 'male' ? 'صوت رجل' : 'صوت أنثوي'}).`,
-      });
     } catch (e) {
       setIsTestingSpeech(false);
     }
