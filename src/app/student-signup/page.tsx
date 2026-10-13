@@ -311,15 +311,16 @@ export default function StudentSignupPage() {
             setVerifiedPhoneNumber(rawPhone);
 
             // Normalize Egyptian phone format for the field display
-            const clean = rawPhone.replace(/\s+/g, '');
-            const localNum = clean.startsWith('+20')
-              ? '0' + clean.slice(3)
-              : (clean.startsWith('20') ? '0' + clean.slice(2) : clean);
-            if (localNum.startsWith('01') && localNum.length === 11) {
-              setPhoneInput(localNum);
-            } else if (!phoneInput) {
-              setPhoneInput(clean);
+            const clean = rawPhone.replace(/[^\d+]/g, '');
+            let localNum = clean;
+            if (clean.startsWith('+20')) {
+              localNum = '0' + clean.slice(3);
+            } else if (clean.startsWith('20') && clean.length === 12) {
+              localNum = '0' + clean.slice(2);
             }
+            
+            // Set the phone field directly to the verified number
+            setPhoneInput(localNum);
 
             toast({
               title: isArabic ? '✅ تم تأكيد رقم هاتفك بنجاح!' : '✅ Phone Verified Successfully!',
@@ -446,8 +447,13 @@ export default function StudentSignupPage() {
           ? '🔒 يجب إرسال كود التفعيل عبر واتساب وتأكيد رقم هاتفك أولاً للمتابعة.' 
           : '🔒 WhatsApp phone verification is strictly required before registering.'
       ];
-    } else if (!/^01\d{9}$/.test(phone) && !phone.startsWith('+')) {
-      currentErrors.phone = [isArabic ? 'رقم الهاتف يجب أن يتكون من 11 رقماً ويبدأ بـ 01.' : 'Phone number must be 11 digits starting with 01.'];
+    } else {
+      const cleanPhone = phone.replace(/[^\d+]/g, '');
+      const isLocalValid = /^01\d{9}$/.test(cleanPhone);
+      const isIntlValid = cleanPhone.length >= 10 && (cleanPhone.startsWith('+') || cleanPhone.startsWith('20'));
+      if (!isLocalValid && !isIntlValid) {
+        currentErrors.phone = [isArabic ? 'رقم الهاتف يجب أن يتكون من 11 رقماً ويبدأ بـ 01 (أو بصيغة دولية صحيح).' : 'Phone number must be 11 digits starting with 01 or a valid international format.'];
+      }
     }
     if (!governorate) {
       currentErrors.governorate = [isArabic ? 'يرجى اختيار المحافظة.' : 'Please select your governorate.'];
@@ -934,16 +940,8 @@ export default function StudentSignupPage() {
                       </button>
 
                       <div className="flex items-center gap-1 text-[10px]">
-                        <span>{isArabic ? 'رقم البوت:' : 'Bot:'}</span>
+                        <span>{isArabic ? 'رقم خادم التفعيل:' : 'Verification Server:'}</span>
                         <span className="font-mono font-bold text-slate-700 dark:text-slate-300">+{botPhone}</span>
-                        <button
-                          type="button"
-                          onClick={() => setIsEditingBotPhone(!isEditingBotPhone)}
-                          className="text-blue-500 hover:underline cursor-pointer"
-                          title={isArabic ? 'تغيير رقم البوت إذا كان مختلفاً' : 'Edit Bot Number'}
-                        >
-                          <Edit2 className="w-3 h-3 inline ml-0.5" />
-                        </button>
                       </div>
                     </div>
                   </div>

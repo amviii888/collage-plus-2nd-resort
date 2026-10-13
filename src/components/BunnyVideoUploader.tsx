@@ -539,13 +539,12 @@ export function BunnyVideoUploader({
         </div>
       )}
 
-      {/* Cost & Info Transparency Banner */}
+      {/* Secure Infrastructure Badge */}
       <div className="mt-3 pt-2.5 border-t border-zinc-900 flex items-center justify-between text-[11px] text-zinc-500">
         <span className="flex items-center gap-1.5">
-          <Info className="w-3.5 h-3.5 text-emerald-500" />
-          <span>تكلفة Bunny Stream: التخزين ~$0.01/GB شهرياً (الترميز والتحويل مجاني 100%)</span>
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+          <span>سيرفرات بث فيديو آمنة ومحمية بتشفير عالي السرعة</span>
         </span>
-        <span className="font-mono text-zinc-600 hidden sm:inline">Library #775464</span>
       </div>
     </div>
   );

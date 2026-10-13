@@ -1620,7 +1620,7 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
 
       {/* Full-Screen Pop-Out Modal Dialog */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] max-h-[90vh] flex flex-col p-6 md:p-8 rounded-3xl bg-white dark:bg-zinc-950/98 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white shadow-2xl overflow-hidden">
+        <DialogContent className="max-w-6xl w-[98vw] sm:w-[95vw] h-[96vh] sm:h-[90vh] max-h-[96vh] sm:max-h-[90vh] flex flex-col p-3.5 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl bg-white dark:bg-zinc-950/98 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white shadow-2xl overflow-hidden">
           <DialogHeader className="shrink-0 pb-4 border-b border-slate-200 dark:border-zinc-800/80">
             <DialogTitle className="text-xl md:text-2xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
               <Sparkles className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />

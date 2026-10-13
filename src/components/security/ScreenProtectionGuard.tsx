@@ -285,26 +285,25 @@ export function ScreenProtectionGuard() {
     const isPlayerOrIframeFocused = () => {
       if (typeof document === 'undefined') return false;
       const active = document.activeElement;
-      if (!active) return false;
-      if (active.tagName === 'IFRAME') return true;
-      if (active.closest && (active.closest('.protected-media') || active.closest('#player-container') || active.closest('[data-player]'))) return true;
+      if (active && (active.tagName === 'IFRAME' || (active.closest && active.closest('.protected-media')))) {
+        return true;
+      }
+      // Also check if mouse cursor is currently over protected media / player area
+      const hoveredPlayer = document.querySelector('.protected-media:hover, iframe:hover, #player-container:hover');
+      if (hoveredPlayer) {
+        return true;
+      }
       return false;
     };
 
     const handleWindowBlur = () => {
-      // Execute instant blackout
+      // Do NOT trigger blackout when clicking inside video player iframe / controls
+      if (isPlayerOrIframeFocused()) {
+        return;
+      }
       applyInstantBlackout();
       setIsBlackedOut(true);
       setWarningMessage('أداة التقاط الشاشة / النافذة غير نشطة (Screen Capture / Snipping Tool Intercepted).');
-
-      // If student was just clicking inside the iframe/player controls, auto-restore smoothly after 120ms
-      setTimeout(() => {
-        if (isPlayerOrIframeFocused() && document.hasFocus && document.hasFocus()) {
-          setIsBlackedOut(false);
-          setWarningMessage(null);
-          removeInstantBlackout();
-        }
-      }, 120);
     };
 
     const handleMouseLeave = (e: MouseEvent) => {
