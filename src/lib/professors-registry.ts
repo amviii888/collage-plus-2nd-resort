@@ -734,33 +734,42 @@ export function findProfessorByCode(code: string | null | undefined): ProfessorI
  * Retrieve list of professors connected to the student
  */
 export function getStudentConnectedProfessors(studentId?: string): ProfessorItem[] {
-  const activeBase = getActiveRegisteredProfessors();
-  if (typeof window === 'undefined') return activeBase;
+  if (typeof window === 'undefined') return [];
   try {
     const key = studentId ? `student_connected_professors_${studentId}` : 'student_connected_professors_active';
     const stored = localStorage.getItem(key);
     let codes: string[] = [];
     if (stored) {
-      codes = JSON.parse(stored);
+      try {
+        codes = JSON.parse(stored);
+      } catch (e) {}
     }
     // Also check global fallback
     const globalStored = localStorage.getItem('student_connected_professors_active');
     if (globalStored && (!codes || codes.length === 0)) {
-      codes = JSON.parse(globalStored);
+      try {
+        codes = JSON.parse(globalStored);
+      } catch (e) {}
+    }
+
+    // Also check active connected professor code or selected icon
+    const activeCode = localStorage.getItem('active_connected_professor_code');
+    if (activeCode && (!codes || !codes.includes(activeCode))) {
+      codes = [...(codes || []), activeCode];
     }
 
     if (!Array.isArray(codes) || codes.length === 0) {
-      return activeBase;
+      return [];
     }
 
     const mapped = codes
       .map(c => findProfessorByCode(c))
       .filter((p): p is ProfessorItem => Boolean(p));
 
-    return mapped.length > 0 ? mapped : activeBase;
+    return mapped;
   } catch (e) {
     console.error('Failed to get connected professors:', e);
-    return activeBase;
+    return [];
   }
 }
 

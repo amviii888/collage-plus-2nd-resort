@@ -44,6 +44,27 @@ export function BottomNav() {
     }
   }, [pathname, hasMounted]);
 
+  const [isLibraryUnlocked, setIsLibraryUnlocked] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const checkUnlocked = () => {
+        const unlocked = localStorage.getItem('library_unlocked') === 'true' ||
+                         sessionStorage.getItem('library_unlocked') === 'true' ||
+                         localStorage.getItem('is_librarian') === 'true' ||
+                         localStorage.getItem('admin_session') === 'true';
+        setIsLibraryUnlocked(unlocked);
+      };
+      checkUnlocked();
+      window.addEventListener('library_unlocked_changed', checkUnlocked);
+      window.addEventListener('storage', checkUnlocked);
+      return () => {
+        window.removeEventListener('library_unlocked_changed', checkUnlocked);
+        window.removeEventListener('storage', checkUnlocked);
+      };
+    }
+  }, []);
+
   const navItems = useMemo(() => {
     if (isAssistant) {
         return [
@@ -61,13 +82,18 @@ export function BottomNav() {
     }
 
     // Default for all students (authenticated, anonymous, student barcode, or visitor):
-    return [
+    const items = [
         { href: '/discover', icon: Compass, label: 'الأساتذة' },
-        { href: '/library', icon: BookOpen, label: 'المكتبة' },
-        { href: '/profile', icon: GraduationCap, label: 'بوابتي' }
     ];
 
-  }, [isAssistant, user, isStudentSession]);
+    if (isLibraryUnlocked || isTeacher) {
+      items.push({ href: '/library', icon: BookOpen, label: 'المكتبة' });
+    }
+
+    items.push({ href: '/profile', icon: GraduationCap, label: 'بوابتي' });
+
+    return items;
+  }, [isAssistant, user, isStudentSession, isLibraryUnlocked]);
   
   if (!hasMounted) {
     return null;

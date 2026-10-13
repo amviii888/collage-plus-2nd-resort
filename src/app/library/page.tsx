@@ -312,6 +312,7 @@ export default function LibraryPage() {
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('library_unlocked', 'true');
         localStorage.setItem('library_unlocked', 'true');
+        window.dispatchEvent(new Event('library_unlocked_changed'));
       }
       toast({
         title: '🔓 مرحباً بك في المكتبة الأكاديمية',

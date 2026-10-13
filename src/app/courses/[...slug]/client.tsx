@@ -377,6 +377,21 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
     }, [firestore, activeStudentId, user?.uid, courseId]));
 
     // Check local storage fallback for immediate client response
+    const [localAccessTick, setLocalAccessTick] = useState(0);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const onAccessUpdated = () => {
+            setLocalAccessTick(prev => prev + 1);
+        };
+        window.addEventListener('storage', onAccessUpdated);
+        window.addEventListener('course_access_updated', onAccessUpdated);
+        return () => {
+            window.removeEventListener('storage', onAccessUpdated);
+            window.removeEventListener('course_access_updated', onAccessUpdated);
+        };
+    }, []);
+
     const localCachedAccess = useMemo(() => {
         if (typeof window === 'undefined') return null;
         try {
@@ -385,7 +400,7 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
         } catch(e) {
             return null;
         }
-    }, [courseId]);
+    }, [courseId, localAccessTick]);
 
     const effectiveCourseAccess = courseAccess || localCachedAccess;
 
@@ -988,9 +1003,13 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                     {hasAccess && displayCourse.locked && effectiveCourseAccess && (effectiveCourseAccess.viewLimit ?? 0) > 0 && (
                         <Alert className="m-4 md:m-6 bg-primary/10 border-primary/30">
                             <Info className="h-4 w-4 !text-primary" />
-                            <AlertTitle>مشاهدات محدودة (Max 3 Views)</AlertTitle>
+                            <AlertTitle>
+                                {effectiveCourseAccess.fullAccess 
+                                    ? `مشاهدات محددة للكورس كامل (${effectiveCourseAccess.viewLimit || 3} مشاهدات)` 
+                                    : `وصول مخصص للوحدة (${effectiveCourseAccess.viewLimit || 3} مشاهدات مسموحة)`}
+                            </AlertTitle>
                             <AlertDescription>
-                                لديك {Math.max(0, (effectiveCourseAccess.viewLimit || 3) - (effectiveCourseAccess.viewCount || 0))} مشاهدات متبقية من أصل {effectiveCourseAccess.viewLimit || 3} لهذا المحتوى.
+                                متبقي لديك {Math.max(0, (effectiveCourseAccess.viewLimit || 3) - (effectiveCourseAccess.viewCount || 0))} مشاهدات من أصل {effectiveCourseAccess.viewLimit || 3} المحددة من أستاذ المادة.
                             </AlertDescription>
                         </Alert>
                     )}

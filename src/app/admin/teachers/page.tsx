@@ -298,6 +298,12 @@ export default function AdminTeacherManagementPage() {
         setCustomCodes(current);
         setRefreshKey(prev => prev + 1);
 
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('app_branding_changed'));
+            window.dispatchEvent(new Event('app_icon_changed'));
+            window.dispatchEvent(new Event('connected_professors_updated'));
+        }
+
         toast({
             title: 'تم ربط الكود والأيقونة بنجاح! 🎓',
             description: `تم ربط الدكتور ${updatedItem.name} بالكود [${cleanCode}] والأيقونة (${effectiveIconPath}) وحفظه في السحابة.`,

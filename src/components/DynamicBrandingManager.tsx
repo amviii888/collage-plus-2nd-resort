@@ -73,37 +73,54 @@ export function DynamicBrandingManager() {
         };
 
         if (targetIcon) {
-          updateLink('icon', targetIcon);
+          updateLink('icon', targetIcon, '512x512', targetIcon.endsWith('.svg') ? 'image/svg+xml' : 'image/png');
           updateLink('shortcut icon', targetIcon);
           updateLink('apple-touch-icon', targetIcon, '180x180');
+          updateLink('apple-touch-icon-precomposed', targetIcon, '180x180');
         }
 
         // 4. Dynamic Web App Manifest Link for iOS & Android Homescreen
         const manifestObj = {
           name: targetTitle,
-          short_name: targetTitle.split('|')[0].trim(),
+          short_name: targetTitle.split('|')[0].trim().slice(0, 15),
           start_url: '/',
+          scope: '/',
           display: 'standalone',
           background_color: '#09090b',
           theme_color: targetThemeColor,
           icons: [
             {
               src: targetIcon,
+              sizes: '192x192',
+              type: targetIcon.endsWith('.svg') ? 'image/svg+xml' : 'image/png',
+              purpose: 'any'
+            },
+            {
+              src: targetIcon,
               sizes: '512x512',
               type: targetIcon.endsWith('.svg') ? 'image/svg+xml' : 'image/png',
-              purpose: 'any maskable'
+              purpose: 'any'
+            },
+            {
+              src: targetIcon,
+              sizes: '512x512',
+              type: targetIcon.endsWith('.svg') ? 'image/svg+xml' : 'image/png',
+              purpose: 'maskable'
             }
           ]
         };
 
         const stringified = JSON.stringify(manifestObj);
-        const blob = new Blob([stringified], { type: 'application/json' });
+        const blob = new Blob([stringified], { type: 'application/manifest+json' });
         const manifestUrl = URL.createObjectURL(blob);
 
         let manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement;
-        if (manifestLink) {
-          manifestLink.href = manifestUrl;
+        if (!manifestLink) {
+          manifestLink = document.createElement('link');
+          manifestLink.rel = 'manifest';
+          document.head.appendChild(manifestLink);
         }
+        manifestLink.href = manifestUrl;
 
         // 5. Native Capacitor Bridge updates if running inside mobile native app
         try {

@@ -436,17 +436,28 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
       // Mirror locally for instant reactive updates in student UI
       if (typeof window !== 'undefined' && req.courseId) {
         try {
+          const cacheKey = `student_course_access_${req.courseId}`;
+          const existingRaw = localStorage.getItem(cacheKey);
+          const existing = existingRaw ? JSON.parse(existingRaw) : {};
+          const prevUnits = Array.isArray(existing.unlockedUnitIds) ? existing.unlockedUnitIds : [];
+          const updatedUnits = req.requestType === 'unit' && req.unitId 
+            ? Array.from(new Set([...prevUnits, req.unitId]))
+            : prevUnits;
+
           const cachedAccess = {
+            ...existing,
             courseId: req.courseId,
             teacherId: teacherId,
-            fullAccess: req.requestType !== 'unit',
-            unlockedUnitIds: req.requestType === 'unit' && req.unitId ? [req.unitId] : [],
+            fullAccess: req.requestType !== 'unit' ? true : Boolean(existing.fullAccess),
+            unlockedUnitIds: updatedUnits,
             viewLimit: chosenLimit,
             viewCount: 0,
             unlockedAt: new Date().toISOString()
           };
-          localStorage.setItem(`student_course_access_${req.courseId}`, JSON.stringify(cachedAccess));
+          localStorage.setItem(cacheKey, JSON.stringify(cachedAccess));
           localStorage.setItem(`student_req_status_${req.id}`, 'granted');
+          window.dispatchEvent(new Event('storage'));
+          window.dispatchEvent(new Event('course_access_updated'));
         } catch (e) {}
       }
       toast({

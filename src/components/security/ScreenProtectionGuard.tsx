@@ -339,7 +339,7 @@ export function ScreenProtectionGuard() {
   const modalOverlay = (
     <>
       {/* Global CSS injection for instant hardware blackout and print blockage */}
-      <style jsx global>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           html, body {
             display: none !important;
@@ -366,7 +366,7 @@ export function ScreenProtectionGuard() {
           -webkit-user-select: text !important;
           pointer-events: auto !important;
         }
-      `}</style>
+      `}} />
 
       {/* Millisecond Blackout Curtain Portaled directly to body */}
       {isBlackedOut && (

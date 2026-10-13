@@ -2534,11 +2534,30 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
                             </div>
                         )}
 
-                        <DialogFooter className="border-t border-slate-200 dark:border-zinc-800 pt-3">
+                        <DialogFooter className="border-t border-slate-200 dark:border-zinc-800 pt-3 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <Button 
+                                    onClick={() => {
+                                        toast({
+                                            title: isArabic ? 'جاري تطبيق الأيقونة وتحديث التطبيق...' : 'Applying icon & restarting app...',
+                                            description: isArabic ? 'سيتم إعادة تشغيل التطبيق لتثبيت الأيقونة على الشاشة الرئيسية.' : 'App will reload to apply the homescreen icon.',
+                                        });
+                                        setTimeout(() => {
+                                            if (typeof window !== 'undefined') {
+                                                window.location.reload();
+                                            }
+                                        }, 800);
+                                    }}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 h-9 rounded-xl flex-1 sm:flex-initial shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5"
+                                >
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                    <span>{isArabic ? 'حفظ وإعادة تشغيل التطبيق (تطبيق الأيقونة)' : 'Save & Restart App (Apply Icon)'}</span>
+                                </Button>
+                            </div>
                             <Button 
                                 onClick={() => setThemeModalOpen(false)}
                                 variant="outline"
-                                className="border-slate-300 dark:border-zinc-700 text-xs px-5"
+                                className="border-slate-300 dark:border-zinc-700 text-xs px-5 h-9 rounded-xl w-full sm:w-auto"
                             >
                                 {isArabic ? 'إغلاق' : 'Close'}
                             </Button>

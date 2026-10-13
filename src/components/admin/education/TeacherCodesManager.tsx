@@ -245,6 +245,12 @@ export function TeacherCodesManager() {
       // 1. Save locally and to Firestore teacher_codes & teachers collections
       await saveTeacherCodeMappingToCloudAndLocal(mappingData, firestore);
 
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('app_branding_changed'));
+        window.dispatchEvent(new Event('app_icon_changed'));
+        window.dispatchEvent(new Event('connected_professors_updated'));
+      }
+
       toast({
         title: 'تم حفظ الكود والأيقونة بنجاح! 🎓',
         description: `تم ربط الأستاذ (${selectedTeacher.name}) بالكود [${cleanCode}] وأيقونة (${chosenIcon.nameAr} ${chosenIcon.emoji}).`,

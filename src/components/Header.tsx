@@ -185,15 +185,32 @@ export function Header() {
     const [isStudentSession, setIsStudentSession] = useState(false);
     const [isAssistantSession, setIsAssistantSession] = useState(false);
 
+    const [isLibraryUnlocked, setIsLibraryUnlocked] = useState(false);
+
     useEffect(() => {
         if (typeof window !== 'undefined') {
+            const checkUnlocked = () => {
+                const unlocked = localStorage.getItem('library_unlocked') === 'true' ||
+                                 sessionStorage.getItem('library_unlocked') === 'true' ||
+                                 localStorage.getItem('is_librarian') === 'true' ||
+                                 localStorage.getItem('admin_session') === 'true';
+                setIsLibraryUnlocked(unlocked);
+            };
+            checkUnlocked();
+
             const savedIcon = localStorage.getItem('library_custom_icon_path');
             if (savedIcon) setLibraryIconPath(savedIcon);
             const onLibIconChange = () => {
                 setLibraryIconPath(localStorage.getItem('library_custom_icon_path'));
             };
             window.addEventListener('library_icon_updated', onLibIconChange);
-            return () => window.removeEventListener('library_icon_updated', onLibIconChange);
+            window.addEventListener('library_unlocked_changed', checkUnlocked);
+            window.addEventListener('storage', checkUnlocked);
+            return () => {
+                window.removeEventListener('library_icon_updated', onLibIconChange);
+                window.removeEventListener('library_unlocked_changed', checkUnlocked);
+                window.removeEventListener('storage', checkUnlocked);
+            };
         }
     }, []);
 
@@ -342,26 +359,28 @@ export function Header() {
 
                 {/* Right Quick Controls: Dark/Light Mode Switcher & Settings */}
                 <div className="flex items-center gap-2 sm:gap-3">
-                    {/* Library Link next to teachers in Top Bar */}
-                    <Link
-                        href="/library"
-                        className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/50 transition-all shadow-xs"
-                        title="المكتبة الأكاديمية (Library)"
-                    >
-                        {libraryIconPath ? (
-                            <img 
-                                src={normalizeImagePath(libraryIconPath)} 
-                                alt="Library" 
-                                className="w-4 h-4 object-contain rounded" 
-                                onError={(e) => {
-                                    (e.currentTarget as HTMLElement).style.display = 'none';
-                                }}
-                            />
-                        ) : (
-                            <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                        )}
-                        <span>المكتبة</span>
-                    </Link>
+                    {/* Library Link next to teachers in Top Bar - strictly hidden until code library123 is entered */}
+                    {(isLibraryUnlocked || isTeacher) && (
+                        <Link
+                            href="/library"
+                            className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500/50 transition-all shadow-xs"
+                            title="المكتبة الأكاديمية (Library)"
+                        >
+                            {libraryIconPath ? (
+                                <img 
+                                    src={normalizeImagePath(libraryIconPath)} 
+                                    alt="Library" 
+                                    className="w-4 h-4 object-contain rounded" 
+                                    onError={(e) => {
+                                        (e.currentTarget as HTMLElement).style.display = 'none';
+                                    }}
+                                />
+                            ) : (
+                                <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                            )}
+                            <span>المكتبة</span>
+                        </Link>
+                    )}
 
                     {!isTeacher && (
                         <Link
