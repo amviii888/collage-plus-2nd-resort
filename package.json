@@ -7,11 +7,8 @@
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "NODE_OPTIONS='--max-old-space-size=2048' NODE_ENV=production next build",
-    "build:cf": "NODE_ENV=production opennextjs-cloudflare build",
     "analyze": "ANALYZE=true NODE_ENV=production next build",
     "deploy": "npm run build && firebase deploy",
-    "deploy:cf": "NODE_ENV=production opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "preview:cf": "NODE_ENV=production opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -91,7 +88,6 @@
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^14.2.3",
-    "@opennextjs/cloudflare": "^1.20.4",
     "@types/bcryptjs": "^2.4.6",
     "@types/file-saver": "^2.0.7",
     "@types/node": "^20",
@@ -104,8 +100,7 @@
     "genkit-cli": "^1.20.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5",
-    "wrangler": "^3.111.0"
+    "typescript": "^5"
   },
   "overrides": {
     "browserslist": "^4.23.0",

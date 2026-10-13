@@ -7,6 +7,7 @@ import type { DynamicWatermarkConfig } from '@/lib/watermark-types';
 import { DEFAULT_WATERMARK_CONFIG } from '@/lib/watermark-types';
 import { ShieldAlert, Lock, AlertTriangle, EyeOff, QrCode } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { usePathname } from 'next/navigation';
 
 interface DynamicWatermarkProps {
   studentId?: string;
@@ -27,15 +28,45 @@ export function DynamicWatermark({
   config: overrideConfig,
   previewStudent,
 }: DynamicWatermarkProps) {
+  const pathname = usePathname();
   const { user } = useUser();
   const effectiveStudentId = studentId || user?.uid;
   const { student } = useStudent(effectiveStudentId || '');
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  const isPublicRoute = !pathname || pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/teacher-signup') || pathname.startsWith('/student-signup') || pathname.startsWith('/signup-options') || pathname.startsWith('/admin') || pathname.startsWith('/terms') || pathname.startsWith('/privacy') || pathname.startsWith('/copyright');
+
+  const hasStudentSession = Boolean(
+    (user && !user.isAnonymous && user.uid) ||
+    studentId ||
+    previewStudent ||
+    (typeof window !== 'undefined' && localStorage.getItem('viewingStudentId'))
+  );
+
   // Security status states
   const [isTampered, setIsTampered] = useState(false);
   const [isDevToolsDetected, setIsDevToolsDetected] = useState(false);
+  const [fullscreenEl, setFullscreenEl] = useState<Element | null>(null);
+
+  // Fullscreen top-layer portal detection to force watermark on top of full-screen players
+  useEffect(() => {
+    const checkFs = () => {
+      if (typeof document !== 'undefined') {
+        const activeFs = document.fullscreenElement || (document as any).webkitFullscreenElement || (document as any).mozFullScreenElement;
+        setFullscreenEl(activeFs || null);
+      }
+    };
+    checkFs();
+    document.addEventListener('fullscreenchange', checkFs);
+    document.addEventListener('webkitfullscreenchange', checkFs);
+    document.addEventListener('mozfullscreenchange', checkFs);
+    return () => {
+      document.removeEventListener('fullscreenchange', checkFs);
+      document.removeEventListener('webkitfullscreenchange', checkFs);
+      document.removeEventListener('mozfullscreenchange', checkFs);
+    };
+  }, []);
 
   // Load teacher's saved config from localStorage / teacher profile
   const [teacherConfig, setTeacherConfig] = useState<DynamicWatermarkConfig>(DEFAULT_WATERMARK_CONFIG);
@@ -84,9 +115,9 @@ export function DynamicWatermark({
   }, [effectiveStudentId]);
 
   // Display fields - strictly fetched from the watching student's profile, NOT the teacher
-  const studentName = previewStudent?.name || student?.name || localCachedStudent?.name || 'طالب الأكاديمية';
-  const studentPhone = previewStudent?.phone || (student as any)?.phoneNumber || (student as any)?.phone || localCachedStudent?.phoneNumber || '01012345678';
-  const studentCode = previewStudent?.barcode || student?.barcodeId || localCachedStudent?.barcodeId || effectiveStudentId || 'STD-2026-88';
+  const studentName = previewStudent?.name || student?.name || localCachedStudent?.name || (user && !user.isAnonymous ? (user.displayName || user.email?.split('@')[0]) : '') || '';
+  const studentPhone = previewStudent?.phone || (student as any)?.phoneNumber || (student as any)?.phone || localCachedStudent?.phoneNumber || '';
+  const studentCode = previewStudent?.barcode || student?.barcodeId || localCachedStudent?.barcodeId || (user && !user.isAnonymous ? (user.email?.includes('@universe.student') ? user.email.split('@')[0] : user.uid.slice(0, 8).toUpperCase()) : '') || '';
 
   // University dynamically retrieved from student profile
   const studentUniversity = useMemo(() => {
@@ -436,53 +467,95 @@ export function DynamicWatermark({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Match canvas dimensions to container
-    const width = (canvas.width = canvas.parentElement?.clientWidth || 640);
-    const height = (canvas.height = canvas.parentElement?.clientHeight || 360);
+    const renderCanvasStamp = () => {
+      const parent = canvas.parentElement;
+      const width = parent?.clientWidth || 640;
+      const height = parent?.clientHeight || 360;
 
-    ctx.clearRect(0, 0, width, height);
+      // Hi-DPI crisp rendering
+      const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
 
-    // Draw light repeating diagonal security text
-    ctx.save();
-    ctx.rotate((-20 * Math.PI) / 180);
-    ctx.font = 'bold 11px monospace';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.07)';
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, width, height);
 
-    const uniStamp = cfg.showUniversity && studentUniversity ? ` • ${studentUniversity}` : '';
-    const stampText = `[SECURED] ${studentName} • ${studentCode} • ${studentPhone}${uniStamp}`;
-    const stepX = 260;
-    const stepY = 80;
+      // Setup font and style for watermark stamp: crisp, clean typography with zero blurring
+      ctx.font = 'bold 12px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
 
-    for (let x = -width; x < width * 2; x += stepX) {
-      for (let y = -height; y < height * 2; y += stepY) {
-        ctx.fillText(stampText, x, y);
+      const uniStamp = cfg.showUniversity && studentUniversity ? ` • ${studentUniversity}` : '';
+      const stampText = `[SECURED] ${studentName} • ${studentCode} • ${studentPhone}${uniStamp}`;
+
+      // Dynamically measure exact text width so words NEVER overlap or collide
+      const textMetrics = ctx.measureText(stampText);
+      const textWidth = Math.ceil(textMetrics.width);
+
+      // Clean, generous spacing: wide horizontal and vertical gaps guarantee no overlapping or mushy text
+      const stepX = Math.max(textWidth + 180, 420);
+      const stepY = 190;
+
+      // Rotate canvas diagonally
+      ctx.translate(width / 2, height / 2);
+      ctx.rotate((-20 * Math.PI) / 180);
+      ctx.translate(-width / 2, -height / 2);
+
+      const boundExtent = Math.max(width, height) * 2;
+      let rowIndex = 0;
+
+      for (let y = -boundExtent; y < boundExtent * 2; y += stepY) {
+        // Stagger every other row for an aesthetic, non-colliding diamond pattern
+        const rowOffset = (rowIndex % 2 === 0) ? 0 : stepX / 2;
+        for (let x = -boundExtent; x < boundExtent * 2; x += stepX) {
+          ctx.fillText(stampText, x + rowOffset, y);
+        }
+        rowIndex++;
       }
+
+      ctx.restore();
+    };
+
+    renderCanvasStamp();
+
+    // Re-render on container resize & fullscreen changes
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && canvas.parentElement) {
+      resizeObserver = new ResizeObserver(() => {
+        renderCanvasStamp();
+      });
+      resizeObserver.observe(canvas.parentElement);
     }
-    ctx.restore();
-  }, [studentName, studentCode, studentPhone, studentUniversity, cfg.showUniversity]);
 
-  // Fullscreen top-layer portal detection to force watermark on top of full-screen players
-  const [fullscreenEl, setFullscreenEl] = useState<Element | null>(null);
+    const handleWindowResize = () => renderCanvasStamp();
+    window.addEventListener('resize', handleWindowResize);
+    document.addEventListener('fullscreenchange', handleWindowResize);
+    document.addEventListener('webkitfullscreenchange', handleWindowResize);
 
-  useEffect(() => {
-    const checkFs = () => {
-      if (typeof document !== 'undefined') {
-        const activeFs = document.fullscreenElement || (document as any).webkitFullscreenElement || (document as any).mozFullScreenElement;
-        setFullscreenEl(activeFs || null);
-      }
-    };
-    checkFs();
-    document.addEventListener('fullscreenchange', checkFs);
-    document.addEventListener('webkitfullscreenchange', checkFs);
-    document.addEventListener('mozfullscreenchange', checkFs);
     return () => {
-      document.removeEventListener('fullscreenchange', checkFs);
-      document.removeEventListener('webkitfullscreenchange', checkFs);
-      document.removeEventListener('mozfullscreenchange', checkFs);
+      window.removeEventListener('resize', handleWindowResize);
+      document.removeEventListener('fullscreenchange', handleWindowResize);
+      document.removeEventListener('webkitfullscreenchange', handleWindowResize);
+      if (resizeObserver) resizeObserver.disconnect();
     };
-  }, []);
+  }, [studentName, studentCode, studentPhone, studentUniversity, cfg.showUniversity, fullscreenEl]);
 
-  if (!cfg.enabled) return null;
+  const isVideoOrCourseView = Boolean(
+    previewStudent ||
+    pathname?.includes('/courses/') ||
+    pathname?.includes('/watch') ||
+    pathname?.includes('/lesson') ||
+    fullscreenEl
+  );
+
+  // Strictly block rendering if unauthenticated, on public pages, or without valid student data
+  if (!cfg.enabled || isPublicRoute || !hasStudentSession || (!previewStudent && !studentCode)) return null;
 
   // Compute Coordinates / Classes based on movement type
   let positionStyle: React.CSSProperties = {};
@@ -555,31 +628,33 @@ export function DynamicWatermark({
 
   const watermarkNodes = (
     <>
-      {/* 1. HTML5 Canvas Security Stamp (Raster layer rendered directly on screen) */}
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0 pointer-events-none select-none z-20 w-full h-full"
-        style={{ pointerEvents: 'none', userSelect: 'none' }}
-      />
+      {/* 1. HTML5 Canvas Security Stamp (Raster layer rendered directly on screen) - Only in video/course view */}
+      {isVideoOrCourseView && (
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 pointer-events-none select-none z-20 w-full h-full"
+          style={{ pointerEvents: 'none', userSelect: 'none' }}
+        />
+      )}
 
       {/* 2. Primary Dynamic Watermark Badge */}
       <div
         ref={containerRef}
-        id="dynamic-watermark-protected-badge"
-        className="pointer-events-none select-none z-40 transition-opacity duration-300"
-        onContextMenu={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        style={{
-          ...positionStyle,
-          opacity: currentOpacity,
-          transform: `${positionStyle.transform || ''} scale(${cfg.scale || 1.0})`,
-          transformOrigin: 'center center',
-          userSelect: 'none',
-          WebkitUserSelect: 'none',
-        }}
-      >
+          id="dynamic-watermark-protected-badge"
+          className="pointer-events-none select-none z-40 transition-opacity duration-300"
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          style={{
+            ...positionStyle,
+            opacity: currentOpacity,
+            transform: `${positionStyle.transform || ''} scale(${cfg.scale || 1.0})`,
+            transformOrigin: 'center center',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+          }}
+        >
         <div
           className="px-3.5 py-2 rounded-2xl backdrop-blur-xs font-mono font-bold uppercase tracking-wider text-right shadow-2xl flex flex-col gap-1"
           style={{
@@ -628,7 +703,7 @@ export function DynamicWatermark({
           )}
         </div>
 
-        <style jsx>{`
+        <style dangerouslySetInnerHTML={{ __html: `
           @keyframes dynamicWatermarkFloat {
             0%, 100% {
               transform: translateY(0px) scale(0.96);
@@ -637,21 +712,21 @@ export function DynamicWatermark({
               transform: translateY(-20px) scale(1.06);
             }
           }
-        `}</style>
+        `}} />
       </div>
 
       {/* High-Res QR Code Pass Stamp Overlay (Baked into Media Overlay) */}
-      {(cfg.showQrStamp ?? true) && (
+      {(cfg.showQrStamp ?? true) && studentCode && (
         <div 
           className={`absolute z-30 pointer-events-none select-none p-2.5 rounded-2xl bg-black/85 border border-emerald-500/40 backdrop-blur-md shadow-2xl flex items-center gap-3 animate-in fade-in duration-300 ${
-            cfg.qrPosition === 'bottom-left' ? 'bottom-4 left-4' :
             cfg.qrPosition === 'top-right' ? 'top-4 right-4' :
-            cfg.qrPosition === 'top-left' ? 'top-4 left-4' : 'bottom-4 right-4'
+            cfg.qrPosition === 'top-left' ? 'top-4 left-4' :
+            cfg.qrPosition === 'bottom-right' ? 'bottom-4 right-4' : 'bottom-4 left-4'
           }`}
           style={{ opacity: cfg.opacity ? Math.max(0.65, cfg.opacity) : 0.85 }}
         >
           <div className="bg-white p-1 rounded-xl shadow-inner">
-            <QRCodeSVG value={studentCode || 'MOL5SATY-SECURE-PASS'} size={cfg.qrSize || 44} level="H" />
+            <QRCodeSVG value={studentCode} size={cfg.qrSize || 44} level="H" />
           </div>
           <div className="text-right font-mono leading-tight">
             <div className="text-[9px] text-emerald-400 font-extrabold tracking-wider uppercase flex items-center justify-end gap-1">
@@ -710,9 +785,15 @@ export function DynamicWatermark({
 
   // If a top-level fullscreen element is active (e.g. video player went full screen), portal directly into it
   if (fullscreenEl && typeof document !== 'undefined') {
-    const targetNode = fullscreenEl.tagName === 'IFRAME' && fullscreenEl.parentElement 
+    const targetNode = (fullscreenEl.tagName === 'IFRAME' || fullscreenEl.tagName === 'VIDEO') && fullscreenEl.parentElement 
       ? fullscreenEl.parentElement 
       : fullscreenEl;
+
+    // If the targetNode already contains our containerRef, we are already naturally rendered inside the fullscreen container
+    if (containerRef.current && targetNode.contains(containerRef.current)) {
+      return watermarkNodes;
+    }
+
     return createPortal(
       <div className="absolute inset-0 z-[2147483647] pointer-events-none w-full h-full overflow-hidden">
         {watermarkNodes}

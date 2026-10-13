@@ -63,7 +63,7 @@ export function parseVideoSource(rawUrl: string, customLibraryId?: string): Pars
   if (isBunnyUuid || isBunnyPrefix) {
     const videoId = isBunnyPrefix ? trimmed.replace('bunny:', '').trim() : trimmed;
     const libId = defaultLibId;
-    const embedUrl = `https://iframe.mediadelivery.net/embed/${libId}/${videoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`;
+    const embedUrl = `https://iframe.mediadelivery.net/embed/${libId}/${videoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true&showFullscreen=false`;
     return {
       provider: 'bunny',
       videoId,

@@ -1,6 +1,3 @@
-import { defineCloudflareConfig } from "@opennextjs/cloudflare";
-
-export default defineCloudflareConfig({
-  incrementalCache: "dummy",
-});
+// Cloudflare OpenNext config removed per request
+export default {};
 

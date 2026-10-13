@@ -138,7 +138,7 @@ function getVideoEmbedUrl(url: string): string | null {
             const videoId = urlObj.hostname === 'youtu.be'
                 ? urlObj.pathname.slice(1)
                 : urlObj.searchParams.get('v');
-            if (videoId) return `https://www.youtube-nocookie.com/embed/${videoId}`;
+            if (videoId) return `https://www.youtube-nocookie.com/embed/${videoId}?fs=0&modestbranding=1&rel=0&iv_load_policy=3&controls=1`;
         }
         if (urlObj.hostname.includes('drive.google.com')) {
             const match = url.match(/file\/d\/([^/]+)/);
@@ -436,14 +436,35 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
         const handleFsChange = () => {
             if (typeof document !== 'undefined') {
                 const activeFs = document.fullscreenElement || (document as any).webkitFullscreenElement;
+                if (activeFs && activeFs.tagName === 'IFRAME' && playerContainerRef.current) {
+                    // An iframe bypassed container fullscreen! Transfer to container fullscreen immediately
+                    try {
+                        const exitPromise = document.exitFullscreen ? document.exitFullscreen() : Promise.resolve();
+                        exitPromise.then(() => {
+                            playerContainerRef.current?.requestFullscreen().catch(() => {});
+                        }).catch(() => {});
+                    } catch {}
+                }
                 setIsPlayerFullscreen(!!activeFs);
             }
         };
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey) {
+                const target = e.target as HTMLElement;
+                if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
+                togglePlayerFullscreen();
+            }
+        };
+
         document.addEventListener('fullscreenchange', handleFsChange);
         document.addEventListener('webkitfullscreenchange', handleFsChange);
+        window.addEventListener('keydown', handleKeyDown);
+
         return () => {
             document.removeEventListener('fullscreenchange', handleFsChange);
             document.removeEventListener('webkitfullscreenchange', handleFsChange);
+            window.removeEventListener('keydown', handleKeyDown);
         };
     }, []);
 
@@ -904,12 +925,17 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                             </div>
                             <div 
                                 ref={playerContainerRef}
-                                className="relative w-full aspect-video bg-black flex-shrink-0 overflow-hidden select-none protected-media no-capture group"
+                                className={cn(
+                                    "relative w-full aspect-video bg-black flex-shrink-0 overflow-hidden select-none protected-media no-capture group",
+                                    isPlayerFullscreen && "fixed inset-0 z-[2147483646] w-screen h-screen aspect-auto"
+                                )}
                                 onContextMenu={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     return false;
                                 }}
+                                onDragStart={(e) => e.preventDefault()}
+                                style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
                             >
                                 {embedUrl ? (
                                     <>
@@ -922,7 +948,6 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                             frameBorder="0"
                                             referrerPolicy="strict-origin-when-cross-origin"
                                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                            allowFullScreen
                                         ></iframe>
 
                                         {/* High-Visibility Protected Fullscreen Toggle Button */}
