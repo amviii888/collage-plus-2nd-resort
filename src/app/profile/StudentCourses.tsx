@@ -6,7 +6,7 @@ import { collection, query, where, getDocs, doc, collectionGroup, limit, getDoc 
 import type { Course, Teacher, CourseAccess, WatchHistory, CourseRequest } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CourseCard } from '@/components/CourseCard';
-import { Sparkles, Clock, CheckCircle, Hourglass, Layers, BookOpen, AlertCircle, ArrowRight } from 'lucide-react';
+import { Sparkles, Clock, CheckCircle, Hourglass, Layers, BookOpen, AlertCircle, ArrowRight, Library } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

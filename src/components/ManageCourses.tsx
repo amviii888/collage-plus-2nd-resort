@@ -31,7 +31,6 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import type { Course, Teacher, Grade, Unit, Video, Test } from '@/lib/types';
 import { grades as defaultCollegeGrades } from '@/lib/data';
-import { subjects as defaultSubjects } from '@/lib/subjects';
 import {
   PlusCircle,
   Edit,
@@ -65,7 +64,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { uploadImageToCloudinary, uploadFileToCloudinary } from '@/lib/cloudinary';
+import { uploadImageToCloudinary, uploadFileToCloudinary, uploadMultiplePagesToCloudinary } from '@/lib/cloudinary';
 import { isBunnyStreamUrl } from '@/lib/bunnyStream';
 import { BunnyVideoUploader } from '@/components/BunnyVideoUploader';
 
@@ -97,6 +96,9 @@ const unitSchema = z.object({
   id: z.string(),
   title: z.string().min(1, 'Unit title is required'),
   videos: z.array(videoSchema).min(1, 'Each unit must have at least one video/lesson.'),
+  attachmentUrl: z.string().optional().or(z.literal('')),
+  attachmentPages: z.array(z.string()).optional(),
+  attachmentType: z.enum(['images', 'pdf', 'link']).optional(),
 });
 
 const courseSchema = z.object({
@@ -104,10 +106,12 @@ const courseSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   units: z.array(unitSchema).min(1, 'Course must have at least one unit.'),
   thumbnailUrl: z.string().min(1, 'Thumbnail image is required'),
-  attachmentUrl: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+  attachmentUrl: z.string().optional().or(z.literal('')),
+  attachmentPages: z.array(z.string()).optional(),
+  attachmentType: z.enum(['images', 'pdf', 'link']).optional(),
   videoNote: z.string().max(1000, 'Note must be 1000 characters or less.').optional(),
   grades: z.array(z.string()).min(1, 'At least one academic year/grade must be selected'),
-  subjects: z.array(z.string()).min(1, 'At least one subject must be selected'),
+  subjects: z.array(z.string()).min(1, 'Please select or add at least one subject / module'),
   locked: z.boolean(),
   lockMode: z.enum(['requests_only', 'codes_only', 'both']).default('both').optional(),
   price: z.coerce.number().min(0).optional(),
@@ -277,18 +281,239 @@ function NestedVideoArray({ unitIndex, control, register, errors, watch, setValu
   );
 }
 
+function UnitMaterialsUploader({
+  unitIndex,
+  watch,
+  setValue,
+}: {
+  unitIndex: number;
+  watch: any;
+  setValue: any;
+}) {
+  const { toast } = useToast();
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+
+  const unitAttachmentPages: string[] = watch(`units.${unitIndex}.attachmentPages`) || [];
+  const unitAttachmentUrl: string = watch(`units.${unitIndex}.attachmentUrl`) || '';
+
+  const handleUploadUnitImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setIsUploading(true);
+    setUploadProgress(0);
+    try {
+      const fileList = Array.from(files);
+      const newUrls = await uploadMultiplePagesToCloudinary(
+        fileList,
+        `courses/units/unit_${unitIndex}_materials`,
+        (_completed, _total, pct) => {
+          setUploadProgress(pct);
+        }
+      );
+      const updated = [...unitAttachmentPages, ...newUrls];
+      setValue(`units.${unitIndex}.attachmentPages`, updated, { shouldDirty: true });
+      if (!unitAttachmentUrl && newUrls[0]) {
+        setValue(`units.${unitIndex}.attachmentUrl`, newUrls[0], { shouldDirty: true });
+      }
+      setValue(`units.${unitIndex}.attachmentType`, 'images', { shouldDirty: true });
+      toast({
+        title: '✅ تم رفع سلايدات الوحدة بنجاح',
+        description: `تم إضافة ${newUrls.length} صفحة/سلايد مشفرة داخل الوحدة.`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'فشل رفع الصور',
+        description: err?.message || 'حدث خطأ أثناء رفع الصور.',
+      });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      if (imageInputRef.current) imageInputRef.current.value = '';
+    }
+  };
+
+  const handleUploadUnitPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    setUploadProgress(0);
+    try {
+      const url = await uploadFileToCloudinary(
+        file,
+        `courses/units/unit_${unitIndex}_pdf`,
+        (p) => setUploadProgress(p)
+      );
+      setValue(`units.${unitIndex}.attachmentUrl`, url, { shouldDirty: true });
+      setValue(`units.${unitIndex}.attachmentType`, 'pdf', { shouldDirty: true });
+      toast({
+        title: '✅ تم رفع ملف PDF للوحدة بنجاح',
+        description: 'تم تأمين وتشفير الملف داخل قارئ التطبيق المحمي.',
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'فشل الرفع',
+        description: err?.message || 'تعذر رفع الملف.',
+      });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      if (pdfInputRef.current) pdfInputRef.current.value = '';
+    }
+  };
+
+  const removePage = (pageIdx: number) => {
+    const updated = unitAttachmentPages.filter((_, idx) => idx !== pageIdx);
+    setValue(`units.${unitIndex}.attachmentPages`, updated, { shouldDirty: true });
+    if (updated.length === 0 && unitAttachmentUrl === unitAttachmentPages[pageIdx]) {
+      setValue(`units.${unitIndex}.attachmentUrl`, '', { shouldDirty: true });
+    }
+  };
+
+  const removePdf = () => {
+    setValue(`units.${unitIndex}.attachmentUrl`, '', { shouldDirty: true });
+    if (unitAttachmentPages.length === 0) {
+      setValue(`units.${unitIndex}.attachmentType`, undefined, { shouldDirty: true });
+    }
+  };
+
+  return (
+    <div className="mt-3 p-3.5 rounded-2xl bg-zinc-950/40 dark:bg-zinc-950/60 border border-emerald-500/30 space-y-2.5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-emerald-400" />
+          <span className="text-xs font-bold text-slate-900 dark:text-white">
+            مذكرات وسلايدات هذه الوحدة المحمية (Unit DRM Materials)
+          </span>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            مشفر داخل القارئ 🔒
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="file"
+            ref={imageInputRef}
+            multiple
+            accept="image/*"
+            className="hidden"
+            onChange={handleUploadUnitImages}
+          />
+          <input
+            type="file"
+            ref={pdfInputRef}
+            accept="application/pdf"
+            className="hidden"
+            onChange={handleUploadUnitPdf}
+          />
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={isUploading}
+            onClick={() => imageInputRef.current?.click()}
+            className="h-8 px-2.5 rounded-xl border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-bold text-[11px] gap-1 cursor-pointer"
+          >
+            <Upload className="w-3.5 h-3.5 text-purple-500" />
+            <span>{isUploading ? 'جاري الرفع...' : 'رفع صور / سلايدات للوحدة'}</span>
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={isUploading}
+            onClick={() => pdfInputRef.current?.click()}
+            className="h-8 px-2.5 rounded-xl border-blue-500/40 bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold text-[11px] gap-1 cursor-pointer"
+          >
+            <FileText className="w-3.5 h-3.5 text-blue-500" />
+            <span>رفع PDF للوحدة</span>
+          </Button>
+        </div>
+      </div>
+
+      {isUploading && (
+        <div className="p-2 rounded-xl bg-emerald-950/30 border border-emerald-500/20 text-xs text-emerald-300 flex items-center justify-between">
+          <span>جاري معالجة وتشفير ملفات الوحدة وسلايداتها...</span>
+          <span className="font-mono">{uploadProgress}%</span>
+        </div>
+      )}
+
+      {/* PDF Attached Banner */}
+      {unitAttachmentUrl && (
+        <div className="flex items-center justify-between p-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs">
+          <div className="flex items-center gap-2 text-blue-300 truncate">
+            <FileText className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            <span className="truncate font-mono text-[11px]">{unitAttachmentUrl}</span>
+          </div>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={removePdf}
+            className="h-6 w-6 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 shrink-0"
+            title="حذف ملف الـ PDF"
+          >
+            <Trash2 className="w-3 h-3" />
+          </Button>
+        </div>
+      )}
+
+      {/* Uploaded Page Images Preview */}
+      {unitAttachmentPages.length > 0 && (
+        <div className="space-y-1.5 pt-1">
+          <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-zinc-300">
+            <span>سلايدات الوحدة المرفوعة ({unitAttachmentPages.length} صفحة):</span>
+            <button
+              type="button"
+              onClick={() => setValue(`units.${unitIndex}.attachmentPages`, [], { shouldDirty: true })}
+              className="text-rose-500 hover:text-rose-600 text-[10px] underline cursor-pointer"
+            >
+              مسح الكل
+            </button>
+          </div>
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 max-h-32 overflow-y-auto p-1.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800">
+            {unitAttachmentPages.map((url, pIdx) => (
+              <div key={pIdx} className="relative group aspect-[3/4] rounded-lg overflow-hidden border border-slate-200 dark:border-zinc-700 bg-slate-100 dark:bg-zinc-950">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt={`Slide ${pIdx + 1}`} className="w-full h-full object-cover" />
+                <span className="absolute bottom-0 inset-x-0 bg-black/70 text-white text-[9px] text-center font-mono">
+                  #{pIdx + 1}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removePage(pIdx)}
+                  className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CourseForm({
   onFinished,
   teacherId,
   courseToEdit,
   teacher,
   tests,
+  existingCourses = [],
 }: {
   onFinished: () => void;
   teacherId: string;
   courseToEdit?: Course;
   teacher: Teacher;
   tests: Test[];
+  existingCourses?: Course[];
 }) {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -296,9 +521,19 @@ function CourseForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'audience' | 'content' | 'access'>('info');
 
-  // Custom subjects and grades state
+  // Custom subjects and grades state - NO generic default suggestions, only recent ones made by teacher
   const [allSubjects, setAllSubjects] = useState<string[]>(() => {
-    const combined = Array.from(new Set([...defaultSubjects, ...(courseToEdit?.subjects || [])]));
+    let recent: string[] = [];
+    if (typeof window !== 'undefined') {
+      try {
+        recent = JSON.parse(localStorage.getItem('teacher_recent_subjects') || '[]');
+      } catch (e) {}
+    }
+    const fromCourses = existingCourses?.flatMap((c: any) => c.subjects || []) || [];
+    const fromEdit = courseToEdit?.subjects || [];
+    const combined = Array.from(new Set([...recent, ...fromCourses, ...fromEdit]))
+      .map(s => String(s || '').trim())
+      .filter(Boolean);
     return combined;
   });
   const [newSubjectInput, setNewSubjectInput] = useState('');
@@ -355,7 +590,7 @@ function CourseForm({
         attachmentUrl: '',
         videoNote: '',
         grades: ['Year 1 (First Year)'],
-        subjects: ['Computer Science'],
+        subjects: [],
         locked: false,
         lockMode: 'both',
         price: 0,
@@ -493,13 +728,34 @@ function CourseForm({
     const trimmed = newSubjectInput.trim();
     if (!trimmed) return;
     if (!allSubjects.includes(trimmed)) {
-      setAllSubjects((prev) => [...prev, trimmed]);
+      setAllSubjects((prev) => {
+        const next = [...prev, trimmed];
+        try {
+          localStorage.setItem('teacher_recent_subjects', JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
     }
     const currentSelected = form.getValues('subjects') || [];
     if (!currentSelected.includes(trimmed)) {
-      setValue('subjects', [...currentSelected, trimmed]);
+      setValue('subjects', [...currentSelected, trimmed], { shouldValidate: true, shouldDirty: true });
     }
     setNewSubjectInput('');
+  };
+
+  const handleRemoveRecentSubject = (subjectToRemove: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAllSubjects((prev) => {
+      const next = prev.filter((s) => s !== subjectToRemove);
+      try {
+        localStorage.setItem('teacher_recent_subjects', JSON.stringify(next));
+      } catch (err) {}
+      return next;
+    });
+    const currentSelected = form.getValues('subjects') || [];
+    if (currentSelected.includes(subjectToRemove)) {
+      setValue('subjects', currentSelected.filter(s => s !== subjectToRemove), { shouldValidate: true, shouldDirty: true });
+    }
   };
 
   const handleAddCustomGrade = () => {
@@ -607,11 +863,20 @@ function CourseForm({
             title: v.title || '',
             url: v.url || '',
           })),
+          attachmentUrl: u.attachmentUrl || undefined,
+          attachmentPages: Array.isArray(u.attachmentPages) ? u.attachmentPages : undefined,
+          attachmentType: u.attachmentType || undefined,
         })),
         teacherId,
         teacherName: teacher?.name || '',
         teacherProfilePictureUrl: teacher?.profilePictureUrl || null,
       };
+
+      try {
+        const curRecent: string[] = JSON.parse(localStorage.getItem('teacher_recent_subjects') || '[]');
+        const updatedRecent = Array.from(new Set([...curRecent, ...(rawCourseData.subjects || [])])).filter(Boolean);
+        localStorage.setItem('teacher_recent_subjects', JSON.stringify(updatedRecent));
+      } catch (e) {}
 
       if (
         data.testId &&
@@ -1158,10 +1423,10 @@ function CourseForm({
                 <div>
                   <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     <BookOpen className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-                    Applicable Subjects & Modules <span className="text-emerald-500 dark:text-emerald-400">*</span>
+                    المواد والأقسام (Subjects & Modules) <span className="text-emerald-500 dark:text-emerald-400">*</span>
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                    Select academic subjects or add custom departmental modules.
+                    أضف مادتك الخاصة أو اختر من المواد التي قمت بإنشائها مسبقاً (بدون مواد عامة مقترحة).
                   </p>
                 </div>
 
@@ -1175,16 +1440,16 @@ function CourseForm({
                         handleAddCustomSubject();
                       }
                     }}
-                    placeholder="Add custom subject/module..."
-                    className="h-8 text-xs bg-white dark:bg-zinc-950 border-slate-300 dark:border-zinc-700 w-48 text-slate-900 dark:text-white"
+                    placeholder="اكتب اسم المادة (مثال: فيزياء حيوية)..."
+                    className="h-9 text-xs bg-white dark:bg-zinc-950 border-slate-300 dark:border-zinc-700 w-56 text-slate-900 dark:text-white"
                   />
                   <Button
                     type="button"
                     size="sm"
                     onClick={handleAddCustomSubject}
-                    className="h-8 px-3 bg-emerald-500 hover:bg-emerald-600 text-black text-xs font-semibold"
+                    className="h-9 px-3 bg-emerald-500 hover:bg-emerald-600 text-black text-xs font-bold"
                   >
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Add
+                    <Plus className="w-3.5 h-3.5 mr-1" /> إضافة مادة
                   </Button>
                 </div>
               </div>
@@ -1193,34 +1458,65 @@ function CourseForm({
                 name="subjects"
                 control={control}
                 render={({ field }) => (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-56 overflow-y-auto pr-1">
-                    {allSubjects.map((subject) => {
-                      const isChecked = field.value?.includes(subject);
-                      return (
-                        <div
-                          key={subject}
-                          onClick={() => {
-                            if (isChecked) {
-                              field.onChange(field.value?.filter((s) => s !== subject));
-                            } else {
-                              field.onChange([...(field.value || []), subject]);
-                            }
-                          }}
-                          className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
-                            isChecked
-                              ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-700 dark:text-emerald-300 font-semibold'
-                              : 'bg-white dark:bg-zinc-950/60 border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-zinc-700 hover:text-slate-900 dark:hover:text-zinc-200'
-                          }`}
-                        >
-                          <div className={`h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors ${
-                            isChecked ? 'bg-emerald-500 border-emerald-500 text-white dark:text-black' : 'border-slate-300 dark:border-zinc-600 bg-slate-50 dark:bg-zinc-900'
-                          }`}>
-                            {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
-                          </div>
-                          <span className="truncate">{subject}</span>
+                  <div>
+                    {allSubjects.length === 0 ? (
+                      <div className="p-6 rounded-2xl border border-dashed border-slate-300 dark:border-zinc-800 text-center bg-white/50 dark:bg-zinc-950/40 space-y-1">
+                        <BookOpen className="w-6 h-6 mx-auto text-slate-400 dark:text-zinc-500 opacity-60 mb-1" />
+                        <p className="text-xs font-bold text-slate-700 dark:text-zinc-300">
+                          لا توجد مواد مقترحة مسبقاً.
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                          اكتب اسم مادتك في الخانة أعلاه واضغط (إضافة مادة) لإنشائها وتحديدها فوراً وحفظها للكورسات القادمة.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-slate-600 dark:text-zinc-400">
+                            المواد التي قمت بإنشائها مسبقاً ({allSubjects.length}):
+                          </span>
                         </div>
-                      );
-                    })}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 max-h-56 overflow-y-auto pr-1">
+                          {allSubjects.map((subject) => {
+                            const isChecked = field.value?.includes(subject);
+                            return (
+                              <div
+                                key={subject}
+                                onClick={() => {
+                                  if (isChecked) {
+                                    field.onChange(field.value?.filter((s) => s !== subject));
+                                  } else {
+                                    field.onChange([...(field.value || []), subject]);
+                                  }
+                                }}
+                                className={`group relative flex items-center justify-between gap-2 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                                  isChecked
+                                    ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-700 dark:text-emerald-300 font-semibold shadow-xs'
+                                    : 'bg-white dark:bg-zinc-950/60 border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-zinc-700 hover:text-slate-900 dark:hover:text-zinc-200'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 truncate">
+                                  <div className={`h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors ${
+                                    isChecked ? 'bg-emerald-500 border-emerald-500 text-white dark:text-black' : 'border-slate-300 dark:border-zinc-600 bg-slate-50 dark:bg-zinc-900'
+                                  }`}>
+                                    {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                                  </div>
+                                  <span className="truncate">{subject}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleRemoveRecentSubject(subject, e)}
+                                  className="opacity-0 group-hover:opacity-100 hover:text-rose-500 text-slate-400 p-0.5 rounded transition-opacity"
+                                  title="حذف من المواد المقترحة مؤخراً"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               />
@@ -1299,6 +1595,12 @@ function CourseForm({
                       control={control}
                       register={register}
                       errors={errors}
+                      watch={watch}
+                      setValue={setValue}
+                    />
+
+                    <UnitMaterialsUploader
+                      unitIndex={unitIndex}
                       watch={watch}
                       setValue={setValue}
                     />
@@ -1866,6 +2168,7 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
               teacher={teacher}
               courseToEdit={courseToEdit}
               tests={tests || []}
+              existingCourses={courses || []}
             />
           </div>
         </DialogContent>

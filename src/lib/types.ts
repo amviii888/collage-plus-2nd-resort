@@ -18,6 +18,9 @@ export type Unit = {
   id: string;
   title: string;
   videos: Video[];
+  attachmentUrl?: string;
+  attachmentPages?: string[];
+  attachmentType?: 'images' | 'pdf' | 'link';
 };
 
 export type Teacher = {
@@ -156,6 +159,7 @@ export type CollectionCustomItem = {
     videoUrl?: string;
     fileTitle?: string;
     fileUrl?: string;
+    pages?: string[];
 };
 
 export type CourseCollection = {

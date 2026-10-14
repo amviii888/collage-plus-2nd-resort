@@ -162,7 +162,8 @@ const CourseContentList = ({
     isCourseLocked,
     hasFullAccess,
     unlockedUnitIds,
-    onUnlockUnit
+    onUnlockUnit,
+    onOpenUnitMaterials
 }: { 
     units: Unit[], 
     currentVideoId: string | null, 
@@ -173,7 +174,8 @@ const CourseContentList = ({
     isCourseLocked: boolean,
     hasFullAccess: boolean,
     unlockedUnitIds: Set<string>,
-    onUnlockUnit: (unitId: string) => void
+    onUnlockUnit: (unitId: string) => void,
+    onOpenUnitMaterials?: (unit: Unit) => void
 }) => {
     const { t } = useTranslation();
 
@@ -230,6 +232,26 @@ const CourseContentList = ({
                                             className="h-8 bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs rounded-xl w-full"
                                         >
                                             <Lock className="w-3.5 h-3.5 mr-1.5" /> Unlock Unit
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {Boolean((unit.attachmentPages && unit.attachmentPages.length > 0) || unit.attachmentUrl) && isUnitUnlocked && (
+                                    <div className="mb-2.5 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25">
+                                        <Button 
+                                            type="button" 
+                                            size="sm" 
+                                            variant="outline"
+                                            onClick={() => onOpenUnitMaterials?.(unit)}
+                                            className="w-full h-8 text-xs font-bold gap-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl cursor-pointer"
+                                        >
+                                            <BookOpen className="w-3.5 h-3.5 text-emerald-500" />
+                                            <span className="truncate">عرض مذكرات وسلايدات {unit.title}</span>
+                                            {unit.attachmentPages && unit.attachmentPages.length > 0 && (
+                                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 shrink-0">
+                                                    {unit.attachmentPages.length} صفحة
+                                                </span>
+                                            )}
                                         </Button>
                                     </div>
                                 )}
