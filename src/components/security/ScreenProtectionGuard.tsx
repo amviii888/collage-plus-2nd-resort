@@ -301,17 +301,22 @@ export function ScreenProtectionGuard() {
     const isUserEditingOrInteracting = () => {
       if (typeof document === 'undefined') return false;
       const active = document.activeElement;
-      if (!active) return false;
-      // Allow seamless typing on iPhone/iOS password fields, inputs, textareas, and select elements
-      const tagName = active.tagName ? active.tagName.toUpperCase() : '';
-      if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT' || (active as HTMLElement).isContentEditable) {
+      if (active) {
+        const tagName = active.tagName ? active.tagName.toUpperCase() : '';
+        if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT' || (active as HTMLElement).isContentEditable) {
+          return true;
+        }
+        if (tagName === 'IFRAME' || (active.closest && active.closest('.protected-media'))) {
+          return true;
+        }
+      }
+      // Also check if any input or password field in document is currently focused
+      const focusedInput = document.querySelector('input:focus, textarea:focus, select:focus, [contenteditable="true"]:focus');
+      if (focusedInput) {
         return true;
       }
-      if (tagName === 'IFRAME' || (active.closest && active.closest('.protected-media'))) {
-        return true;
-      }
-      // Also check if mouse cursor/touch is currently over protected media or active input container
-      const hoveredPlayer = document.querySelector('.protected-media:hover, iframe:hover, #player-container:hover, input:focus, textarea:focus');
+      // Also check if cursor/touch is over protected media
+      const hoveredPlayer = document.querySelector('.protected-media:hover, iframe:hover, #player-container:hover');
       if (hoveredPlayer) {
         return true;
       }
@@ -427,27 +432,10 @@ export function ScreenProtectionGuard() {
       }
     };
 
-    // 11. iOS Screenshot Flash & Control Center Viewport Interception
-    const handleViewportResizeOrRotate = () => {
-      // On iOS Web / PWA, taking a screenshot or pulling down Control Center momentarily changes window.innerHeight / window.visualViewport
-      if (typeof window !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent || '')) {
-        if (!isUserEditingOrInteracting()) {
-          applyInstantBlackout();
-          setIsBlackedOut(true);
-          showSecurityWarning('⛔ تم رصد محاولة التقاط الشاشة على آيفون. المحتوى محمي.', 5000);
-        }
-      }
-    };
-
     window.addEventListener('keydown', handleKeyDown, { capture: true, passive: false });
     window.addEventListener('keyup', handleKeyUp, { capture: true, passive: false });
     window.addEventListener('blur', handleWindowBlur, { passive: true });
     window.addEventListener('focus', handleWindowFocus, { passive: true });
-    window.addEventListener('resize', handleViewportResizeOrRotate, { passive: true });
-    window.addEventListener('orientationchange', handleViewportResizeOrRotate, { passive: true });
-    if (typeof window !== 'undefined' && window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleViewportResizeOrRotate, { passive: true });
-    }
     document.addEventListener('mouseleave', handleMouseLeave);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('contextmenu', handleContextMenu);
@@ -464,11 +452,6 @@ export function ScreenProtectionGuard() {
       window.removeEventListener('keyup', handleKeyUp, { capture: true });
       window.removeEventListener('blur', handleWindowBlur);
       window.removeEventListener('focus', handleWindowFocus);
-      window.removeEventListener('resize', handleViewportResizeOrRotate);
-      window.removeEventListener('orientationchange', handleViewportResizeOrRotate);
-      if (typeof window !== 'undefined' && window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleViewportResizeOrRotate);
-      }
       document.removeEventListener('mouseleave', handleMouseLeave);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('contextmenu', handleContextMenu);
