@@ -282,14 +282,20 @@ export function ScreenProtectionGuard() {
     } catch {}
 
     // 7. Window Blur & Visibility (Snipping Tool & Background Screenshot Interception)
-    const isPlayerOrIframeFocused = () => {
+    const isUserEditingOrInteracting = () => {
       if (typeof document === 'undefined') return false;
       const active = document.activeElement;
-      if (active && (active.tagName === 'IFRAME' || (active.closest && active.closest('.protected-media')))) {
+      if (!active) return false;
+      // Allow seamless typing on iPhone/iOS password fields, inputs, textareas, and select elements
+      const tagName = active.tagName ? active.tagName.toUpperCase() : '';
+      if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT' || (active as HTMLElement).isContentEditable) {
         return true;
       }
-      // Also check if mouse cursor is currently over protected media / player area
-      const hoveredPlayer = document.querySelector('.protected-media:hover, iframe:hover, #player-container:hover');
+      if (tagName === 'IFRAME' || (active.closest && active.closest('.protected-media'))) {
+        return true;
+      }
+      // Also check if mouse cursor/touch is currently over protected media or active input container
+      const hoveredPlayer = document.querySelector('.protected-media:hover, iframe:hover, #player-container:hover, input:focus, textarea:focus');
       if (hoveredPlayer) {
         return true;
       }
@@ -297,10 +303,23 @@ export function ScreenProtectionGuard() {
     };
 
     const handleWindowBlur = () => {
-      // Do NOT trigger blackout when clicking inside video player iframe / controls
-      if (isPlayerOrIframeFocused()) {
+      // Do NOT trigger blackout when user focuses input/password on iOS or interacts with player
+      if (isUserEditingOrInteracting()) {
         return;
       }
+      // On mobile/touch devices, focusing inputs / AutoFill sheets momentarily triggers blur events
+      if (typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)) {
+        setTimeout(() => {
+          if (isUserEditingOrInteracting()) return;
+          if (typeof document !== 'undefined' && !document.hasFocus() && !document.hidden) {
+            applyInstantBlackout();
+            setIsBlackedOut(true);
+            setWarningMessage('أداة التقاط الشاشة / النافذة غير نشطة (Screen Capture / Snipping Tool Intercepted).');
+          }
+        }, 150);
+        return;
+      }
+
       applyInstantBlackout();
       setIsBlackedOut(true);
       setWarningMessage('أداة التقاط الشاشة / النافذة غير نشطة (Screen Capture / Snipping Tool Intercepted).');
@@ -316,7 +335,7 @@ export function ScreenProtectionGuard() {
 
     const handleWindowFocus = () => {
       setTimeout(() => {
-        if (!document.hidden && (document.hasFocus?.() || isPlayerOrIframeFocused())) {
+        if (!document.hidden && (document.hasFocus?.() || isUserEditingOrInteracting())) {
           setIsBlackedOut(false);
           setWarningMessage(null);
           removeInstantBlackout();
@@ -331,7 +350,7 @@ export function ScreenProtectionGuard() {
         setIsBlackedOut(true);
       } else {
         setTimeout(() => {
-          if (!document.hidden && (document.hasFocus?.() || isPlayerOrIframeFocused())) {
+          if (!document.hidden && (document.hasFocus?.() || isUserEditingOrInteracting())) {
             setIsBlackedOut(false);
             removeInstantBlackout();
           }
@@ -346,8 +365,8 @@ export function ScreenProtectionGuard() {
         if (document.hidden) {
           applyInstantBlackout();
           setIsBlackedOut(true);
-        } else if (!document.hasFocus() && !isPlayerOrIframeFocused()) {
-          // Verify it's genuinely lost focus and not just clicking the video player iframe
+        } else if (!document.hasFocus() && !isUserEditingOrInteracting()) {
+          // Verify it's genuinely lost focus and not typing password or clicking video player
           applyInstantBlackout();
           setIsBlackedOut(true);
         }
