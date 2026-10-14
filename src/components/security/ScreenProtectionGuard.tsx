@@ -411,10 +411,27 @@ export function ScreenProtectionGuard() {
       }
     };
 
+    // 11. iOS Screenshot Flash & Control Center Viewport Interception
+    const handleViewportResizeOrRotate = () => {
+      // On iOS Web / PWA, taking a screenshot or pulling down Control Center momentarily changes window.innerHeight / window.visualViewport
+      if (typeof window !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent || '')) {
+        if (!isUserEditingOrInteracting()) {
+          applyInstantBlackout();
+          setIsBlackedOut(true);
+          showSecurityWarning('⛔ تم رصد محاولة التقاط الشاشة على آيفون. المحتوى محمي.', 5000);
+        }
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown, { capture: true, passive: false });
     window.addEventListener('keyup', handleKeyUp, { capture: true, passive: false });
     window.addEventListener('blur', handleWindowBlur, { passive: true });
     window.addEventListener('focus', handleWindowFocus, { passive: true });
+    window.addEventListener('resize', handleViewportResizeOrRotate, { passive: true });
+    window.addEventListener('orientationchange', handleViewportResizeOrRotate, { passive: true });
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportResizeOrRotate, { passive: true });
+    }
     document.addEventListener('mouseleave', handleMouseLeave);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('contextmenu', handleContextMenu);
@@ -431,6 +448,11 @@ export function ScreenProtectionGuard() {
       window.removeEventListener('keyup', handleKeyUp, { capture: true });
       window.removeEventListener('blur', handleWindowBlur);
       window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('resize', handleViewportResizeOrRotate);
+      window.removeEventListener('orientationchange', handleViewportResizeOrRotate);
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportResizeOrRotate);
+      }
       document.removeEventListener('mouseleave', handleMouseLeave);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('contextmenu', handleContextMenu);
