@@ -100,9 +100,20 @@ export function TeacherLoginForm() {
           localStorage.setItem('teacher_accounts', JSON.stringify(accounts));
       }
 
+      // Purge student sessions & previous active branding overrides
+      localStorage.removeItem('viewingStudentId');
+      localStorage.removeItem('parentForStudentBarcode');
+      localStorage.removeItem('assistantForTeacherId');
+      localStorage.removeItem('active_connected_professor_code');
+      localStorage.removeItem('active_default_professor_icon');
+
       localStorage.setItem('teacher_session', 'true');
       localStorage.setItem('teacherId', userCredential.user.uid);
       
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('connected_professors_updated'));
+      }
+
       router.push('/profile');
 
     } catch (error: any) {

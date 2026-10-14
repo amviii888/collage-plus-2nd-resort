@@ -144,7 +144,9 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
   };
 
   const onSubmit = async (data: ProfileFormValues) => {
-    if (!user || !firestore) {
+    const currentTeacherId = user?.uid || teacher.id || (typeof window !== 'undefined' ? localStorage.getItem('teacherId') : null);
+    
+    if (!currentTeacherId) {
       toast({
         variant: 'destructive',
         title: 'Not Authenticated',
@@ -154,24 +156,59 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
     }
 
     setIsSubmitting(true);
-    const teacherRef = doc(firestore, 'teachers', user.uid);
-    
-    const defaultPfp = PlaceHolderImages.find(p => p.id === 'teacher-profile')?.imageUrl || '';
+    const defaultPfp = PlaceHolderImages.find(p => p.id === 'teacher-profile')?.imageUrl || DEFAULT_CUSTOM_PROFESSOR_IMAGE;
     const defaultHero = PlaceHolderImages.find(p => p.id === 'teacher-hero')?.imageUrl || '';
+
+    const finalPfp = normalizeImagePath(data.profilePictureUrl || defaultPfp);
+    const finalHero = normalizeImagePath(data.heroImageUrl || defaultHero);
 
     const payload = {
         ...data,
-        profilePictureUrl: data.profilePictureUrl || defaultPfp,
-        heroImageUrl: data.heroImageUrl || defaultHero,
+        profilePictureUrl: finalPfp,
+        avatarUrl: finalPfp,
+        heroImageUrl: finalHero,
+        updatedAt: new Date().toISOString(),
     };
 
     try {
-      updateDocumentNonBlocking(teacherRef, payload);
+      if (firestore) {
+        const teacherRef = doc(firestore, 'teachers', currentTeacherId);
+        updateDocumentNonBlocking(teacherRef, payload);
+      }
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`custom_teacher_avatar_${currentTeacherId}`, finalPfp);
+        localStorage.setItem(`custom_teacher_icon_${currentTeacherId}`, finalPfp);
+        if (data.name) {
+          localStorage.setItem(`custom_teacher_avatar_${data.name}`, finalPfp);
+        }
+
+        // Update stored teacher accounts list
+        const stored = localStorage.getItem('teacher_accounts');
+        if (stored) {
+          try {
+            const accounts = JSON.parse(stored);
+            const updatedAccs = accounts.map((acc: any) => {
+              if (acc.id === currentTeacherId) {
+                return { ...acc, name: data.name, profilePictureUrl: finalPfp };
+              }
+              return acc;
+            });
+            localStorage.setItem('teacher_accounts', JSON.stringify(updatedAccs));
+          } catch (e) {}
+        }
+      }
+
       // Evict memory cache to reflect changes immediately
-      AppCache.clear(`doc_teachers/${user.uid}`);
+      AppCache.clear(`doc_teachers/${currentTeacherId}`);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('connected_professors_updated'));
+        window.dispatchEvent(new Event('admin_teacher_codes_updated'));
+      }
+
       toast({
-        title: 'Profile Updated',
-        description: 'Your profile has been successfully saved.',
+        title: '🎉 تم تحديث الملف الأكاديمي بنجاح!',
+        description: 'تم حفظ صورتك الشخصية والبيانات بنجاح.',
       });
     } catch (error: any) {
       toast({
@@ -185,15 +222,46 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
   };
   
   const handlePfpUpload = (result: any) => {
-    form.setValue('profilePictureUrl', result.info.secure_url, { shouldValidate: true, shouldDirty: true });
-  }
+    if (result?.info?.secure_url) {
+      form.setValue('profilePictureUrl', result.info.secure_url, { shouldValidate: true, shouldDirty: true });
+    }
+  };
 
   const handleHeroUpload = (result: any) => {
-    form.setValue('heroImageUrl', result.info.secure_url, { shouldValidate: true, shouldDirty: true });
-  }
+    if (result?.info?.secure_url) {
+      form.setValue('heroImageUrl', result.info.secure_url, { shouldValidate: true, shouldDirty: true });
+    }
+  };
+
+  const handlePfpFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          form.setValue('profilePictureUrl', reader.result, { shouldValidate: true, shouldDirty: true });
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleHeroFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          form.setValue('heroImageUrl', reader.result, { shouldValidate: true, shouldDirty: true });
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const watchedPfp = form.watch('profilePictureUrl');
-  const pfpUrl = normalizeImagePath(watchedPfp || (teacher as any).avatarUrl || (teacher as any).appIconPath || getTeacherCustomAvatar(teacher.id || teacher.name));
+  const watchedHero = form.watch('heroImageUrl');
+  const pfpUrl = normalizeImagePath(watchedPfp || (teacher as any).avatarUrl || (teacher as any).appIconPath || DEFAULT_CUSTOM_PROFESSOR_IMAGE);
 
   return (
     <Card className="profile-content-card">
@@ -290,45 +358,84 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
               )}
             </div>
 
-            {teacher.approved && (
-              <>
-                <div className='flex items-center gap-4'>
-                    <Avatar className="h-20 w-20">
-                        <AvatarImage src={pfpUrl} />
-                        <AvatarFallback>{teacher.name?.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div className="space-y-2 w-full">
-                        <Label>Profile Picture (Optional)</Label>
-                        <CldUploadButton
-                            uploadPreset="unsigned_pfp_upload"
-                            className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-md text-sm font-medium h-9 px-3 w-full flex items-center justify-center gap-2"
-                            onSuccess={handlePfpUpload}
-                        >
-                          <UploadCloud /> Upload an Image
-                        </CldUploadButton>
-                        {form.formState.errors.profilePictureUrl && (
-                            <p className="text-sm font-medium text-destructive">{form.formState.errors.profilePictureUrl.message}</p>
-                        )}
+            {/* Profile Picture Section - Unrestricted */}
+            <div className="p-4 rounded-2xl bg-zinc-900/50 border border-zinc-800 space-y-4">
+              <Label className="text-sm font-bold text-white flex items-center gap-2">
+                <span>الصورة الشخصية للدكتور (Profile Picture)</span>
+              </Label>
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <Avatar className="h-20 w-20 shrink-0 border-2 border-primary/50 shadow-md">
+                    <AvatarImage src={pfpUrl} />
+                    <AvatarFallback>{teacher.name?.charAt(0) || '👨‍🏫'}</AvatarFallback>
+                </Avatar>
+                <div className="space-y-3 w-full">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs text-slate-400 mb-1 block">رفع صورة مباشرة من الجهاز</Label>
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePfpFileChange}
+                        className="bg-slate-900 text-xs border-slate-700 h-9"
+                      />
                     </div>
+                    <div>
+                      <Label className="text-xs text-slate-400 mb-1 block">أو رابط صورة مباشرة (URL)</Label>
+                      <Input
+                        type="text"
+                        placeholder="https://..."
+                        {...form.register('profilePictureUrl')}
+                        className="bg-slate-900 text-xs border-slate-700 h-9"
+                      />
+                    </div>
+                  </div>
+                  <CldUploadButton
+                      uploadPreset="unsigned_pfp_upload"
+                      className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-md text-xs font-medium h-8 px-3 w-full flex items-center justify-center gap-2"
+                      onSuccess={handlePfpUpload}
+                  >
+                    <UploadCloud className="w-3.5 h-3.5" /> Upload via Cloudinary
+                  </CldUploadButton>
                 </div>
+              </div>
+            </div>
 
-                <div className="space-y-2">
-                    <Label>Hero Banner Image (Optional)</Label>
-                    {form.watch('heroImageUrl') && <img src={form.watch('heroImageUrl')} alt="Hero preview" className="rounded-md mt-2 object-cover aspect-[3/1]" />}
-                    <CldUploadButton
-                        uploadPreset="unsigned_pfp_upload"
-                        className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-md text-sm font-medium h-9 px-3 w-full flex items-center justify-center gap-2"
-                        onSuccess={handleHeroUpload}
-                    >
-                        <UploadCloud /> Upload a Banner
-                    </CldUploadButton>
-                    <p className="text-xs text-muted-foreground">Recommended size: 1200x400px.</p>
-                    {form.formState.errors.heroImageUrl && (
-                        <p className="text-sm font-medium text-destructive">{form.formState.errors.heroImageUrl.message}</p>
-                     )}
+            {/* Hero Banner Section - Unrestricted */}
+            <div className="p-4 rounded-2xl bg-zinc-900/50 border border-zinc-800 space-y-4">
+              <Label className="text-sm font-bold text-white flex items-center gap-2">
+                <span>صورة الهيدر البانر العلوي (Hero Banner Image)</span>
+              </Label>
+              {watchedHero && (
+                <img src={watchedHero} alt="Hero preview" className="rounded-xl mt-2 object-cover aspect-[3/1] w-full border border-zinc-700 shadow-sm" />
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs text-slate-400 mb-1 block">رفع صورة بنر من الجهاز</Label>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleHeroFileChange}
+                    className="bg-slate-900 text-xs border-slate-700 h-9"
+                  />
                 </div>
-              </>
-            )}
+                <div>
+                  <Label className="text-xs text-slate-400 mb-1 block">أو رابط صورة مباشرة (URL)</Label>
+                  <Input
+                    type="text"
+                    placeholder="https://..."
+                    {...form.register('heroImageUrl')}
+                    className="bg-slate-900 text-xs border-slate-700 h-9"
+                  />
+                </div>
+              </div>
+              <CldUploadButton
+                  uploadPreset="unsigned_pfp_upload"
+                  className="bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-md text-xs font-medium h-8 px-3 w-full flex items-center justify-center gap-2"
+                  onSuccess={handleHeroUpload}
+              >
+                  <UploadCloud className="w-3.5 h-3.5" /> Upload Banner via Cloudinary
+              </CldUploadButton>
+            </div>
             
             <div className="space-y-2">
                 <Label>Subjects You Teach</Label>

@@ -262,10 +262,6 @@ export function getTeacherCustomAvatar(identifier?: string | null): string {
   if (typeof window === 'undefined') return DEFAULT_CUSTOM_PROFESSOR_IMAGE;
   try {
     if (!identifier) {
-      const all = Object.values(getAdminCustomTeacherCodes());
-      if (all.length > 0 && (all[0].avatarUrl || all[0].appIconPath)) {
-        return normalizeImagePath(all[0].avatarUrl || all[0].appIconPath);
-      }
       return DEFAULT_CUSTOM_PROFESSOR_IMAGE;
     }
 

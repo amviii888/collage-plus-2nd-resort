@@ -16,15 +16,24 @@ export default function TeacherFeatureLayout({
   const pathname = usePathname();
   const isPublicTeacherProfile = pathname === '/teacher';
 
+  const hasTeacherSession = typeof window !== 'undefined' && (
+    (user && !user.isAnonymous) ||
+    !!localStorage.getItem('teacherId') ||
+    !!localStorage.getItem('teacher_session') ||
+    !!localStorage.getItem('teacher_accounts')
+  );
+
+  const effectiveTeacherId = user?.uid || (typeof window !== 'undefined' ? localStorage.getItem('teacherId') : null) || 'guest_teacher';
+
   useEffect(() => {
-    if (!isPublicTeacherProfile && !isUserLoading && (!user || user.isAnonymous)) {
+    if (!isPublicTeacherProfile && !isUserLoading && !hasTeacherSession) {
       router.replace('/login');
     }
-  }, [user, isUserLoading, router, isPublicTeacherProfile]);
+  }, [user, isUserLoading, router, isPublicTeacherProfile, hasTeacherSession]);
 
   if (isPublicTeacherProfile) {
     return (
-      <LocalDataProvider teacherId={user?.uid || 'guest'}>
+      <LocalDataProvider teacherId={effectiveTeacherId}>
         <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
             {children}
         </div>
@@ -32,7 +41,7 @@ export default function TeacherFeatureLayout({
     );
   }
 
-  if (isUserLoading || !user || user.isAnonymous) {
+  if (isUserLoading && !hasTeacherSession) {
     return (
       <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
         <Skeleton className="h-9 w-48 mb-4" />
@@ -42,7 +51,7 @@ export default function TeacherFeatureLayout({
   }
 
   return (
-    <LocalDataProvider teacherId={user.uid}>
+    <LocalDataProvider teacherId={effectiveTeacherId}>
       <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
           {children}
       </div>

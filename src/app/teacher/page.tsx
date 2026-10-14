@@ -393,23 +393,19 @@ export default function TeacherProfilePage() {
             }
         }
 
-        if (customCodesList.length > 0) {
-            return customCodesList[0];
-        }
-
         return null;
     }, [teacherId, cloudTeacher]);
 
     const teacher: Teacher | null = useMemo(() => {
         if (cloudTeacher) {
-            const customAvatar = getTeacherCustomAvatar(teacherId || cloudTeacher?.name || cloudTeacher?.id || (cloudTeacher as any)?.code);
-            const rawPfp = customAvatar ||
-                           matchedProf?.avatarUrl || 
-                           matchedProf?.appIconPath || 
-                           (cloudTeacher as any).profilePictureUrl || 
-                           (cloudTeacher as any).avatarUrl || 
-                           (cloudTeacher as any).appIconPath || 
-                           DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+            const customAvatar = (teacherId ? localStorage.getItem(`custom_teacher_avatar_${teacherId}`) : null) ||
+                                 (cloudTeacher.id ? localStorage.getItem(`custom_teacher_avatar_${cloudTeacher.id}`) : null) ||
+                                 (cloudTeacher as any).profilePictureUrl || 
+                                 (cloudTeacher as any).avatarUrl || 
+                                 matchedProf?.avatarUrl || 
+                                 DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+
+            const rawPfp = customAvatar;
             const rawHero = (cloudTeacher as any).heroImageUrl || matchedProf?.heroImageUrl || '';
             const normalizedPfp = normalizeImagePath(rawPfp);
             const normalizedHero = normalizeImagePath(rawHero);
@@ -422,9 +418,8 @@ export default function TeacherProfilePage() {
             };
         }
         if (matchedProf) {
-            const customAvatar = getTeacherCustomAvatar(teacherId || matchedProf.name || matchedProf.code);
-            const rawPfp = customAvatar || matchedProf.avatarUrl || matchedProf.appIconPath || DEFAULT_CUSTOM_PROFESSOR_IMAGE;
-            const normalizedPfp = normalizeImagePath(rawPfp);
+            const customAvatar = (teacherId ? localStorage.getItem(`custom_teacher_avatar_${teacherId}`) : null) || matchedProf.avatarUrl || matchedProf.appIconPath || DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+            const normalizedPfp = normalizeImagePath(customAvatar);
             const normalizedHero = normalizeImagePath(matchedProf.heroImageUrl);
             return {
                 id: matchedProf.id || teacherId!,
@@ -440,6 +435,25 @@ export default function TeacherProfilePage() {
                 averageRating: 4.9,
                 ratingCount: matchedProf.studentsCount || 120,
                 viewCount: (matchedProf.studentsCount || 120) * 8,
+                createdAt: new Date().toISOString() as any
+            };
+        }
+        if (teacherId) {
+            const customAvatar = localStorage.getItem(`custom_teacher_avatar_${teacherId}`) || DEFAULT_CUSTOM_PROFESSOR_IMAGE;
+            const normalizedPfp = normalizeImagePath(customAvatar);
+            return {
+                id: teacherId,
+                name: 'الأستاذ',
+                email: 'teacher@faculty.mol5saty.com',
+                bio: 'البوابة الأكاديمية الرسمية للأستاذ.',
+                profilePictureUrl: normalizedPfp,
+                avatarUrl: normalizedPfp,
+                heroImageUrl: '',
+                subjects: ['المقررات الجامعية'],
+                gradesTaught: ['الفرقة الأولى', 'الفرقة الثانية', 'الفرقة الثالثة', 'الفرقة الرابعة'],
+                approved: true,
+                averageRating: 5.0,
+                ratingCount: 10,
                 createdAt: new Date().toISOString() as any
             };
         }

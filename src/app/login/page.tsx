@@ -365,6 +365,8 @@ function LoginFormContent() {
             } else {
                 // Teacher / Non-student login: purge any residual student credentials or branding
                 clearAllStudentAuthSessions();
+                localStorage.removeItem('active_connected_professor_code');
+                localStorage.removeItem('active_default_professor_icon');
                 localStorage.setItem('teacher_session', 'true');
                 localStorage.setItem('teacherId', userCredential.user.uid);
             }
