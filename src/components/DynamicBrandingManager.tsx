@@ -122,11 +122,30 @@ export function DynamicBrandingManager() {
         }
         manifestLink.href = manifestUrl;
 
-        // 5. Native Capacitor Bridge updates if running inside mobile native app
+        // 5. Native iOS / Android IPA & APK Bridge updates
         try {
           const cap = (window as any).Capacitor;
-          if (cap && cap.Plugins?.StatusBar?.setBackgroundColor) {
-            cap.Plugins.StatusBar.setBackgroundColor({ color: targetThemeColor });
+          if (cap && cap.Plugins) {
+            // Set iOS status bar theme color
+            if (cap.Plugins.StatusBar?.setBackgroundColor) {
+              cap.Plugins.StatusBar.setBackgroundColor({ color: targetThemeColor });
+            }
+            // Dynamic iOS Alternate App Icon (supports Capacitor AppIcon / native iOS setAlternateIconName)
+            if (cap.Plugins.AppIcon?.change) {
+              const iconAlias = activeCode ? `AppIcon_${activeCode.toUpperCase()}` : null;
+              cap.Plugins.AppIcon.change({ name: iconAlias }).catch(() => {});
+            }
+          }
+          // Web2IPA / WebKit Message Handlers (used by iOS app converters like Web2App, Median, GoNative)
+          const webkit = (window as any).webkit;
+          if (webkit?.messageHandlers?.setAppIcon?.postMessage) {
+            webkit.messageHandlers.setAppIcon.postMessage({
+              iconName: activeCode ? activeCode.toLowerCase() : 'default',
+              title: targetTitle
+            });
+          }
+          if (webkit?.messageHandlers?.privacyScreen?.postMessage) {
+            webkit.messageHandlers.privacyScreen.postMessage({ enable: true });
           }
         } catch (e) {}
 

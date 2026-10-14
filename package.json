@@ -12,9 +12,13 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "cap:sync": "cap sync",
+    "cap:android": "cap sync android",
+    "cap:ios": "cap sync ios",
     "postinstall": "patch-package"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
     "@capacitor/camera": "^8.2.5",
     "@capacitor/cli": "^8.5.2",
     "@capacitor/core": "^8.5.2",

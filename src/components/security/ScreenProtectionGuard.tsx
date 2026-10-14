@@ -52,7 +52,7 @@ export function ScreenProtectionGuard() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    // 1. Android FLAG_SECURE Bridge (Capacitor / Cordova / Native Android WebView)
+    // 1. Native iOS & Android Hardware Protection Bridge (Capacitor / Web2App / Cordova / WKWebView)
     try {
       PrivacyScreen.enable().catch(() => {});
       const cap = (window as any).Capacitor;
@@ -61,6 +61,22 @@ export function ScreenProtectionGuard() {
           cap.Plugins.PrivacyScreen.enable();
         }
       }
+      // Native WebKit bridge for iOS wrappers (Web2IPA, Median, GoNative, Custom WKWebView)
+      const webkit = (window as any).webkit;
+      if (webkit?.messageHandlers?.privacyScreen?.postMessage) {
+        webkit.messageHandlers.privacyScreen.postMessage({ enable: true, blockScreenshots: true });
+      }
+      // Listen to native iOS bridge events if the wrapper sends screenshot / capture events
+      window.addEventListener('screenshot', () => {
+        applyInstantBlackout();
+        showSecurityWarning('⛔ تنبيه أمني: التقاط الشاشة محظور تماماً على أجهزة آيفون.', 6000);
+      });
+      window.addEventListener('screenCaptureDidChange', (e: any) => {
+        if (e?.detail?.isCaptured) {
+          applyInstantBlackout();
+          showSecurityWarning('⛔ تم رصد تسجيل أو بث الشاشة. تم حجب المحتوى والصوت.', 8000);
+        }
+      });
     } catch {
       // Ignored in standard browser context
     }

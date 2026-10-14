@@ -23,7 +23,18 @@ const config: CapacitorConfig = {
     preferredContentMode: 'mobile',
     scheme: 'UniverseAcademy',
     allowsLinkPreview: false,
-    scrollEnabled: true
+    scrollEnabled: true,
+    limitsNavigationsToAppBoundDomains: true
+  },
+  android: {
+    allowMixedContent: false,
+    captureInput: true,
+    webContentsDebuggingEnabled: false, // Disables Chrome Remote DevTools inspection on APK
+    backgroundColor: '#09090b',
+    buildOptions: {
+      keystorePath: undefined,
+      keystoreAlias: undefined
+    }
   },
   plugins: {
     SplashScreen: {
