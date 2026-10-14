@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isSameDay, startOfMonth, endOfMonth, isWithinInterval, format } from 'date-fns';
-import { DollarSign, TrendingUp, Users, AlertCircle, PieChart, Building, Send, Instagram, Facebook, Video, Download, Trash2, Phone, MessageSquare, CalendarDays, FileDown, UserCheck, CalculatorIcon, Calendar as CalendarIcon, Edit, ShieldCheck, ShieldAlert, Ban, UserPlus, Search, LogOut, Eye, EyeOff, FlaskConical, UserX, Loader2 } from 'lucide-react';
+import { DollarSign, TrendingUp, Users, AlertCircle, PieChart, Building, Send, Instagram, Facebook, Video, Download, Trash2, Phone, MessageSquare, CalendarDays, FileDown, UserCheck, CalculatorIcon, Calendar as CalendarIcon, Edit, ShieldCheck, ShieldAlert, Ban, UserPlus, Search, LogOut, Eye, EyeOff, FlaskConical, UserX, Loader2, MoreVertical, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
@@ -35,6 +35,8 @@ import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DateRange } from 'react-day-picker';
 import { BiometricManager } from '@/components/admin/education/BiometricManager';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { TeacherInfoModal } from '@/components/admin/education/TeacherInfoModal';
 
 type AdminSession = { id: string; name: string; role: string; };
 
@@ -116,6 +118,8 @@ export default function ManagementPage() {
     
     const [sessionUser, setSessionUser] = useState<AdminSession | null>(null);
     const [isAuthChecking, setIsAuthChecking] = useState(true);
+    const [selectedInfoTeacher, setSelectedInfoTeacher] = useState<any | null>(null);
+    const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
     useEffect(() => {
         try {
@@ -805,7 +809,7 @@ export default function ManagementPage() {
                                                             </div>
                                                             <span className="text-xs text-muted-foreground font-mono">{teacherDoc.email}</span>
                                                         </div>
-                                                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                                                         <div className="flex items-center gap-2 shrink-0 flex-wrap">
                                                             <Badge variant={isHidden ? "outline" : "default"} className={cn("text-[10px] font-bold px-1.5 py-0.5", isHidden ? "border-amber-600/30 text-amber-500 bg-amber-950/20" : "bg-emerald-950/40 text-emerald-400 border border-emerald-800/40")}>
                                                                 {isHidden ? (
                                                                     <span className="flex items-center gap-1"><EyeOff className="w-3 h-3" /> {t('Hidden')}</span>
@@ -813,6 +817,34 @@ export default function ManagementPage() {
                                                                     <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {t('Public')}</span>
                                                                 )}
                                                             </Badge>
+
+                                                            {/* Burger / 3-Dots Menu with Info */}
+                                                            <DropdownMenu>
+                                                                <DropdownMenuTrigger asChild>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="h-7 px-2 text-xs font-bold border-zinc-700 text-emerald-400 bg-emerald-950/20 hover:bg-emerald-900/40 hover:text-emerald-300 gap-1"
+                                                                        title={t('Teacher Options & Student Info')}
+                                                                    >
+                                                                        <MoreVertical className="w-3.5 h-3.5" />
+                                                                        <span>Info</span>
+                                                                    </Button>
+                                                                </DropdownMenuTrigger>
+                                                                <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-800 text-zinc-100 p-1 rounded-xl">
+                                                                    <DropdownMenuItem
+                                                                        onClick={() => {
+                                                                            setSelectedInfoTeacher(teacherDoc);
+                                                                            setIsInfoModalOpen(true);
+                                                                        }}
+                                                                        className="gap-2 cursor-pointer text-xs font-bold text-emerald-400 focus:text-emerald-300 focus:bg-emerald-950/50 p-2 rounded-lg"
+                                                                    >
+                                                                        <Info className="w-4 h-4 text-emerald-400" />
+                                                                        <span>Info (عدد وحسابات الطلاب المربوطة)</span>
+                                                                    </DropdownMenuItem>
+                                                                </DropdownMenuContent>
+                                                            </DropdownMenu>
+
                                                             <Button
                                                                 size="sm"
                                                                 variant="ghost"
@@ -1194,6 +1226,16 @@ export default function ManagementPage() {
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
+        {/* Teacher Info Modal */}
+        <TeacherInfoModal
+          isOpen={isInfoModalOpen}
+          onClose={() => {
+            setIsInfoModalOpen(false);
+            setSelectedInfoTeacher(null);
+          }}
+          teacher={selectedInfoTeacher}
+          allStudents={allStudents || []}
+        />
     </div>
   );
 }

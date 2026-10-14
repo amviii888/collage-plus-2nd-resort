@@ -271,12 +271,11 @@ export function getTeacherCustomAvatar(identifier?: string | null): string {
     if (stored) return normalizeImagePath(stored);
 
     const list = Object.values(getAdminCustomTeacherCodes());
+    const isGenericName = clean === 'الأستاذ' || clean === 'New Teacher' || clean.length < 2;
     const found = list.find(c => 
       c.id === clean || 
-      c.code.toUpperCase() === clean.toUpperCase() || 
-      c.name === clean || 
-      c.name.includes(clean) || 
-      clean.includes(c.name)
+      (c.code && c.code.toUpperCase() === clean.toUpperCase()) || 
+      (!isGenericName && (c.name === clean || c.name.includes(clean) || clean.includes(c.name)))
     );
     if (found?.avatarUrl || found?.appIconPath) {
       return normalizeImagePath(found.avatarUrl || found.appIconPath);
@@ -284,10 +283,8 @@ export function getTeacherCustomAvatar(identifier?: string | null): string {
 
     const builtin = REGISTERED_PROFESSORS.find(p => 
       p.id === clean || 
-      p.code.toUpperCase() === clean.toUpperCase() || 
-      p.name === clean ||
-      p.name.includes(clean) ||
-      clean.includes(p.name)
+      (p.code && p.code.toUpperCase() === clean.toUpperCase()) || 
+      (!isGenericName && (p.name === clean || p.name.includes(clean) || clean.includes(p.name)))
     );
     if (builtin?.avatarUrl || builtin?.appIconPath) {
       return normalizeImagePath(builtin.avatarUrl || builtin.appIconPath);

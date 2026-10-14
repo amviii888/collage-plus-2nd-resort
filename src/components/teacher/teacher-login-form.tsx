@@ -97,6 +97,12 @@ export function TeacherLoginForm() {
               accounts.pop();
           }
 
+          if (teacherData.profilePictureUrl) {
+            localStorage.setItem(`custom_teacher_avatar_${userCredential.user.uid}`, teacherData.profilePictureUrl);
+          }
+          if (teacherData.heroImageUrl) {
+            localStorage.setItem(`custom_teacher_hero_${userCredential.user.uid}`, teacherData.heroImageUrl);
+          }
           localStorage.setItem('teacher_accounts', JSON.stringify(accounts));
       }
 

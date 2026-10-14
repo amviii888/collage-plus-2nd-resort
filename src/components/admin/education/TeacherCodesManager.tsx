@@ -15,7 +15,9 @@ import {
   Trash2,
   Search,
   School,
-  Tag
+  Tag,
+  MoreVertical,
+  Info
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc, updateDoc, query, orderBy } from 'firebase/firestore';
@@ -47,6 +49,14 @@ import {
   deleteProfessorCompletely
 } from '@/lib/professors-registry';
 
+import { 
+  DropdownMenu, 
+  DropdownMenuTrigger, 
+  DropdownMenuContent, 
+  DropdownMenuItem 
+} from '@/components/ui/dropdown-menu';
+import { TeacherInfoModal } from '@/components/admin/education/TeacherInfoModal';
+
 export function TeacherCodesManager() {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -58,6 +68,16 @@ export function TeacherCodesManager() {
   }, [firestore]);
   
   const { data: remoteTeachers, isLoading } = useCollection<Teacher>(teachersQuery);
+
+  // Students from Firestore for code tracking
+  const studentsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'students'));
+  }, [firestore]);
+  const { data: remoteStudents } = useCollection<any>(studentsQuery);
+
+  const [infoTeacher, setInfoTeacher] = useState<any | null>(null);
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
   const [adminMappings, setAdminMappings] = useState<Record<string, ProfessorItem>>({});
   const [searchQuery, setSearchQuery] = useState('');
@@ -346,6 +366,32 @@ export function TeacherCodesManager() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-2.5 rounded-xl border-slate-300 dark:border-slate-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-xs font-bold gap-1 cursor-pointer"
+                            title="Info & Student Code Tracker"
+                          >
+                            <MoreVertical className="w-3.5 h-3.5" />
+                            <span>Info</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-800 text-zinc-100 p-1 rounded-xl">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setInfoTeacher({ ...teacher, code: currentCode });
+                              setIsInfoModalOpen(true);
+                            }}
+                            className="gap-2 cursor-pointer text-xs font-bold text-emerald-400 focus:text-emerald-300 focus:bg-emerald-950/50 p-2 rounded-lg"
+                          >
+                            <Info className="w-4 h-4 text-emerald-400" />
+                            <span>Info (عدد وحسابات الطلاب المربوطة)</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
                       <Button
                         onClick={() => handleOpenEditModal(teacher)}
                         size="sm"
@@ -496,6 +542,16 @@ export function TeacherCodesManager() {
             </form>
           </DialogContent>
         </Dialog>
+        {/* Teacher Info Modal */}
+        <TeacherInfoModal
+          isOpen={isInfoModalOpen}
+          onClose={() => {
+            setIsInfoModalOpen(false);
+            setInfoTeacher(null);
+          }}
+          teacher={infoTeacher}
+          allStudents={remoteStudents || []}
+        />
       </CardContent>
     </Card>
   );

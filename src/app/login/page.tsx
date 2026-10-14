@@ -369,6 +369,33 @@ function LoginFormContent() {
                 localStorage.removeItem('active_default_professor_icon');
                 localStorage.setItem('teacher_session', 'true');
                 localStorage.setItem('teacherId', userCredential.user.uid);
+
+                if (firestore && userCredential?.user) {
+                    try {
+                        const { doc, getDoc } = await import('firebase/firestore');
+                        const teacherSnap = await getDoc(doc(firestore, 'teachers', userCredential.user.uid));
+                        if (teacherSnap.exists()) {
+                            const tData = teacherSnap.data();
+                            if (tData?.profilePictureUrl) {
+                                localStorage.setItem(`custom_teacher_avatar_${userCredential.user.uid}`, tData.profilePictureUrl);
+                            }
+                            if (tData?.heroImageUrl) {
+                                localStorage.setItem(`custom_teacher_hero_${userCredential.user.uid}`, tData.heroImageUrl);
+                            }
+                            // Store account in switcher
+                            const stored = localStorage.getItem('teacher_accounts');
+                            let accs = stored ? JSON.parse(stored) : [];
+                            accs = accs.filter((a: any) => a.id !== userCredential.user.uid);
+                            accs.unshift({
+                                id: userCredential.user.uid,
+                                name: tData?.name || 'الأستاذ',
+                                email: tData?.email || userCredential.user.email,
+                                profilePictureUrl: tData?.profilePictureUrl || ''
+                            });
+                            localStorage.setItem('teacher_accounts', JSON.stringify(accs));
+                        }
+                    } catch (tErr) {}
+                }
             }
 
             resetFailedAttempts('universal');

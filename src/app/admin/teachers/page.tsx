@@ -26,7 +26,9 @@ import {
   FolderGit2, 
   Layers, 
   ShieldCheck, 
-  Image as ImageIcon 
+  Image as ImageIcon,
+  MoreVertical,
+  Info
 } from 'lucide-react';
 import { useAuth, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { useTranslation } from 'react-i18next';
@@ -36,8 +38,9 @@ import { doc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { subjects } from '@/lib/subjects';
 import { grades } from '@/lib/data';
 import { teacherPlans } from '@/lib/teacher-plans';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { TeacherInfoModal } from '@/components/admin/education/TeacherInfoModal';
 import { CldUploadButton } from 'next-cloudinary';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -135,6 +138,16 @@ export default function AdminTeacherManagementPage() {
         return collection(firestore, 'teachers');
     }, [firestore]);
     const { data: cloudTeachers } = useCollection<Teacher>(teachersColRef);
+
+    // Fetch students from Firestore for student code tracking
+    const studentsColRef = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return collection(firestore, 'students');
+    }, [firestore]);
+    const { data: cloudStudents } = useCollection<any>(studentsColRef);
+
+    const [infoTeacher, setInfoTeacher] = useState<any | null>(null);
+    const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
     // Admins only guard
     useEffect(() => {
@@ -565,6 +578,32 @@ export default function AdminTeacherManagementPage() {
                                             </div>
 
                                             <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-8 px-2.5 text-xs font-bold border-slate-300 dark:border-slate-700 text-emerald-600 dark:text-emerald-400 gap-1"
+                                                            title={t('Info & Student Code Tracker')}
+                                                        >
+                                                            <MoreVertical className="w-3.5 h-3.5" />
+                                                            <span>Info</span>
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-800 text-zinc-100 p-1 rounded-xl">
+                                                        <DropdownMenuItem
+                                                            onClick={() => {
+                                                                setInfoTeacher({ ...prof, code });
+                                                                setIsInfoModalOpen(true);
+                                                            }}
+                                                            className="gap-2 cursor-pointer text-xs font-bold text-emerald-400 focus:text-emerald-300 focus:bg-emerald-950/50 p-2 rounded-lg"
+                                                        >
+                                                            <Info className="w-4 h-4 text-emerald-400" />
+                                                            <span>Info (عدد وحسابات الطلاب المربوطة)</span>
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
@@ -651,6 +690,32 @@ export default function AdminTeacherManagementPage() {
                                             </div>
 
                                             <div className="flex items-center gap-2">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-9 px-3 text-xs font-bold border-slate-300 dark:border-slate-700 text-emerald-600 dark:text-emerald-400 gap-1.5 rounded-xl"
+                                                            title={t('Info & Student Code Tracker')}
+                                                        >
+                                                            <MoreVertical className="w-4 h-4" />
+                                                            <span>Info</span>
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-800 text-zinc-100 p-1 rounded-xl">
+                                                        <DropdownMenuItem
+                                                            onClick={() => {
+                                                                setInfoTeacher({ ...tItem, code: linkedCode });
+                                                                setIsInfoModalOpen(true);
+                                                            }}
+                                                            className="gap-2 cursor-pointer text-xs font-bold text-emerald-400 focus:text-emerald-300 focus:bg-emerald-950/50 p-2 rounded-lg"
+                                                        >
+                                                            <Info className="w-4 h-4 text-emerald-400" />
+                                                            <span>Info (عدد وحسابات الطلاب المربوطة)</span>
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+
                                                 <Button
                                                     onClick={() => handleOpenMappingForTeacher(tItem)}
                                                     className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold gap-1.5 h-9 px-4 rounded-xl shadow-xs"
@@ -931,6 +996,16 @@ export default function AdminTeacherManagementPage() {
                     </form>
                 </DialogContent>
             </Dialog>
+            {/* Teacher Info Modal */}
+            <TeacherInfoModal
+                isOpen={isInfoModalOpen}
+                onClose={() => {
+                    setIsInfoModalOpen(false);
+                    setInfoTeacher(null);
+                }}
+                teacher={infoTeacher}
+                allStudents={cloudStudents || []}
+            />
         </div>
     );
 }
