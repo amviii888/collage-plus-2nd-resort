@@ -99,6 +99,9 @@ export function TeacherLoginForm() {
 
           localStorage.setItem('teacher_accounts', JSON.stringify(accounts));
       }
+
+      localStorage.setItem('teacher_session', 'true');
+      localStorage.setItem('teacherId', userCredential.user.uid);
       
       router.push('/profile');
 

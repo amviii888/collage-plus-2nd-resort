@@ -55,6 +55,7 @@ export function ClientLayoutWrapper({ children }: { children: React.ReactNode })
   const [isStudentSession, setIsStudentSession] = useState(false);
   const [isParentSession, setIsParentSession] = useState(false);
   const [isAssistantSession, setIsAssistantSession] = useState(false);
+  const [isTeacherSession, setIsTeacherSession] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
@@ -62,10 +63,16 @@ export function ClientLayoutWrapper({ children }: { children: React.ReactNode })
         setIsStudentSession(!!localStorage.getItem('viewingStudentId'));
         setIsParentSession(!!localStorage.getItem('parentForStudentBarcode'));
         setIsAssistantSession(!!localStorage.getItem('assistantForTeacherId'));
+        setIsTeacherSession(
+          !!localStorage.getItem('teacher_session') || 
+          !!localStorage.getItem('teacherId') || 
+          !!localStorage.getItem('teacher_accounts')
+        );
     } catch(e) {
         setIsStudentSession(false);
         setIsParentSession(false);
         setIsAssistantSession(false);
+        setIsTeacherSession(false);
     }
   }, [pathname]);
 
@@ -173,7 +180,7 @@ export function ClientLayoutWrapper({ children }: { children: React.ReactNode })
   }
 
   const isRealUser = user && !user.isAnonymous;
-  const isAuthenticated = isRealUser || isStudentSession || isParentSession || isAssistantSession;
+  const isAuthenticated = isRealUser || isStudentSession || isParentSession || isAssistantSession || isTeacherSession;
 
   // Only block rendering on isUserLoading for protected/private views to prevent a momentary flicker of unauthorized content.
   // Public routes mount immediately and safely because they require no authentication.

@@ -2643,12 +2643,19 @@ export default function ProfilePage() {
     }
     return null;
   });
+  const [storedTeacherId, setStoredTeacherId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('teacherId') || null;
+    }
+    return null;
+  });
   const [isAssistant, setIsAssistant] = useState(false);
 
   useEffect(() => {
     setHasMounted(true);
     if (typeof window !== 'undefined') {
       setOfflineStudentId(localStorage.getItem('viewingStudentId'));
+      setStoredTeacherId(localStorage.getItem('teacherId'));
       setIsAssistant(!!localStorage.getItem('assistantForTeacherId'));
     }
   }, []);
@@ -2661,12 +2668,12 @@ export default function ProfilePage() {
       return;
     }
 
-    const currentSavedId = offlineStudentId || (typeof window !== 'undefined' ? localStorage.getItem('viewingStudentId') : null);
+    const currentSavedId = offlineStudentId || storedTeacherId || (typeof window !== 'undefined' ? (localStorage.getItem('viewingStudentId') || localStorage.getItem('teacherId')) : null);
 
     if (!user && !currentSavedId) {
       router.replace('/login');
     }
-  }, [hasMounted, isUserLoading, isAssistant, user, offlineStudentId, router]);
+  }, [hasMounted, isUserLoading, isAssistant, user, offlineStudentId, storedTeacherId, router]);
 
   if (isUserLoading || !hasMounted || isAssistant) {
     return (
@@ -2680,6 +2687,13 @@ export default function ProfilePage() {
   if (!user) {
       if (offlineStudentId) {
           return <StudentProfile studentId={offlineStudentId} />;
+      }
+      if (storedTeacherId) {
+          return (
+            <LocalDataProvider teacherId={storedTeacherId}>
+                <TeacherDashboard teacherId={storedTeacherId} />
+            </LocalDataProvider>
+          );
       }
       return (
         <div className="p-4 space-y-4 max-w-7xl mx-auto">

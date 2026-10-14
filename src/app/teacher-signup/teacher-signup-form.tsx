@@ -108,7 +108,7 @@ export function TeacherSignupForm() {
         heroImageUrl: data.heroImageUrl || defaultHero,
         subjects: data.subjects,
         gradesTaught: data.gradesTaught,
-        approved: false, // Account is pending approval by default
+        approved: true, // Auto-approved for immediate access
         assistantCode,
         planId: basicPlan?.id || 'basic', // Default to basic plan
         planName: basicPlan?.title || 'Basic',
@@ -132,6 +132,9 @@ export function TeacherSignupForm() {
         email: data.email,
         updatedAt: new Date().toISOString(),
       });
+
+      localStorage.setItem('teacher_session', 'true');
+      localStorage.setItem('teacherId', teacherId);
       
       toast({
           title: t('teacher_signup.toast_success_title'),
