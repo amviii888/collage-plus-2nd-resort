@@ -13,6 +13,7 @@ interface DynamicWatermarkProps {
   studentId?: string;
   teacherId?: string;
   config?: Partial<DynamicWatermarkConfig>;
+  forceCanvasStamp?: boolean;
   // Mock data for preview mode in teacher settings
   previewStudent?: {
     name?: string;
@@ -26,6 +27,7 @@ export function DynamicWatermark({
   studentId,
   teacherId,
   config: overrideConfig,
+  forceCanvasStamp,
   previewStudent,
 }: DynamicWatermarkProps) {
   const pathname = usePathname();

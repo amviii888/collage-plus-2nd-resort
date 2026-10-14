@@ -45,7 +45,7 @@ export const unlockDeviceForStudent = (_studentCode?: string) => {
  * Completely purges all student session keys, cached student profiles,
  * and teacher code branding from local storage.
  */
-export const clearAllStudentAuthSessions = (_studentCodeForLockout?: string, _markDeviceLockout = false) => {
+export const clearAllStudentAuthSessions = (studentCodeForLockout?: string, markDeviceLockout = false) => {
   if (typeof window === 'undefined') return;
   try {
     const activeCode = studentCodeForLockout || 
@@ -64,6 +64,12 @@ export const clearAllStudentAuthSessions = (_studentCodeForLockout?: string, _ma
       'studentBarcodeId',
       'studentCode',
       'student_barcode',
+      'student_name',
+      'studentName',
+      'student_phone',
+      'studentPhoneNumber',
+      'student_profile',
+      'student_user_profile',
       'offline_student_id',
       'app_student_auth_session',
       'student_logged_in',
@@ -95,6 +101,13 @@ export const clearAllStudentAuthSessions = (_studentCodeForLockout?: string, _ma
         keysToRemove.push(key);
       }
     }
+    // Also clear any firebase auth cached keys in localStorage if present
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('firebase:authUser') || key.startsWith('firebase:host'))) {
+        keysToRemove.push(key);
+      }
+    }
     keysToRemove.forEach(k => {
       try {
         localStorage.removeItem(k);
@@ -114,3 +127,35 @@ export const clearAllStudentAuthSessions = (_studentCodeForLockout?: string, _ma
   }
 };
 
+/**
+ * Executes a complete, reliable sign-out from Firebase Auth and purges local storage.
+ * Works across both web and mobile environments.
+ */
+export async function performFullLogout(authInstance?: any, studentCodeForLockout?: string) {
+  try {
+    if (authInstance) {
+      const { signOut } = await import('firebase/auth');
+      await signOut(authInstance);
+    } else {
+      const { getAuth, signOut } = await import('firebase/auth');
+      const auth = getAuth();
+      if (auth && auth.currentUser) {
+        await signOut(auth);
+      }
+    }
+  } catch (err) {
+    console.warn('[Auth] Primary signOut notice:', err);
+    try {
+      const { getAuth, signOut } = await import('firebase/auth');
+      const fallbackAuth = getAuth();
+      if (fallbackAuth && fallbackAuth.currentUser) {
+        await signOut(fallbackAuth);
+      }
+    } catch (fallbackErr) {
+      console.warn('[Auth] Fallback signOut notice:', fallbackErr);
+    }
+  }
+
+  // Purge all student/session keys
+  clearAllStudentAuthSessions(studentCodeForLockout);
+}

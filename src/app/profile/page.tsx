@@ -59,7 +59,7 @@ import {
   Smartphone,
   ArrowLeft,
 } from 'lucide-react';
-import { isStudentEmail, clearAllStudentAuthSessions } from '@/lib/auth-helpers';
+import { isStudentEmail, clearAllStudentAuthSessions, performFullLogout } from '@/lib/auth-helpers';
 import { getStudentConnectedProfessors, findProfessorByCode, setActiveProfessorBranding, ProfessorItem, getAdminCustomTeacherCodes, REGISTERED_PROFESSORS, normalizeImagePath, DEFAULT_CUSTOM_PROFESSOR_IMAGE, getTeacherCustomAvatar } from '@/lib/professors-registry';
 import { AttendanceHistoryModal } from '@/components/AttendanceHistoryModal';
 import { SeasonalHubCard } from '@/components/SeasonalHubCard';
@@ -1603,13 +1603,10 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
 
     const handleLogout = async () => {
         try {
-            if (auth) {
-                await auth.signOut();
-            }
+            await performFullLogout(auth);
         } catch (e) {
             console.error("Logout failed:", e);
         }
-        clearAllStudentAuthSessions();
         window.location.href = '/signup-options';
     };
 
@@ -1768,12 +1765,12 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
                         </div>
                     </div>
 
-                    {/* Action Buttons: Unified Avatar & Theme Customizer + Library Access */}
-                    <div className="flex items-center gap-2.5 w-full md:w-auto z-10 shrink-0">
+                    {/* Action Buttons: Unified Avatar & Theme Customizer + Library Access + Logout */}
+                    <div className="flex items-center gap-2.5 w-full md:w-auto z-10 shrink-0 flex-wrap">
                         <Button
                             asChild
                             variant="outline"
-                            className="w-full md:w-auto h-11 px-5 rounded-2xl border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-xs gap-2 transition-all hover:scale-105 shadow-xs cursor-pointer"
+                            className="flex-1 sm:flex-initial h-11 px-4 rounded-2xl border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-xs gap-2 transition-all hover:scale-105 shadow-xs cursor-pointer"
                         >
                             <Link href="/library">
                                 <BookOpen className="w-4 h-4 text-emerald-500" />
@@ -1783,7 +1780,7 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
                         <Button
                             onClick={() => { setAvatarTab('avatar'); setThemeModalOpen(true); }}
                             variant="outline"
-                            className="w-full md:w-auto h-11 px-5 rounded-2xl border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-900 dark:text-white font-bold text-xs gap-2 transition-all hover:scale-105 shadow-xs cursor-pointer"
+                            className="flex-1 sm:flex-initial h-11 px-4 rounded-2xl border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-900 dark:text-white font-bold text-xs gap-2 transition-all hover:scale-105 shadow-xs cursor-pointer"
                         >
                             <Palette className="w-4 h-4 text-[var(--accent)]" />
                             <span>{isArabic ? 'المظهر والأيقونات' : 'Themes & Icons'}</span>

@@ -31,6 +31,8 @@ interface ProtectedBookReaderProps {
   studentId: string;
   studentName: string;
   studentBarcode: string;
+  teacherId?: string;
+  forceCanvasStamp?: boolean;
   onClose: () => void;
 }
 
@@ -39,6 +41,8 @@ export function ProtectedBookReader({
   studentId,
   studentName,
   studentBarcode,
+  teacherId,
+  forceCanvasStamp = true,
   onClose
 }: ProtectedBookReaderProps) {
   const [zoom, setZoom] = useState<number>(100);
@@ -56,10 +60,25 @@ export function ProtectedBookReader({
   const activeUnitFile: BookUnitFile | undefined = activeUnit?.files?.[selectedFileIndex];
 
   // Active resource determination
-  const activePdfUrl = activeUnitFile ? activeUnitFile.fileUrl : book.pdfUrl;
-  const activePages = activeUnitFile?.pages && activeUnitFile.pages.length > 0 
+  const rawActivePdfUrl = activeUnitFile ? activeUnitFile.fileUrl : book.pdfUrl;
+  const rawActivePages = activeUnitFile?.pages && activeUnitFile.pages.length > 0 
     ? activeUnitFile.pages 
     : (book.pages || []);
+
+  // Check if rawActivePdfUrl is actually an image (e.g. Cloudinary image upload, or jpg/png/webp)
+  const isImageResource = (url?: string) => {
+    if (!url) return false;
+    const clean = url.split('?')[0].toLowerCase();
+    return /\.(jpe?g|png|webp|gif|svg|bmp)$/i.test(clean) || url.includes('/image/upload/');
+  };
+
+  const activePages: string[] = (rawActivePages && rawActivePages.length > 0)
+    ? rawActivePages
+    : (rawActivePdfUrl && isImageResource(rawActivePdfUrl))
+      ? [rawActivePdfUrl]
+      : [];
+
+  const activePdfUrl = (rawActivePdfUrl && !isImageResource(rawActivePdfUrl)) ? rawActivePdfUrl : null;
 
   const hasMultiplePages = Boolean(activePages && activePages.length > 0);
   const totalPagesCount = hasMultiplePages ? activePages.length : 0;
@@ -306,6 +325,8 @@ export function ProtectedBookReader({
         {/* Real Dynamic Watermark Over Paper/PDF/Images with Audio TTS & Bounce */}
         <DynamicWatermark
           studentId={studentId}
+          teacherId={teacherId}
+          forceCanvasStamp={forceCanvasStamp}
           previewStudent={{
             name: studentName,
             barcode: studentBarcode || studentId,

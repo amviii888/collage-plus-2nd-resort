@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 import { LocalDataProvider, useLocalData } from '@/context/LocalDataContext';
 import { useToast } from '@/hooks/use-toast';
 import { AppCache } from '@/lib/cache';
-import { isStudentEmail, clearAllStudentAuthSessions } from '@/lib/auth-helpers';
+import { isStudentEmail, clearAllStudentAuthSessions, performFullLogout } from '@/lib/auth-helpers';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import {
@@ -674,20 +674,9 @@ export default function SettingsPage() {
         setIsLoggingOut(true);
 
         try {
-            if (auth) {
-                await auth.signOut();
-            } else {
-                const globalAuth = getAuth();
-                await signOut(globalAuth);
-            }
+            await performFullLogout(auth);
         } catch (e) {
             console.error("Signout error:", e);
-        }
-
-        try {
-            clearAllStudentAuthSessions();
-        } catch (e) {
-            console.error("Storage clear error:", e);
         }
 
         toast({

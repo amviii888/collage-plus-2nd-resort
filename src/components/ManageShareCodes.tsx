@@ -364,27 +364,46 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
 
       // 2. Grant Access in Student Subcollection
       if (req.requestType === 'collection' && req.collectionId) {
-        const collectionAccessRef = doc(firestore, `students/${req.studentId}/courseCollectionAccess`, req.collectionId);
-        batch.set(collectionAccessRef, {
+        const collectionAccessPayload = {
           collectionId: req.collectionId,
           teacherId: teacherId,
+          fullAccess: true,
           unlockedAt: serverTimestamp(),
-        }, { merge: true });
+          grantedVia: 'request',
+        };
+
+        const collectionAccessRef = doc(firestore, `students/${req.studentId}/courseCollectionAccess`, req.collectionId);
+        batch.set(collectionAccessRef, collectionAccessPayload, { merge: true });
+
+        const authUid = (req as any).studentAuthUid;
+        if (authUid && authUid !== req.studentId) {
+          const altCollAccessRef = doc(firestore, `students/${authUid}/courseCollectionAccess`, req.collectionId);
+          batch.set(altCollAccessRef, collectionAccessPayload, { merge: true });
+        }
 
         // Also grant access to each course within collection if known
         const coll = collections?.find(c => c.id === req.collectionId);
-        if (coll?.courseIds) {
-          for (const cId of coll.courseIds) {
-            const cAccessRef = doc(firestore, `students/${req.studentId}/courseAccess`, cId);
-            batch.set(cAccessRef, {
-              courseId: cId,
-              teacherId: teacherId,
-              fullAccess: true,
-              unlockedAt: serverTimestamp(),
-              viewCount: 0,
-              viewLimit: chosenLimit,
-              grantedVia: 'request',
-            }, { merge: true });
+        const collCourseIds = Array.from(new Set([
+          ...(coll?.courseIds || []),
+          ...((coll?.customItems || []).map(i => i.courseId).filter(Boolean) as string[])
+        ]));
+
+        for (const cId of collCourseIds) {
+          const coursePayload = {
+            courseId: cId,
+            teacherId: teacherId,
+            fullAccess: true,
+            unlockedAt: serverTimestamp(),
+            viewCount: 0,
+            viewLimit: chosenLimit,
+            grantedVia: 'collection_request',
+          };
+          const cAccessRef = doc(firestore, `students/${req.studentId}/courseAccess`, cId);
+          batch.set(cAccessRef, coursePayload, { merge: true });
+
+          if (authUid && authUid !== req.studentId) {
+            const altCAccessRef = doc(firestore, `students/${authUid}/courseAccess`, cId);
+            batch.set(altCAccessRef, coursePayload, { merge: true });
           }
         }
       } else if (req.courseId) {
@@ -434,27 +453,53 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
       await batch.commit();
 
       // Mirror locally for instant reactive updates in student UI
-      if (typeof window !== 'undefined' && req.courseId) {
+      if (typeof window !== 'undefined') {
         try {
-          const cacheKey = `student_course_access_${req.courseId}`;
-          const existingRaw = localStorage.getItem(cacheKey);
-          const existing = existingRaw ? JSON.parse(existingRaw) : {};
-          const prevUnits = Array.isArray(existing.unlockedUnitIds) ? existing.unlockedUnitIds : [];
-          const updatedUnits = req.requestType === 'unit' && req.unitId 
-            ? Array.from(new Set([...prevUnits, req.unitId]))
-            : prevUnits;
+          if (req.requestType === 'collection' && req.collectionId) {
+            localStorage.setItem(`student_collection_access_${req.collectionId}`, JSON.stringify({
+              collectionId: req.collectionId,
+              teacherId: teacherId,
+              fullAccess: true,
+              unlockedAt: new Date().toISOString()
+            }));
 
-          const cachedAccess = {
-            ...existing,
-            courseId: req.courseId,
-            teacherId: teacherId,
-            fullAccess: req.requestType !== 'unit' ? true : Boolean(existing.fullAccess),
-            unlockedUnitIds: updatedUnits,
-            viewLimit: chosenLimit,
-            viewCount: 0,
-            unlockedAt: new Date().toISOString()
-          };
-          localStorage.setItem(cacheKey, JSON.stringify(cachedAccess));
+            const coll = collections?.find(c => c.id === req.collectionId);
+            const collCourseIds = Array.from(new Set([
+              ...(coll?.courseIds || []),
+              ...((coll?.customItems || []).map(i => i.courseId).filter(Boolean) as string[])
+            ]));
+            for (const cId of collCourseIds) {
+              localStorage.setItem(`student_course_access_${cId}`, JSON.stringify({
+                courseId: cId,
+                teacherId: teacherId,
+                fullAccess: true,
+                viewLimit: chosenLimit,
+                viewCount: 0,
+                unlockedAt: new Date().toISOString()
+              }));
+            }
+          } else if (req.courseId) {
+            const cacheKey = `student_course_access_${req.courseId}`;
+            const existingRaw = localStorage.getItem(cacheKey);
+            const existing = existingRaw ? JSON.parse(existingRaw) : {};
+            const prevUnits = Array.isArray(existing.unlockedUnitIds) ? existing.unlockedUnitIds : [];
+            const updatedUnits = req.requestType === 'unit' && req.unitId 
+              ? Array.from(new Set([...prevUnits, req.unitId]))
+              : prevUnits;
+
+            const cachedAccess = {
+              ...existing,
+              courseId: req.courseId,
+              teacherId: teacherId,
+              fullAccess: req.requestType !== 'unit' ? true : Boolean(existing.fullAccess),
+              unlockedUnitIds: updatedUnits,
+              viewLimit: chosenLimit,
+              viewCount: 0,
+              unlockedAt: new Date().toISOString()
+            };
+            localStorage.setItem(cacheKey, JSON.stringify(cachedAccess));
+          }
+
           localStorage.setItem(`student_req_status_${req.id}`, 'granted');
           window.dispatchEvent(new Event('storage'));
           window.dispatchEvent(new Event('course_access_updated'));
@@ -462,7 +507,9 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
       }
       toast({
         title: "✅ Access Granted Successfully!",
-        description: `Unlocked ${req.requestType === 'unit' ? `Unit (${req.unitTitle || 'Unit'})` : req.courseTitle || 'Content'} with ${chosenLimit} views (Max 3) for ${req.studentName}.`,
+        description: req.requestType === 'collection' 
+          ? `Unlocked collection "${req.collectionTitle || 'Bundle'}" for ${req.studentName}.`
+          : `Unlocked ${req.requestType === 'unit' ? `Unit (${req.unitTitle || 'Unit'})` : req.courseTitle || 'Content'} with ${chosenLimit} views (Max 3) for ${req.studentName}.`,
       });
     } catch (e: any) {
       console.error("Grant access error:", e);

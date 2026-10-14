@@ -65,7 +65,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { uploadImageToCloudinary } from '@/lib/cloudinary';
+import { uploadImageToCloudinary, uploadFileToCloudinary } from '@/lib/cloudinary';
 import { isBunnyStreamUrl } from '@/lib/bunnyStream';
 import { BunnyVideoUploader } from '@/components/BunnyVideoUploader';
 
@@ -314,6 +314,15 @@ function CourseForm({
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Protected Lecture Materials & Slides state
+  const [attachmentPages, setAttachmentPages] = useState<string[]>(() => {
+    return courseToEdit?.attachmentPages || [];
+  });
+  const [isUploadingMaterials, setIsUploadingMaterials] = useState(false);
+  const [materialProgress, setMaterialProgress] = useState(0);
+  const materialFileInputRef = useRef<HTMLInputElement>(null);
+  const pdfFileInputRef = useRef<HTMLInputElement>(null);
+
   const defaultValues: CourseFormValues = courseToEdit
     ? {
         title: courseToEdit.title || '',
@@ -386,8 +395,91 @@ function CourseForm({
       if (courseToEdit.grades) {
         setAllGrades((prev) => Array.from(new Set([...prev, ...courseToEdit.grades])));
       }
+      setAttachmentPages(courseToEdit.attachmentPages || []);
+    } else {
+      setAttachmentPages([]);
     }
   }, [courseToEdit, reset]);
+
+  const handleUploadMaterialImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setIsUploadingMaterials(true);
+    setMaterialProgress(0);
+    try {
+      const fileList = Array.from(files);
+      const newUrls: string[] = [];
+      for (let i = 0; i < fileList.length; i++) {
+        const f = fileList[i];
+        const url = await uploadFileToCloudinary(f, 'courses/materials', (p) => {
+          const overall = Math.round(((i + (p / 100)) / fileList.length) * 100);
+          setMaterialProgress(overall);
+        });
+        newUrls.push(url);
+      }
+      setAttachmentPages(prev => [...prev, ...newUrls]);
+      if (!watch('attachmentUrl') && newUrls[0]) {
+        setValue('attachmentUrl', newUrls[0]);
+      }
+      toast({
+        title: 'تم رفع مذكرات المحاضرة بنجاح 🔒',
+        description: `تم إضافة ${newUrls.length} صفحة/سلايد مشفرة داخل التطبيق.`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'فشل رفع المذكرات',
+        description: err?.message || 'تعذر رفع صور المذكرة إلى السحابة.',
+      });
+    } finally {
+      setIsUploadingMaterials(false);
+      setMaterialProgress(0);
+      if (materialFileInputRef.current) {
+        materialFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleUploadPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingMaterials(true);
+    setMaterialProgress(0);
+    try {
+      const url = await uploadFileToCloudinary(file, 'courses/pdf_materials', (p) => {
+        setMaterialProgress(p);
+      });
+      setValue('attachmentUrl', url, { shouldValidate: true });
+      toast({
+        title: 'تم رفع ملف المذكرة بنجاح 🔒',
+        description: 'تم ربط ملف المذكرة المحمية بالمقرر.',
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'فشل الرفع',
+        description: err?.message || 'تعذر رفع الملف.',
+      });
+    } finally {
+      setIsUploadingMaterials(false);
+      setMaterialProgress(0);
+      if (pdfFileInputRef.current) {
+        pdfFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const removeAttachmentPage = (idxToRemove: number) => {
+    setAttachmentPages(prev => {
+      const updated = prev.filter((_, idx) => idx !== idxToRemove);
+      if (updated.length === 0 && watch('attachmentUrl')?.includes('/courses/materials/')) {
+        setValue('attachmentUrl', '');
+      } else if (updated.length > 0 && watch('attachmentUrl') === prev[idxToRemove]) {
+        setValue('attachmentUrl', updated[0]);
+      }
+      return updated;
+    });
+  };
 
   const { fields: unitFields, append: appendUnit, remove: removeUnit } = useFieldArray({
     control,
@@ -497,7 +589,9 @@ function CourseForm({
         title: data.title || '',
         description: data.description || '',
         thumbnailUrl: data.thumbnailUrl || '',
-        attachmentUrl: data.attachmentUrl || '',
+        attachmentUrl: data.attachmentUrl || (attachmentPages[0] || ''),
+        attachmentPages: attachmentPages || [],
+        attachmentType: (attachmentPages && attachmentPages.length > 0) ? 'images' : (data.attachmentUrl ? 'pdf' : undefined),
         videoNote: data.videoNote || '',
         grades: Array.isArray(data.grades) ? data.grades : [],
         subjects: Array.isArray(data.subjects) ? data.subjects : [],
@@ -818,28 +912,162 @@ function CourseForm({
                   </div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-slate-50/90 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Label htmlFor="attachmentUrl" className="text-slate-800 dark:text-zinc-200 text-xs font-semibold">
-                      Lecture Material / PDF Attachment URL
-                    </Label>
-                    <Link
-                      href="https://drive.google.com"
-                      target="_blank"
-                      className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 font-semibold"
-                    >
-                      Google Drive <Download className="w-3 h-3" />
-                    </Link>
+                {/* Protected Lecture Materials & In-App Viewer Studio */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 dark:border-zinc-800/80 pb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="w-4 h-4 text-emerald-500" />
+                        <Label className="text-slate-900 dark:text-white text-xs font-bold">
+                          مذكرات وسلايدات المحاضرة المحمية (Protected Lecture Materials)
+                        </Label>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                          DRM مشفر
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-1 leading-relaxed">
+                        🔒 تعرض المذكرات حصرياً داخل مشغل التطبيق فقط مع علامة مائية مائلة مشفرة باسم ورقم وهاتف الطالب، مع حظر التحميل وتصوير الشاشة نهائياً.
+                      </p>
+                    </div>
                   </div>
-                  <Input
-                    id="attachmentUrl"
-                    {...register('attachmentUrl')}
-                    placeholder="https://drive.google.com/file/d/... or PDF link"
-                    className="bg-white dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs h-9"
+
+                  {/* Hidden File Inputs for Cloudinary Direct Upload */}
+                  <input
+                    type="file"
+                    ref={materialFileInputRef}
+                    multiple
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleUploadMaterialImages}
+                    className="hidden"
                   />
-                  {errors.attachmentUrl && (
-                    <p className="text-rose-500 text-xs mt-1">{errors.attachmentUrl.message}</p>
+                  <input
+                    type="file"
+                    ref={pdfFileInputRef}
+                    accept="application/pdf"
+                    onChange={handleUploadPdf}
+                    className="hidden"
+                  />
+
+                  {/* Upload Action Buttons */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isUploadingMaterials}
+                      onClick={() => materialFileInputRef.current?.click()}
+                      className="h-9 px-3 rounded-xl border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold text-xs gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>{isUploadingMaterials ? 'جاري الرفع للسحابة...' : 'رفع صور / سلايدات المحاضرة (Images)'}</span>
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isUploadingMaterials}
+                      onClick={() => pdfFileInputRef.current?.click()}
+                      className="h-9 px-3 rounded-xl border-blue-500/40 bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold text-xs gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-blue-500" />
+                      <span>رفع ملف PDF للمحاضرة</span>
+                    </Button>
+
+                    {attachmentPages.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setAttachmentPages([]);
+                          setValue('attachmentUrl', '');
+                        }}
+                        className="h-9 px-2.5 rounded-xl text-rose-500 hover:bg-rose-500/10 font-bold text-xs gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>مسح كل الصفحات</span>
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Upload Progress Bar */}
+                  {isUploadingMaterials && (
+                    <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-1.5 animate-in fade-in">
+                      <div className="flex justify-between items-center text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                        <span>جاري معالجة وتشفير ملفات المذكرة...</span>
+                        <span>{materialProgress}%</span>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-emerald-950/30 overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-500 transition-all duration-200"
+                          style={{ width: `${materialProgress}%` }}
+                        />
+                      </div>
+                    </div>
                   )}
+
+                  {/* Uploaded Pages Preview Grid */}
+                  {attachmentPages.length > 0 && (
+                    <div className="space-y-2 pt-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-zinc-300">
+                        <span>صفحات وسلايدات المذكرة المحمية ({attachmentPages.length} صفحة):</span>
+                        <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono">
+                          محمية بالعلامة المائية المائلة
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5 max-h-60 overflow-y-auto p-1 rounded-xl border border-slate-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-950/50">
+                        {attachmentPages.map((pageUrl, pIdx) => (
+                          <div
+                            key={pIdx}
+                            className="relative group rounded-xl overflow-hidden border border-slate-200 dark:border-zinc-800 bg-slate-100 dark:bg-zinc-900 aspect-[3/4] flex items-center justify-center shadow-xs"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={pageUrl}
+                              alt={`Page ${pIdx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute top-1 right-1 bg-black/80 text-white text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md">
+                              #{pIdx + 1}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeAttachmentPage(pIdx)}
+                              className="absolute inset-0 bg-rose-600/80 text-white font-bold text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 cursor-pointer"
+                              title="حذف هذه الصفحة"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              <span>حذف</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Direct Attachment URL Input */}
+                  <div className="pt-2 border-t border-slate-200/60 dark:border-zinc-800/60 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="attachmentUrl" className="text-slate-700 dark:text-zinc-300 text-xs font-semibold">
+                        رابط المذكرة أو المستند المباشر (Direct Attachment URL):
+                      </Label>
+                      {watch('attachmentUrl') && (
+                        <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                          <Check className="w-3 h-3" /> تم ربط المذكرة
+                        </span>
+                      )}
+                    </div>
+                    <Input
+                      id="attachmentUrl"
+                      {...register('attachmentUrl')}
+                      placeholder="https://res.cloudinary.com/... or https://.../lecture.pdf"
+                      className="bg-white dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs h-9 font-mono"
+                    />
+                    {errors.attachmentUrl && (
+                      <p className="text-rose-500 text-xs mt-1">{errors.attachmentUrl.message}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

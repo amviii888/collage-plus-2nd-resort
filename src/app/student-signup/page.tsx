@@ -406,18 +406,7 @@ export default function StudentSignupPage() {
     }
   }, [professorCodeInput, firestore]);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedStudentId = localStorage.getItem('viewingStudentId');
-      if (storedStudentId) {
-        router.replace('/profile');
-        return;
-      }
-    }
-    if (hasMounted && !isUserLoading && user) {
-      router.replace('/profile');
-    }
-  }, [user, isUserLoading, router, hasMounted]);
+  // Do not trap or auto-redirect the user away from student-signup so they can register new accounts
 
   const handleSignup = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

@@ -169,19 +169,7 @@ function LoginFormContent() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
-    // If already logged in, redirect directly to user portal
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const sid = localStorage.getItem('viewingStudentId');
-            if (sid) {
-                router.replace('/profile');
-                return;
-            }
-        }
-        if (!isUserLoading && user) {
-            router.replace('/profile');
-        }
-    }, [user, isUserLoading, router]);
+    // Do NOT auto-redirect to profile when user visits /login so they can freely sign in as another user or switch accounts
 
     useEffect(() => {
         setCooldownRemaining(getCooldownSecondsLeft('universal'));

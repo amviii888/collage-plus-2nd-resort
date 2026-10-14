@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from './ui/button';
-import { Settings, WifiOff, Sun, Moon, LogOut, Compass, BookOpen } from 'lucide-react';
+import { Settings, WifiOff, Sun, Moon, Compass, BookOpen } from 'lucide-react';
 import { useUser, useAuth, useDoc, useMemoFirebase, useStudent } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import type { Teacher } from '@/lib/types';
@@ -15,7 +15,7 @@ import { Logo } from '@/components/icons';
 import { useOnlineStatus } from '@/hooks/use-online-status';
 import { cn } from '@/lib/utils';
 import { InstallPwaButton } from './InstallPwaButton';
-import { isStudentEmail, getStudentBarcodeFromEmail, clearAllStudentAuthSessions } from '@/lib/auth-helpers';
+import { isStudentEmail, getStudentBarcodeFromEmail, clearAllStudentAuthSessions, performFullLogout } from '@/lib/auth-helpers';
 import { findProfessorByCode, normalizeImagePath, DEFAULT_CUSTOM_PROFESSOR_IMAGE } from '@/lib/professors-registry';
 
 function UserProfile() {
@@ -273,18 +273,6 @@ export function Header() {
         }
     }, [user, isTeacher, isStudent]);
 
-    const handleHeaderLogout = async () => {
-        try {
-            if (auth) {
-                await auth.signOut();
-            }
-        } catch (e) {
-            console.error(e);
-        }
-        clearAllStudentAuthSessions();
-        window.location.href = '/signup-options';
-    };
-
     useEffect(() => {
         try {
             const saved = localStorage.getItem('mol5saty_theme') || localStorage.getItem('app_mode_dark');
@@ -414,19 +402,6 @@ export function Header() {
                             <Settings className="w-5 h-5" />
                         </Link>
                     </Button>
-
-                    {/* Fast Quick Log Out Button - strictly reserved for Teachers (hidden for Students) */}
-                    {hasSession && isTeacher && (
-                        <button
-                            onClick={handleHeaderLogout}
-                            type="button"
-                            aria-label="Log Out"
-                            title="Log Out / تسجيل الخروج"
-                            className="h-10 w-10 rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50/70 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-xs cursor-pointer"
-                        >
-                            <LogOut className="w-4 h-4" />
-                        </button>
-                    )}
                 </div>
             </div>
 

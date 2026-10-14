@@ -122,6 +122,8 @@ export type Course = {
   videos?: Video[]; // DEPRECATED: Kept for backward compatibility, will be migrated to units
   thumbnailUrl: string;
   attachmentUrl?: string; // Optional link to a PDF or other resource
+  attachmentPages?: string[]; // Array of uploaded lecture slides/images
+  attachmentType?: 'images' | 'pdf' | 'link'; // Type of lecture material
   videoNote?: string; // Optional note displayed with the video
   grades: Grade[];
   subjects: string[]; // Added subjects to course
@@ -164,7 +166,11 @@ export type CourseCollection = {
     thumbnailUrl: string;
     courseIds: string[];
     customItems?: CollectionCustomItem[];
-    locked: boolean; // Always true for collections
+    locked: boolean; // Always true for collections unless unlocked
+    price?: number;
+    lockMode?: 'requests_only' | 'codes_only' | 'both';
+    createdAt?: Timestamp | any;
+    updatedAt?: Timestamp | any;
 };
 
 export type CourseRequest = {
@@ -275,7 +281,9 @@ export type CourseAccess = {
 export type CourseCollectionAccess = {
   collectionId: string;
   studentId: string;
-  unlockedAt: Timestamp;
+  teacherId?: string;
+  fullAccess?: boolean;
+  unlockedAt: Timestamp | any;
 };
 
 

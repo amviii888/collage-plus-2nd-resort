@@ -211,13 +211,18 @@ export default function StudentCourses({ studentId }: { studentId: string }) {
                                             ⏳ قيد المراجعة (Pending Review)
                                         </Badge>
                                         <h4 className="text-sm sm:text-base font-bold text-white line-clamp-1">
-                                            {req.courseTitle || 'مقرر دراسي'}
+                                            {req.requestType === 'collection' ? (req.collectionTitle || 'باقة مقررات') : (req.courseTitle || 'مقرر دراسي')}
                                         </h4>
                                     </div>
                                     {req.requestType === 'unit' ? (
                                         <Badge className="bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[10px] flex items-center gap-1 shrink-0 font-bold">
                                             <Layers className="w-3 h-3" />
                                             طلب وحدة
+                                        </Badge>
+                                    ) : req.requestType === 'collection' ? (
+                                        <Badge className="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] flex items-center gap-1 shrink-0 font-bold">
+                                            <Library className="w-3 h-3" />
+                                            باقة كولكشن
                                         </Badge>
                                     ) : (
                                         <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] flex items-center gap-1 shrink-0 font-bold">
@@ -233,6 +238,8 @@ export default function StudentCourses({ studentId }: { studentId: string }) {
                                         <span className="font-bold text-amber-200">
                                             {req.requestType === 'unit' 
                                                 ? `الوحدة المطلوبة: ${req.unitTitle || (req.unitIndex ? `الوحدة ${req.unitIndex}` : 'وحدة دراسية')}`
+                                                : req.requestType === 'collection'
+                                                ? `باقة مقررات: ${req.collectionTitle || 'مجموعة تعليمية'}`
                                                 : 'الكورس الأكاديمي بالكامل'
                                             }
                                         </span>
@@ -243,14 +250,21 @@ export default function StudentCourses({ studentId }: { studentId: string }) {
                                     </div>
                                 </div>
 
-                                {req.courseId && req.teacherId && (
+                                {req.requestType === 'collection' && req.collectionId && req.teacherId ? (
+                                    <Button asChild size="sm" variant="outline" className="w-full h-8 text-xs font-bold rounded-xl border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-200 flex items-center justify-center gap-1.5">
+                                        <Link href={`/collections/${req.teacherId}/${req.collectionId}`}>
+                                            <span>معاينة صفحة الباقة</span>
+                                            <ArrowRight className="w-3 h-3 rtl:rotate-180" />
+                                        </Link>
+                                    </Button>
+                                ) : req.courseId && req.teacherId ? (
                                     <Button asChild size="sm" variant="outline" className="w-full h-8 text-xs font-bold rounded-xl border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 flex items-center justify-center gap-1.5">
                                         <Link href={`/courses/${req.teacherId}/${req.courseId}`}>
                                             <span>معاينة صفحة المقرر</span>
                                             <ArrowRight className="w-3 h-3 rtl:rotate-180" />
                                         </Link>
                                     </Button>
-                                )}
+                                ) : null}
                             </div>
                         ))}
                     </div>

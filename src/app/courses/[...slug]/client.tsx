@@ -1029,16 +1029,21 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                             <div className="flex items-center gap-4 text-xs text-muted-foreground"><span>⭐ {teacher.averageRating?.toFixed(1) || 'N/A'}</span></div>
                                         </div>
                                     </Link>
-                                    {attachmentUrl && (
+                                    {Boolean((displayCourse.attachmentPages && displayCourse.attachmentPages.length > 0) || attachmentUrl) && (
                                         <Button 
                                             type="button" 
                                             size="sm" 
                                             variant="outline"
                                             onClick={() => setIsAttachmentReaderOpen(true)}
-                                            className="font-bold text-xs gap-1.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer shadow-xs"
+                                            className="font-bold text-xs gap-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer shadow-xs bg-emerald-500/5 px-3 py-2 rounded-xl transition-all hover:scale-105"
                                         >
                                             <BookOpen className="mr-1.5 h-4 w-4 text-emerald-500" />
-                                            <span>{t('عرض المرفق الدراسي المحمي', {lng: 'ar'})}</span>
+                                            <span>{t('عرض مذكرات وملخصات المحاضرة المحمية', {lng: 'ar'})}</span>
+                                            {displayCourse.attachmentPages && displayCourse.attachmentPages.length > 0 && (
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 font-mono font-bold">
+                                                    {displayCourse.attachmentPages.length} {displayCourse.attachmentPages.length === 1 ? 'صفحة' : 'صفحات'}
+                                                </span>
+                                            )}
                                         </Button>
                                     )}
                                 </div>
@@ -1158,22 +1163,27 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                 </Dialog>
             )}
 
-            {/* Protected Document / PDF Reader with Dynamic Watermark & Anti-Theft Protection */}
-            {isAttachmentReaderOpen && attachmentUrl && teacher && (
+            {/* Protected Document / Slides / Images Reader with Dynamic Watermark & Anti-Theft Protection */}
+            {isAttachmentReaderOpen && Boolean((displayCourse.attachmentPages && displayCourse.attachmentPages.length > 0) || attachmentUrl) && teacher && (
                 <ProtectedBookReader
                     book={{
                         id: `course_attach_${courseId}`,
-                        title: `${title} - ملف المادة الشارح`,
+                        title: `${title} - مذكرات وملخصات المحاضرة`,
                         author: teacher.name,
-                        description: description || 'ملحقات ومذكرات المحاضرة المحمية رقمياً ضد التسريب.',
+                        description: description || 'ملحقات ومذكرات المحاضرة المحمية رقمياً ضد التسريب والتصوير.',
                         price: 0,
-                        category: 'ملحقات الكورس',
-                        pdfUrl: attachmentUrl,
+                        category: 'مذكرات الكورس',
+                        pages: displayCourse.attachmentPages && displayCourse.attachmentPages.length > 0 
+                            ? displayCourse.attachmentPages 
+                            : (attachmentUrl ? [attachmentUrl] : []),
+                        pdfUrl: attachmentUrl || '',
                         allowDownload: false,
                     }}
                     studentId={activeStudentId || user?.uid || 'student'}
                     studentName={typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('mol5saty_active_student_profile') || '{}')?.name || user?.displayName || 'Student') : 'Student'}
                     studentBarcode={typeof window !== 'undefined' ? (localStorage.getItem('student_barcode') || '') : ''}
+                    teacherId={teacherId || displayCourse.teacherId}
+                    forceCanvasStamp={true}
                     onClose={() => setIsAttachmentReaderOpen(false)}
                 />
             )}

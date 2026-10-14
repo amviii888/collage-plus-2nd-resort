@@ -1,6 +1,6 @@
 
 'use client';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -28,7 +28,8 @@ import {
   X,
   Sparkles,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Upload
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -39,11 +40,15 @@ import { v4 as uuidv4 } from 'uuid';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { cn } from '@/lib/utils';
+import { uploadFileToCloudinary, uploadImageToCloudinary } from '@/lib/cloudinary';
 
 const collectionSchema = z.object({
     title: z.string().min(1, 'Title is required'),
     description: z.string().optional(),
-    thumbnailUrl: z.string().url('Must be a valid URL'),
+    thumbnailUrl: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+    price: z.coerce.number().optional().default(0),
+    lockMode: z.enum(['both', 'requests_only', 'codes_only']).default('both'),
 });
 
 type CollectionFormValues = z.infer<typeof collectionSchema>;
@@ -79,6 +84,8 @@ function CollectionFormModal({
             title: collectionToEdit?.title || '',
             description: collectionToEdit?.description || '',
             thumbnailUrl: collectionToEdit?.thumbnailUrl || '',
+            price: collectionToEdit?.price || 0,
+            lockMode: collectionToEdit?.lockMode || 'both',
         },
     });
     
@@ -88,6 +95,8 @@ function CollectionFormModal({
                 title: collectionToEdit?.title || '',
                 description: collectionToEdit?.description || '',
                 thumbnailUrl: collectionToEdit?.thumbnailUrl || '',
+                price: collectionToEdit?.price || 0,
+                lockMode: collectionToEdit?.lockMode || 'both',
             });
             setSelectedCourseIds(collectionToEdit?.courseIds || []);
             setCustomItems(collectionToEdit?.customItems || []);
@@ -171,10 +180,12 @@ function CollectionFormModal({
             teacherId: teacherId,
             title: data.title,
             description: data.description || '',
-            thumbnailUrl: data.thumbnailUrl,
+            thumbnailUrl: data.thumbnailUrl || 'https://picsum.photos/seed/course-bundle/800/450',
             courseIds: derivedCourseIds.length > 0 ? derivedCourseIds : (courses[0] ? [courses[0].id] : []),
             customItems: customItems,
             locked: true,
+            price: Number(data.price) || 0,
+            lockMode: data.lockMode || 'both',
         };
         onSave(collectionData);
         setIsSubmitting(false);
@@ -208,10 +219,60 @@ function CollectionFormModal({
 
                             <FormField control={form.control} name="thumbnailUrl" render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel className="text-xs font-semibold text-slate-700 dark:text-zinc-300">Cover Thumbnail URL</FormLabel>
+                                    <div className="flex justify-between items-center">
+                                        <FormLabel className="text-xs font-semibold text-slate-700 dark:text-zinc-300">Cover Thumbnail URL</FormLabel>
+                                        <label className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold cursor-pointer hover:underline flex items-center gap-1">
+                                            <Upload className="w-3 h-3" />
+                                            <span>رفع صورة غلاف</span>
+                                            <input 
+                                                type="file" 
+                                                accept="image/*" 
+                                                className="hidden" 
+                                                onChange={async (e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (!file) return;
+                                                    try {
+                                                        const url = await uploadImageToCloudinary(file);
+                                                        field.onChange(url);
+                                                    } catch (err) {}
+                                                }}
+                                            />
+                                        </label>
+                                    </div>
                                     <FormControl>
                                         <Input placeholder="https://..." {...field} className="bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white rounded-xl text-xs h-9" />
                                     </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )} />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <FormField control={form.control} name="price" render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-xs font-semibold text-slate-700 dark:text-zinc-300">Bundle Price (EGP)</FormLabel>
+                                    <FormControl>
+                                        <Input type="number" placeholder="0" {...field} className="bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white rounded-xl text-xs h-9 font-mono" />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )} />
+
+                            <FormField control={form.control} name="lockMode" render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-xs font-semibold text-slate-700 dark:text-zinc-300">Access Mode</FormLabel>
+                                    <Select value={field.value} onValueChange={field.onChange}>
+                                        <FormControl>
+                                            <SelectTrigger className="bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white rounded-xl text-xs h-9">
+                                                <SelectValue placeholder="Access mode" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent className="bg-white dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 text-xs">
+                                            <SelectItem value="both">Both (Requests & Share Codes)</SelectItem>
+                                            <SelectItem value="requests_only">Requests Only (Approval)</SelectItem>
+                                            <SelectItem value="codes_only">Share Codes Only</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                     <FormMessage />
                                 </FormItem>
                             )} />
@@ -248,7 +309,27 @@ function CollectionFormModal({
                             {/* Add PDF Input drawer */}
                             {showPdfInput && (
                                 <div className="p-3 rounded-xl bg-white dark:bg-zinc-950 border border-emerald-500/40 space-y-2 animate-in fade-in-50">
-                                    <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Add Resource PDF / Document</p>
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Add Resource PDF / Document</p>
+                                        <label className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold cursor-pointer hover:underline flex items-center gap-1">
+                                            <Upload className="w-3 h-3" />
+                                            <span>رفع ملف PDF مباشرة</span>
+                                            <input 
+                                                type="file" 
+                                                accept="application/pdf" 
+                                                className="hidden" 
+                                                onChange={async (e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (!file) return;
+                                                    try {
+                                                        const url = await uploadFileToCloudinary(file, 'collections/pdf');
+                                                        setPdfUrl(url);
+                                                        if (!pdfTitle) setPdfTitle(file.name.replace(/\.[^/.]+$/, ''));
+                                                    } catch (err) {}
+                                                }}
+                                            />
+                                        </label>
+                                    </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                         <Input 
                                             placeholder="Document Title (e.g. Formula Sheet)" 
@@ -257,10 +338,10 @@ function CollectionFormModal({
                                             className="bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs h-8 rounded-lg"
                                         />
                                         <Input 
-                                            placeholder="File URL (Drive, Cloudinary, etc.)" 
+                                            placeholder="File URL (or upload above)" 
                                             value={pdfUrl} 
                                             onChange={(e) => setPdfUrl(e.target.value)}
-                                            className="bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs h-8 rounded-lg"
+                                            className="bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs h-8 rounded-lg font-mono"
                                         />
                                     </div>
                                     <div className="flex justify-end gap-2 pt-1">
@@ -481,7 +562,7 @@ export function ManageCollections({ teacherId }: { teacherId: string }) {
                             <Card key={collection.id} className="flex flex-col rounded-3xl bg-zinc-950 border border-zinc-800 overflow-hidden shadow-xl hover:border-zinc-700 transition-all">
                                 <CardHeader className="p-0">
                                     <div className="aspect-video w-full overflow-hidden relative bg-zinc-900">
-                                        <Image src={collection.thumbnailUrl} alt={collection.title} fill className="object-cover"/>
+                                        <Image src={collection.thumbnailUrl || 'https://picsum.photos/seed/course-bundle/800/450'} alt={collection.title || 'Collection'} fill className="object-cover"/>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="flex-grow p-5 space-y-2">
