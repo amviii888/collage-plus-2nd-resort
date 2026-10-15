@@ -12,35 +12,30 @@ interface FirebaseClientProviderProps {
   children: ReactNode;
 }
 
-export function FirebaseClientProvider({ children }: FirebaseClientProviderProps) {
-  const [services, setServices] = useState<{
-    firebaseApp: FirebaseApp | null;
-    auth: Auth | null;
-    firestore: Firestore | null;
-  }>({
-    firebaseApp: null,
-    auth: null,
-    firestore: null,
-  });
-
-  useEffect(() => {
-    try {
-      const resolvedConfig = (firebaseConfig as any)?.firebaseConfig || firebaseConfig;
-      if (!resolvedConfig || !resolvedConfig.apiKey || !resolvedConfig.projectId) {
-        // Disconnected / Standby mode - no active database connected
-        return;
-      }
-
-      const app = getApps().length > 0 ? getApp() : initializeApp(resolvedConfig);
-      const auth = getAuth(app);
-      const dbId = resolvedConfig.firestoreDatabaseId;
-      const firestore = dbId && dbId !== '(default)' ? getFirestore(app, dbId) : getFirestore(app);
-      
-      setServices({ firebaseApp: app, auth, firestore });
-    } catch (err) {
-      console.warn('Firebase standby:', err);
+function getServices() {
+  if (typeof window === 'undefined') {
+    return { firebaseApp: null, auth: null, firestore: null };
+  }
+  try {
+    const resolvedConfig = (firebaseConfig as any)?.firebaseConfig || firebaseConfig;
+    if (!resolvedConfig || !resolvedConfig.apiKey || !resolvedConfig.projectId) {
+      return { firebaseApp: null, auth: null, firestore: null };
     }
-  }, []);
+
+    const app = getApps().length > 0 ? getApp() : initializeApp(resolvedConfig);
+    const auth = getAuth(app);
+    const dbId = resolvedConfig.firestoreDatabaseId;
+    const firestore = dbId && dbId !== '(default)' ? getFirestore(app, dbId) : getFirestore(app);
+    
+    return { firebaseApp: app, auth, firestore };
+  } catch (err) {
+    console.warn('Firebase init notice:', err);
+    return { firebaseApp: null, auth: null, firestore: null };
+  }
+}
+
+export function FirebaseClientProvider({ children }: FirebaseClientProviderProps) {
+  const [services] = useState(() => getServices());
 
   useEffect(() => {
     if (services.auth && services.firestore) {

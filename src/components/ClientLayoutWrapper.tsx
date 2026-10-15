@@ -19,6 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ShieldAlert } from 'lucide-react';
 
 import { ScreenProtectionGuard } from '@/components/security/ScreenProtectionGuard';
+import { DynamicWatermark } from '@/components/security/DynamicWatermark';
 import { GlobalStudentPassStamp } from '@/components/security/GlobalStudentPassStamp';
 import { NotificationListener } from '@/components/NotificationListener';
 import { DynamicBrandingManager } from '@/components/DynamicBrandingManager';
@@ -52,19 +53,47 @@ export function ClientLayoutWrapper({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
   const [isClient, setIsClient] = useState(false);
-  const [isStudentSession, setIsStudentSession] = useState(false);
-  const [isParentSession, setIsParentSession] = useState(false);
-  const [isAssistantSession, setIsAssistantSession] = useState(false);
-  const [isTeacherSession, setIsTeacherSession] = useState(false);
+  const [isStudentSession, setIsStudentSession] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return !!(
+        localStorage.getItem('viewingStudentId') || 
+        localStorage.getItem('student_barcode') || 
+        localStorage.getItem('app_student_auth_session')
+      );
+    }
+    return false;
+  });
+  const [isParentSession, setIsParentSession] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return !!localStorage.getItem('parentForStudentBarcode');
+    }
+    return false;
+  });
+  const [isAssistantSession, setIsAssistantSession] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return !!(localStorage.getItem('assistantForTeacherId') || localStorage.getItem('assistantTeacherName'));
+    }
+    return false;
+  });
+  const [isTeacherSession, setIsTeacherSession] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return !!(
+        localStorage.getItem('teacher_session') === 'true' || 
+        localStorage.getItem('teacherId') || 
+        localStorage.getItem('teacher_accounts')
+      );
+    }
+    return false;
+  });
 
   useEffect(() => {
     setIsClient(true);
     try {
-        setIsStudentSession(!!localStorage.getItem('viewingStudentId'));
+        setIsStudentSession(!!(localStorage.getItem('viewingStudentId') || localStorage.getItem('student_barcode') || localStorage.getItem('app_student_auth_session')));
         setIsParentSession(!!localStorage.getItem('parentForStudentBarcode'));
-        setIsAssistantSession(!!localStorage.getItem('assistantForTeacherId'));
+        setIsAssistantSession(!!(localStorage.getItem('assistantForTeacherId') || localStorage.getItem('assistantTeacherName')));
         setIsTeacherSession(
-          !!localStorage.getItem('teacher_session') || 
+          localStorage.getItem('teacher_session') === 'true' || 
           !!localStorage.getItem('teacherId') || 
           !!localStorage.getItem('teacher_accounts')
         );
@@ -171,21 +200,23 @@ export function ClientLayoutWrapper({ children }: { children: React.ReactNode })
   const cleanedPathname = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
 
   const isPublicRoute = publicRoutes.includes(cleanedPathname) || 
-                        pathname.startsWith('/courses/') ||
-                        pathname.startsWith('/collections/');
+                        pathname.startsWith('/courses') ||
+                        pathname.startsWith('/collections') ||
+                        pathname.startsWith('/discover') ||
+                        cleanedPathname === '/teacher';
 
   // Wait for isClient to prevent client-side hydration mismatch
   if (!isClient) {
       return null;
   }
 
-  const isRealUser = user && !user.isAnonymous;
+  const isRealUser = !!user;
   const isAuthenticated = isRealUser || isStudentSession || isParentSession || isAssistantSession || isTeacherSession;
 
-  // Only block rendering on isUserLoading for protected/private views to prevent a momentary flicker of unauthorized content.
+  // Only block rendering on isUserLoading for protected/private views when no cached local session exists.
   // Public routes mount immediately and safely because they require no authentication.
   const isProtected = !isPublicRoute && !pathname.startsWith('/admin/');
-  if (isUserLoading && isProtected) {
+  if (isUserLoading && isProtected && !isAuthenticated) {
       return (
         <div className="flex h-screen w-full items-center justify-center bg-slate-950 relative overflow-hidden" id="app-auth-splash">
           <div className="flex flex-col items-center gap-4 text-center z-10">
@@ -218,6 +249,7 @@ export function ClientLayoutWrapper({ children }: { children: React.ReactNode })
   return (
     <I18nextProvider i18n={i18n}>
       <ScreenProtectionGuard />
+      <DynamicWatermark />
       <GlobalStudentPassStamp />
       <NotificationListener />
       <DynamicBrandingManager />

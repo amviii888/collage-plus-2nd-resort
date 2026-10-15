@@ -55,7 +55,12 @@ export default function TeacherThemeEditorPage() {
   const { t } = useTranslation();
   const searchParams = useSearchParams();
 
-  const teacherId = searchParams.get('id') || user?.uid;
+  const teacherId = searchParams.get('id') || (user && !user.isAnonymous ? user.uid : null) || (typeof window !== 'undefined' ? (localStorage.getItem('teacherId') || (() => {
+    try {
+      const accs = JSON.parse(localStorage.getItem('teacher_accounts') || '[]');
+      return accs[0]?.id || null;
+    } catch { return null; }
+  })()) : null) || 'default_teacher';
 
   const teacherDocRef = useMemoFirebase(() => {
     if (!firestore || !teacherId) return null;

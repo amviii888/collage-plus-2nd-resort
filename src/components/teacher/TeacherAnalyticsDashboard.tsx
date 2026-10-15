@@ -343,17 +343,17 @@ export function TeacherAnalyticsDashboard({ teacherId, planOptions }: TeacherAna
                         placeholder={`${t('Search student')}...`}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-9 h-8 text-xs bg-zinc-950 border-zinc-800 rounded-lg text-foreground placeholder:text-muted-foreground"
+                        className="pl-9 h-8 text-xs bg-white dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 rounded-lg text-slate-900 dark:text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                   </div>
 
                   <div className="pt-4">
                     <TabsContent value="enrolled">
-                      <ScrollArea className="h-[420px] rounded-xl border border-white/5 bg-zinc-950/40">
+                      <ScrollArea className="h-[420px] rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-zinc-950/40">
                         <Table>
-                          <TableHeader className="bg-zinc-950">
-                            <TableRow className="border-b border-white/5">
+                          <TableHeader className="bg-slate-100 dark:bg-zinc-950">
+                            <TableRow className="border-b border-slate-200 dark:border-white/5">
                               <SortableHeader field="name" label={t('Name')} />
                               <SortableHeader field="paid" label={t('Paid')} />
                               <SortableHeader field="remaining" label={t('Debt')} />
@@ -367,30 +367,30 @@ export function TeacherAnalyticsDashboard({ teacherId, planOptions }: TeacherAna
                                 const latestTx = getLatestPaymentForStudent(s.id, selectedPlanId);
                                 const isDebtor = s.remaining > 0 || s.isInDebt;
                                 return (
-                                  <TableRow key={s.id} className="border-b border-white/5 hover:bg-white/5">
+                                  <TableRow key={s.id} className="border-b border-slate-200/80 dark:border-white/5 hover:bg-slate-100/60 dark:hover:bg-white/5">
                                     <TableCell className="font-medium text-xs">
-                                      <div>{s.name}</div>
-                                      <div className="text-[10px] text-zinc-500 font-mono mt-0.5">{s.phone}</div>
+                                      <div className="text-slate-900 dark:text-white font-semibold">{s.name}</div>
+                                      <div className="text-[10px] text-slate-500 dark:text-zinc-500 font-mono mt-0.5">{s.phone}</div>
                                     </TableCell>
-                                    <TableCell className="font-mono text-xs text-zinc-300">£{(s.paid || 0).toFixed(2)}</TableCell>
-                                    <TableCell className="font-mono text-xs text-zinc-300">£{(s.remaining || 0).toFixed(2)}</TableCell>
+                                    <TableCell className="font-mono text-xs text-slate-800 dark:text-zinc-200 font-bold">£{(s.paid || 0).toFixed(2)}</TableCell>
+                                    <TableCell className="font-mono text-xs text-slate-800 dark:text-zinc-200">£{(s.remaining || 0).toFixed(2)}</TableCell>
                                     <TableCell className="text-xs">
                                       {latestTx ? (
                                         <div>
-                                          <span className="font-mono text-primary">£{latestTx.amount.toFixed(2)}</span>
-                                          <span className="text-[9px] text-zinc-500 ml-1.5 font-mono">({format(new Date(latestTx.date), 'MM-dd')})</span>
+                                          <span className="font-mono text-primary font-bold">£{latestTx.amount.toFixed(2)}</span>
+                                          <span className="text-[9px] text-slate-500 dark:text-zinc-500 ml-1.5 font-mono">({format(new Date(latestTx.date), 'MM-dd')})</span>
                                         </div>
                                       ) : (
-                                        <span className="text-zinc-500 text-[10px] italic">None</span>
+                                        <span className="text-slate-400 dark:text-zinc-500 text-[10px] italic">None</span>
                                       )}
                                     </TableCell>
                                     <TableCell className="text-right">
                                       {isDebtor ? (
-                                        <Badge variant="outline" className="text-[10px] font-bold border-amber-500/30 text-amber-500 bg-amber-500/5">
+                                        <Badge variant="outline" className="text-[10px] font-bold border-amber-500/30 text-amber-600 dark:text-amber-500 bg-amber-500/10">
                                           In Debt
                                         </Badge>
                                       ) : (
-                                        <Badge variant="outline" className="text-[10px] font-bold border-emerald-500/30 text-emerald-400 bg-emerald-500/5">
+                                        <Badge variant="outline" className="text-[10px] font-bold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10">
                                           Paid
                                         </Badge>
                                       )}
@@ -411,10 +411,10 @@ export function TeacherAnalyticsDashboard({ teacherId, planOptions }: TeacherAna
                     </TabsContent>
 
                     <TabsContent value="attended">
-                      <ScrollArea className="h-[420px] rounded-xl border border-white/5 bg-zinc-950/40">
+                      <ScrollArea className="h-[420px] rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-zinc-950/40">
                         <Table>
-                          <TableHeader className="bg-zinc-950">
-                            <TableRow className="border-b border-white/5">
+                          <TableHeader className="bg-slate-100 dark:bg-zinc-950">
+                            <TableRow className="border-b border-slate-200 dark:border-white/5">
                               <SortableHeader field="name" label={t('Name')} />
                               <SortableHeader field="attendance" label={t('Sessions')} />
                               <SortableHeader field="paid" label={t('Paid')} />
@@ -430,33 +430,33 @@ export function TeacherAnalyticsDashboard({ teacherId, planOptions }: TeacherAna
                                 const latestTx = getLatestPaymentForStudent(s.id, selectedPlanId);
                                 const isDebtor = s.remaining > 0 || s.isInDebt;
                                 return (
-                                  <TableRow key={s.id} className="border-b border-white/5 hover:bg-white/5">
+                                  <TableRow key={s.id} className="border-b border-slate-200/80 dark:border-white/5 hover:bg-slate-100/60 dark:hover:bg-white/5">
                                     <TableCell className="font-medium text-xs">
-                                      <div>{s.name}</div>
-                                      <div className="text-[10px] text-zinc-500 font-mono mt-0.5">{s.phone}</div>
+                                      <div className="text-slate-900 dark:text-white font-semibold">{s.name}</div>
+                                      <div className="text-[10px] text-slate-500 dark:text-zinc-500 font-mono mt-0.5">{s.phone}</div>
                                     </TableCell>
                                     <TableCell className="font-mono text-xs text-primary font-bold">
                                       {sessionsCount} {sessionsCount === 1 ? 'session' : 'sessions'}
                                     </TableCell>
-                                    <TableCell className="font-mono text-xs text-zinc-300">£{(s.paid || 0).toFixed(2)}</TableCell>
-                                    <TableCell className="font-mono text-xs text-zinc-300">£{(s.remaining || 0).toFixed(2)}</TableCell>
+                                    <TableCell className="font-mono text-xs text-slate-800 dark:text-zinc-200">£{(s.paid || 0).toFixed(2)}</TableCell>
+                                    <TableCell className="font-mono text-xs text-slate-800 dark:text-zinc-200">£{(s.remaining || 0).toFixed(2)}</TableCell>
                                     <TableCell className="text-xs">
                                       {latestTx ? (
                                         <div>
-                                          <span className="font-mono text-primary">£{latestTx.amount.toFixed(2)}</span>
-                                          <span className="text-[9px] text-zinc-500 ml-1.5 font-mono">({format(new Date(latestTx.date), 'MM-dd')})</span>
+                                          <span className="font-mono text-primary font-bold">£{latestTx.amount.toFixed(2)}</span>
+                                          <span className="text-[9px] text-slate-500 dark:text-zinc-500 ml-1.5 font-mono">({format(new Date(latestTx.date), 'MM-dd')})</span>
                                         </div>
                                       ) : (
-                                        <span className="text-zinc-500 text-[10px] italic">None</span>
+                                        <span className="text-slate-400 dark:text-zinc-500 text-[10px] italic">None</span>
                                       )}
                                     </TableCell>
                                     <TableCell className="text-right">
                                       {isDebtor ? (
-                                        <Badge variant="outline" className="text-[10px] font-bold border-amber-500/30 text-amber-500 bg-amber-500/5">
+                                        <Badge variant="outline" className="text-[10px] font-bold border-amber-500/30 text-amber-600 dark:text-amber-500 bg-amber-500/10">
                                           In Debt
                                         </Badge>
                                       ) : (
-                                        <Badge variant="outline" className="text-[10px] font-bold border-emerald-500/30 text-emerald-400 bg-emerald-500/5">
+                                        <Badge variant="outline" className="text-[10px] font-bold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10">
                                           Paid
                                         </Badge>
                                       )}
@@ -477,10 +477,10 @@ export function TeacherAnalyticsDashboard({ teacherId, planOptions }: TeacherAna
                     </TabsContent>
 
                     <TabsContent value="debt">
-                      <ScrollArea className="h-[420px] rounded-xl border border-white/5 bg-zinc-950/40">
+                      <ScrollArea className="h-[420px] rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-zinc-950/40">
                         <Table>
-                          <TableHeader className="bg-zinc-950">
-                            <TableRow className="border-b border-white/5">
+                          <TableHeader className="bg-slate-100 dark:bg-zinc-950">
+                            <TableRow className="border-b border-slate-200 dark:border-white/5">
                               <SortableHeader field="name" label={t('Name')} />
                               <SortableHeader field="paid" label={t('Paid')} />
                               <SortableHeader field="remaining" label={t('Debt Amount')} />
@@ -493,25 +493,25 @@ export function TeacherAnalyticsDashboard({ teacherId, planOptions }: TeacherAna
                               sortedStudents.map(s => {
                                 const latestTx = getLatestPaymentForStudent(s.id, selectedPlanId);
                                 return (
-                                  <TableRow key={s.id} className="border-b border-white/5 hover:bg-white/5">
+                                  <TableRow key={s.id} className="border-b border-slate-200/80 dark:border-white/5 hover:bg-slate-100/60 dark:hover:bg-white/5">
                                     <TableCell className="font-medium text-xs">
-                                      <div>{s.name}</div>
-                                      <div className="text-[10px] text-zinc-500 font-mono mt-0.5">{s.phone}</div>
+                                      <div className="text-slate-900 dark:text-white font-semibold">{s.name}</div>
+                                      <div className="text-[10px] text-slate-500 dark:text-zinc-500 font-mono mt-0.5">{s.phone}</div>
                                     </TableCell>
-                                    <TableCell className="font-mono text-xs text-zinc-300">£{(s.paid || 0).toFixed(2)}</TableCell>
-                                    <TableCell className="font-mono text-xs text-amber-500 font-black">£{(s.remaining || 0).toFixed(2)}</TableCell>
+                                    <TableCell className="font-mono text-xs text-slate-800 dark:text-zinc-200">£{(s.paid || 0).toFixed(2)}</TableCell>
+                                    <TableCell className="font-mono text-xs text-amber-600 dark:text-amber-500 font-black">£{(s.remaining || 0).toFixed(2)}</TableCell>
                                     <TableCell className="text-xs">
                                       {latestTx ? (
                                         <div>
-                                          <span className="font-mono text-primary">£{latestTx.amount.toFixed(2)}</span>
-                                          <span className="text-[9px] text-zinc-500 ml-1.5 font-mono">({format(new Date(latestTx.date), 'MM-dd')})</span>
+                                          <span className="font-mono text-primary font-bold">£{latestTx.amount.toFixed(2)}</span>
+                                          <span className="text-[9px] text-slate-500 dark:text-zinc-500 ml-1.5 font-mono">({format(new Date(latestTx.date), 'MM-dd')})</span>
                                         </div>
                                       ) : (
-                                        <span className="text-zinc-500 text-[10px] italic">None</span>
+                                        <span className="text-slate-400 dark:text-zinc-500 text-[10px] italic">None</span>
                                       )}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                      <Button variant="outline" size="sm" className="h-7 text-[10px] font-bold border-amber-500/20 hover:bg-amber-500/10 text-amber-500" asChild>
+                                      <Button variant="outline" size="sm" className="h-7 text-[10px] font-bold border-amber-500/30 hover:bg-amber-500/10 text-amber-600 dark:text-amber-500" asChild>
                                         <a href={`tel:${s.phone}`}>{t('Call')}</a>
                                       </Button>
                                     </TableCell>

@@ -23,13 +23,22 @@ export default function TeacherFeatureLayout({
     !!localStorage.getItem('teacher_accounts')
   );
 
-  const effectiveTeacherId = user?.uid || (typeof window !== 'undefined' ? localStorage.getItem('teacherId') : null) || 'guest_teacher';
+  const effectiveTeacherId = (user && !user.isAnonymous ? user.uid : null) || (typeof window !== 'undefined' ? localStorage.getItem('teacherId') : null) || 'guest_teacher';
 
   useEffect(() => {
-    if (!isPublicTeacherProfile && !isUserLoading && !hasTeacherSession) {
+    if (isPublicTeacherProfile || isUserLoading) return;
+
+    const currentTeacherSession = (user && !user.isAnonymous) ||
+      (typeof window !== 'undefined' && (
+        !!localStorage.getItem('teacherId') ||
+        !!localStorage.getItem('teacher_session') ||
+        !!localStorage.getItem('teacher_accounts')
+      ));
+
+    if (!currentTeacherSession) {
       router.replace('/login');
     }
-  }, [user, isUserLoading, router, isPublicTeacherProfile, hasTeacherSession]);
+  }, [user, isUserLoading, router, isPublicTeacherProfile]);
 
   if (isPublicTeacherProfile) {
     return (

@@ -10,13 +10,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 export default function TeacherAnalyticsPage() {
   const { t } = useTranslation();
   const { user, isUserLoading } = useUser();
-  const { localPlans } = useLocalData();
+  const { localPlans, teacherId } = useLocalData();
+  const effectiveTeacherId = (user && !user.isAnonymous ? user.uid : null) || teacherId || (typeof window !== 'undefined' ? localStorage.getItem('teacherId') : null);
 
   const planOptions = useMemo(() => {
     return localPlans.map(p => ({ value: p.id, label: p.name }));
   }, [localPlans]);
 
-  if (isUserLoading || !user) {
+  if (isUserLoading && !effectiveTeacherId) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-10 w-48" />
@@ -25,6 +26,7 @@ export default function TeacherAnalyticsPage() {
     );
   }
 
+  const currentId = effectiveTeacherId || 'default_teacher';
   return (
     <div className="space-y-6">
       <div>
@@ -32,7 +34,7 @@ export default function TeacherAnalyticsPage() {
         <p className="text-muted-foreground">{t('Analyze student performance, enrollment metrics, and revenues.')}</p>
       </div>
       
-      <TeacherAnalyticsDashboard teacherId={user.uid} planOptions={planOptions} />
+      <TeacherAnalyticsDashboard teacherId={currentId} planOptions={planOptions} />
     </div>
   );
 }

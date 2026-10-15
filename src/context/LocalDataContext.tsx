@@ -338,25 +338,25 @@ export function LocalDataProvider({ children, teacherId }: { children: React.Rea
         }
     }, [firestore, teacherId, setLocalStudents, setLocalPlans, setLocalTransactions, setLocalAttendance]);
 
-    // Handle fast auto sync on mount/online/boot (2.5-second initial delay)
+    // Handle fast auto sync on mount/online/boot (3-second initial delay)
     React.useEffect(() => {
-        if (navigator.onLine && teacherId) {
+        if (typeof window !== 'undefined' && navigator.onLine && teacherId) {
             const timer = setTimeout(() => {
                 triggerTwoWaySync();
-            }, 2500); // Fast 2.5-second initial sync on app open
+            }, 3000);
             return () => clearTimeout(timer);
         }
-    }, [teacherId, triggerTwoWaySync]);
+    }, [teacherId]);
 
-    // Automatically trigger sync when dirty changes occur while online (fast 3-second debounce)
+    // Automatically trigger sync when dirty changes occur while online (debounced)
     React.useEffect(() => {
-        if (navigator.onLine && isDirty && teacherId) {
+        if (typeof window !== 'undefined' && navigator.onLine && isDirty && teacherId) {
             const timer = setTimeout(() => {
                 triggerTwoWaySync();
-            }, 3000); // Snappy 3-second debounce after modifications
+            }, 4000);
             return () => clearTimeout(timer);
         }
-    }, [isDirty, localStudents, localPlans, localTransactions, localAttendance, teacherId, triggerTwoWaySync]);
+    }, [isDirty, teacherId]);
 
     // Connection recovery & iOS app lifecycle triggers (online, visibilitychange, pagehide, focus)
     React.useEffect(() => {

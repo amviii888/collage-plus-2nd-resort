@@ -352,7 +352,7 @@ export function NotificationListener() {
     });
 
     return () => unsubscribe();
-  }, [firestore, user, toast]);
+  }, [firestore, user?.uid]);
 
   return null;
 }

@@ -25,6 +25,7 @@ import { CldUploadButton } from 'next-cloudinary';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Logo } from '@/components/icons';
+import { saveTeacherCodeMappingToCloudAndLocal, DEFAULT_CUSTOM_PROFESSOR_IMAGE } from '@/lib/professors-registry';
 import { teacherPlans } from '@/lib/teacher-plans';
 import { useTranslation } from 'react-i18next';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -133,8 +134,43 @@ export function TeacherSignupForm() {
         updatedAt: new Date().toISOString(),
       });
 
+      // 4. Generate doctor code and sync code mapping directly into Firestore database
+      const cleanNameCode = data.name.trim().split(' ').map(w => w[0]).join('').toUpperCase().substring(0, 3) || 'DOC';
+      const cleanCode = (cleanNameCode.length >= 2 ? cleanNameCode : cleanNameCode + '1').replace(/[^A-Z0-9]/g, '');
+
+      try {
+        await saveTeacherCodeMappingToCloudAndLocal({
+          id: teacherId,
+          code: cleanCode,
+          name: data.name,
+          titleAr: `أستاذ ${data.subjects?.[0] || 'المادة'}`,
+          titleEn: `Professor of ${data.subjects?.[0] || 'Subject'}`,
+          subjectAr: data.subjects?.[0] || 'المقررات الجامعية',
+          subjectEn: 'University Courses',
+          facultyAr: 'الجامعة والكلية',
+          facultyEn: 'Faculty & University',
+          avatarUrl: data.profilePictureUrl || defaultPfp || DEFAULT_CUSTOM_PROFESSOR_IMAGE,
+          heroImageUrl: data.heroImageUrl || defaultHero,
+          appIconPath: '/icons/professors/vv.svg',
+          appIconEmoji: '⚡',
+          appNameAr: `منصة ${data.name} [${cleanCode}]`,
+          appNameEn: `${data.name} Portal [${cleanCode}]`,
+          themeColor: '#2563eb',
+          coursesCount: 4,
+          studentsCount: 150,
+          descriptionAr: data.bio || `البوابة الأكاديمية الرسمية لمحاضرات ${data.name}.`,
+          descriptionEn: `Official academic portal for ${data.name}.`,
+          assignedThemeId: 'default',
+        }, firestore);
+      } catch (codeErr) {
+        console.error("Error creating initial teacher code mapping:", codeErr);
+      }
+
       localStorage.setItem('teacher_session', 'true');
       localStorage.setItem('teacherId', teacherId);
+      if (data.profilePictureUrl) {
+        localStorage.setItem(`custom_teacher_avatar_${teacherId}`, data.profilePictureUrl);
+      }
       
       toast({
           title: t('teacher_signup.toast_success_title'),

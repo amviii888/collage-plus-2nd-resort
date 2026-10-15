@@ -182,7 +182,7 @@ export function DynamicWatermark({
   // 1. DVD Wandering Bouncing Logic
   // ----------------------------------------------------
   useEffect(() => {
-    if (cfg.movementType !== 'wandering') return;
+    if (!cfg.enabled || isPublicRoute || cfg.movementType !== 'wandering') return;
 
     let animId: number;
     let lastTime = performance.now();
@@ -228,7 +228,7 @@ export function DynamicWatermark({
 
     animId = requestAnimationFrame(updateBounce);
     return () => cancelAnimationFrame(animId);
-  }, [cfg.movementType, cfg.movementSpeed]);
+  }, [cfg.enabled, isPublicRoute, cfg.movementType, cfg.movementSpeed]);
 
   // ----------------------------------------------------
   // 2. Corner Cycling Logic

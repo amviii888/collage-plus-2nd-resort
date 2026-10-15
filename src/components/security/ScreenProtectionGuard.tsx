@@ -450,10 +450,10 @@ export function ScreenProtectionGuard() {
       }
     };
 
-    // 9. High-Frequency Focus Watchdog (Only on desktop to catch external screenshot utilities)
-    let rafId: number | null = null;
+    // 9. Focus Watchdog (Optimized 1000ms interval to prevent layout thrashing)
+    let focusCheckInterval: NodeJS.Timeout | null = null;
     if (!isMobileDevice) {
-      const checkFocusLoop = () => {
+      focusCheckInterval = setInterval(() => {
         if (typeof document !== 'undefined') {
           if (document.hidden) {
             applyInstantBlackout();
@@ -463,9 +463,7 @@ export function ScreenProtectionGuard() {
             setIsBlackedOut(true);
           }
         }
-        rafId = requestAnimationFrame(checkFocusLoop);
-      };
-      rafId = requestAnimationFrame(checkFocusLoop);
+      }, 1000);
     }
 
     // 9. Active DevTools Detection & Console Shield
@@ -481,7 +479,7 @@ export function ScreenProtectionGuard() {
           console.clear();
         } catch {}
       }
-    }, 1500);
+    }, 2000);
 
     // 10. Right-Click Context Menu Prevention
     const handleContextMenu = (e: MouseEvent) => {
@@ -504,6 +502,45 @@ export function ScreenProtectionGuard() {
       }
     };
 
+    // 11. Clipboard Copy, Cut & SelectStart Interception (Strict web & iOS lockdown)
+    const isNextJsDevError = (el: HTMLElement | null): boolean => {
+      if (!el) return false;
+      return !!(
+        el.closest?.('nextjs-portal, [data-nextjs-dialog], [data-nextjs-toast], #nextjs__container_errors__, [data-nextjs-error-feedback], .nextjs-container-errors-body') ||
+        el.tagName === 'NEXTJS-PORTAL' ||
+        el.id === 'nextjs__container_errors__'
+      );
+    };
+
+    const handleCopyCut = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (isNextJsDevError(target)) {
+        return; // Whitelist developer copying webpack/turbopack build and runtime errors
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+      try {
+        if (e.clipboardData) {
+          e.clipboardData.clearData();
+        }
+      } catch (err) {}
+      showSecurityWarning('⛔ نسخ المحتوى محظور ومحمي بسياسة الأمان الأكاديمية.', 3000);
+      return false;
+    };
+
+    const handleSelectStart = (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (isNextJsDevError(target)) {
+        return; // Allow selecting error text
+      }
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return; // Allow typing in forms
+      }
+      e.preventDefault();
+      return false;
+    };
+
     window.addEventListener('keydown', handleKeyDown, { capture: true, passive: false });
     window.addEventListener('keyup', handleKeyUp, { capture: true, passive: false });
     window.addEventListener('blur', handleWindowBlur, { passive: true });
@@ -513,10 +550,13 @@ export function ScreenProtectionGuard() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('dragstart', handleDragStart);
+    document.addEventListener('copy', handleCopyCut, { capture: true, passive: false });
+    document.addEventListener('cut', handleCopyCut, { capture: true, passive: false });
+    document.addEventListener('selectstart', handleSelectStart, { capture: true });
 
     return () => {
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
+      if (focusCheckInterval !== null) {
+        clearInterval(focusCheckInterval);
       }
       clearInterval(devToolsCheck);
       try {
@@ -532,8 +572,11 @@ export function ScreenProtectionGuard() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('dragstart', handleDragStart);
+      document.removeEventListener('copy', handleCopyCut, { capture: true });
+      document.removeEventListener('cut', handleCopyCut, { capture: true });
+      document.removeEventListener('selectstart', handleSelectStart, { capture: true });
     };
-  }, [warningMessage]);
+  }, []);
 
   const modalOverlay = (
     <>
@@ -560,7 +603,7 @@ export function ScreenProtectionGuard() {
           opacity: 1 !important;
           visibility: visible !important;
         }
-        pre, code, [data-error], [role="alert"], [data-radix-toast-announce], .toaster, .toast, .font-mono, [data-selectable], .selectable-text {
+        nextjs-portal, nextjs-portal *, [data-nextjs-dialog], [data-nextjs-dialog] *, [data-nextjs-toast], [data-nextjs-toast] *, #nextjs__container_errors__, #nextjs__container_errors__ *, [data-nextjs-error-feedback], [data-nextjs-error-feedback] *, .nextjs-container-errors-body, .nextjs-container-errors-body * {
           user-select: text !important;
           -webkit-user-select: text !important;
           pointer-events: auto !important;

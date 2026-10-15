@@ -40,13 +40,26 @@ import { StudentQuestionsBankView } from '@/components/teacher/StudentQuestionsB
 
 function useTeacherId() {
     const params = useSearchParams();
-    const [id, setId] = useState<string | null>(null);
+    const { user } = useUser();
+    const [id, setId] = useState<string | null>(() => {
+        if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('id') || localStorage.getItem('teacherId');
+        }
+        return null;
+    });
 
     useEffect(() => {
-        // The path is expected to be /teacher?id=...
         const teacherId = params.get('id');
-        setId(teacherId);
-    }, [params]);
+        if (teacherId) {
+            setId(teacherId);
+        } else if (user && !user.isAnonymous) {
+            setId(user.uid);
+        } else if (typeof window !== 'undefined') {
+            const tid = localStorage.getItem('teacherId');
+            if (tid) setId(tid);
+        }
+    }, [params, user]);
 
     return id;
 }

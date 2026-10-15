@@ -69,7 +69,70 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
     return collection(firestore, `teachers/${teacherId}/courses`);
   }, [firestore, teacherId]);
 
-  const { data: courses, isLoading: isCoursesLoading } = useCollection<Course>(coursesQuery);
+  const { data: cloudCourses, isLoading: isCoursesLoading } = useCollection<Course>(coursesQuery);
+
+  // Local storage cached courses strictly for THIS teacherId
+  const [cachedCourses, setCachedCourses] = useState<Course[]>(() => {
+    if (typeof window === 'undefined' || !teacherId) return [];
+    try {
+      const specific = localStorage.getItem(`offline_teacher_courses_${teacherId}`);
+      if (specific) {
+        const parsed = JSON.parse(specific);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter(c => !c.teacherId || c.teacherId === teacherId);
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
+
+  // Re-load cache whenever teacherId changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && teacherId) {
+      try {
+        const specific = localStorage.getItem(`offline_teacher_courses_${teacherId}`);
+        if (specific) {
+          const parsed = JSON.parse(specific);
+          if (Array.isArray(parsed)) {
+            setCachedCourses(parsed.filter(c => !c.teacherId || c.teacherId === teacherId));
+            return;
+          }
+        }
+        setCachedCourses([]);
+      } catch (e) {}
+    }
+  }, [teacherId]);
+
+  // Sync cloud courses with local cache
+  useEffect(() => {
+    if (cloudCourses && typeof window !== 'undefined' && teacherId) {
+      const teacherCloudCourses = cloudCourses.filter(c => !c.teacherId || c.teacherId === teacherId);
+      setCachedCourses(teacherCloudCourses);
+      try {
+        localStorage.setItem(`offline_teacher_courses_${teacherId}`, JSON.stringify(teacherCloudCourses));
+      } catch (e) {}
+    }
+  }, [cloudCourses, teacherId]);
+
+  // Combined courses list strictly filtered for current teacherId
+  const courses = useMemo(() => {
+    const list: Course[] = cloudCourses 
+      ? cloudCourses.filter(c => !c.teacherId || c.teacherId === teacherId) 
+      : [];
+    if (cachedCourses.length > 0) {
+      cachedCourses.forEach(cc => {
+        if (!cc.teacherId || cc.teacherId === teacherId) {
+          const idx = list.findIndex(c => c.id === cc.id);
+          if (idx === -1) {
+            list.push(cc);
+          } else {
+            list[idx] = { ...list[idx], ...cc };
+          }
+        }
+      });
+    }
+    return list;
+  }, [cloudCourses, cachedCourses, teacherId]);
 
   // Selected course state
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
@@ -95,7 +158,37 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
     return collection(firestore, `teachers/${teacherId}/courses/${selectedCourseId}/viewers`);
   }, [firestore, teacherId, selectedCourseId]);
 
-  const { data: viewers, isLoading: isViewersLoading } = useCollection<CourseViewer>(viewersQuery);
+  const { data: cloudViewers, isLoading: isViewersLoading } = useCollection<CourseViewer>(viewersQuery);
+
+  const [cachedViewers, setCachedViewers] = useState<CourseViewer[]>([]);
+
+  // Load and store viewers cache
+  useEffect(() => {
+    if (selectedCourseId && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(`course_viewers_cache_${selectedCourseId}`);
+        if (stored) {
+          setCachedViewers(JSON.parse(stored));
+        } else {
+          setCachedViewers([]);
+        }
+      } catch (e) {}
+    }
+  }, [selectedCourseId]);
+
+  useEffect(() => {
+    if (cloudViewers && selectedCourseId && typeof window !== 'undefined') {
+      setCachedViewers(cloudViewers);
+      try {
+        localStorage.setItem(`course_viewers_cache_${selectedCourseId}`, JSON.stringify(cloudViewers));
+      } catch (e) {}
+    }
+  }, [cloudViewers, selectedCourseId]);
+
+  const viewers = useMemo(() => {
+    if (cloudViewers && cloudViewers.length > 0) return cloudViewers;
+    return cachedViewers;
+  }, [cloudViewers, cachedViewers]);
 
   // Fetch ratings of the selected course
   const ratingsQuery = useMemoFirebase(() => {
@@ -103,7 +196,36 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
     return collection(firestore, `teachers/${teacherId}/courses/${selectedCourseId}/ratings`);
   }, [firestore, teacherId, selectedCourseId]);
 
-  const { data: ratings, isLoading: isRatingsLoading } = useCollection<CourseRating>(ratingsQuery);
+  const { data: cloudRatings, isLoading: isRatingsLoading } = useCollection<CourseRating>(ratingsQuery);
+
+  const [cachedRatings, setCachedRatings] = useState<CourseRating[]>([]);
+
+  useEffect(() => {
+    if (selectedCourseId && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(`course_ratings_cache_${selectedCourseId}`);
+        if (stored) {
+          setCachedRatings(JSON.parse(stored));
+        } else {
+          setCachedRatings([]);
+        }
+      } catch (e) {}
+    }
+  }, [selectedCourseId]);
+
+  useEffect(() => {
+    if (cloudRatings && selectedCourseId && typeof window !== 'undefined') {
+      setCachedRatings(cloudRatings);
+      try {
+        localStorage.setItem(`course_ratings_cache_${selectedCourseId}`, JSON.stringify(cloudRatings));
+      } catch (e) {}
+    }
+  }, [cloudRatings, selectedCourseId]);
+
+  const ratings = useMemo(() => {
+    if (cloudRatings && cloudRatings.length > 0) return cloudRatings;
+    return cachedRatings;
+  }, [cloudRatings, cachedRatings]);
 
   // Search filter & sorting for viewers
   const [searchQuery, setSearchQuery] = useState('');
@@ -305,7 +427,7 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
     return Math.round(sum / processedViewers.length);
   }, [processedViewers]);
 
-  if (isCoursesLoading) {
+  if (isCoursesLoading && (!courses || courses.length === 0)) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-12 w-full max-w-md" />

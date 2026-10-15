@@ -263,15 +263,15 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
     try {
       if (firestore) {
         const teacherRef = doc(firestore, 'teachers', currentTeacherId);
-        updateDocumentNonBlocking(teacherRef, payload);
+        await setDoc(teacherRef, payload, { merge: true });
 
         // Sync name & pfp to users collection as well
         const userRef = doc(firestore, 'users', currentTeacherId);
-        updateDocumentNonBlocking(userRef, {
+        await setDoc(userRef, {
           name: data.name,
           profilePictureUrl: finalPfp,
           updatedAt: new Date().toISOString(),
-        });
+        }, { merge: true });
       }
 
       if (typeof window !== 'undefined') {
@@ -367,34 +367,34 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
   );
 
   return (
-    <Card className="profile-content-card border-slate-800 bg-slate-950/80 backdrop-blur-xl shadow-2xl rounded-3xl">
-      <CardHeader dir="rtl" className="border-b border-slate-800/80 pb-5">
-        <CardTitle className="text-xl font-black text-white flex items-center gap-2">
+    <Card className="profile-content-card border-border bg-card text-card-foreground backdrop-blur-xl shadow-xl rounded-3xl">
+      <CardHeader dir="rtl" className="border-b border-border/80 pb-5">
+        <CardTitle className="text-xl font-black text-foreground flex items-center gap-2">
           <span>تعديل الملف الأكاديمي للمعلم/الدكتور</span>
         </CardTitle>
-        <CardDescription className="text-xs text-slate-400">
+        <CardDescription className="text-xs text-muted-foreground">
           تحديث معلوماتك الشخصية، المواد والصفوف التي تدرسها، كود الدكتور والصورة الشخصية وصورة البانر.
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-6" dir="rtl">
         {/* Doctor 2-4 Letter Code Section */}
-        <div className="mb-6 p-4 rounded-2xl bg-blue-950/30 border border-blue-800/60 space-y-3">
+        <div className="mb-6 p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+              <div className="w-8 h-8 rounded-xl bg-blue-600/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
                 <Key className="w-4 h-4" />
               </div>
               <div>
-                <Label className="text-sm font-bold text-white">
+                <Label className="text-sm font-bold text-foreground">
                   كود الدكتور الأكاديمي للطلاب (من 2 إلى 4 أحرف)
                 </Label>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-muted-foreground">
                   الكود الذي يكتبه طلابك عند إنشاء حساباتهم لربطهم بمنصتك تلقائياً وتفعيل ثيمك المخصص.
                 </p>
               </div>
             </div>
             {initialDoctorCode && (
-              <span className="text-xs font-mono font-bold bg-blue-900/60 text-blue-300 px-2.5 py-1 rounded-xl self-start sm:self-auto border border-blue-700/50">
+              <span className="text-xs font-mono font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 px-2.5 py-1 rounded-xl self-start sm:self-auto border border-blue-300 dark:border-blue-700/50">
                 الكود المعتمد: [{initialDoctorCode}]
               </span>
             )}
@@ -406,13 +406,13 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
               onChange={(e) => setDoctorCodeInput(e.target.value.toUpperCase())}
               placeholder="مثال: VV أو PHYS أو MATH"
               maxLength={4}
-              className="h-11 rounded-xl font-mono font-black text-sm uppercase tracking-widest text-center sm:text-right bg-slate-900 border-slate-700 text-white"
+              className="h-11 rounded-xl font-mono font-black text-sm uppercase tracking-widest text-center sm:text-right bg-background border-input text-foreground"
             />
             <Button
               type="button"
               onClick={handleSaveDoctorCode}
               disabled={isSavingDoctorCode || !doctorCodeInput.trim()}
-              className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shrink-0 flex items-center gap-2 px-5 shadow-md shadow-blue-600/20"
+              className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shrink-0 flex items-center gap-2 px-5 shadow-md shadow-blue-600/20 cursor-pointer"
             >
               {doctorCodeSaved ? (
                 <>
@@ -435,37 +435,37 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-xs font-bold text-slate-300">الاسم الكامل للمعلم / الدكتور</Label>
-                <Input id="name" {...form.register('name')} placeholder="مثال: د. أحمد المحمدي" className="bg-slate-900 border-slate-700 text-white h-11 text-sm rounded-xl" />
+                <Label htmlFor="name" className="text-xs font-bold text-foreground">الاسم الكامل للمعلم / الدكتور</Label>
+                <Input id="name" {...form.register('name')} placeholder="مثال: د. أحمد المحمدي" className="bg-background border-input text-foreground h-11 text-sm rounded-xl" />
                 {form.formState.errors.name && (
-                  <p className="text-xs font-medium text-red-400">{form.formState.errors.name.message}</p>
+                  <p className="text-xs font-medium text-destructive">{form.formState.errors.name.message}</p>
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phoneNumber" className="text-xs font-bold text-slate-300">رقم الهاتف / الواتساب (اختياري)</Label>
-                <Input id="phoneNumber" {...form.register('phoneNumber')} placeholder="01012345678" className="bg-slate-900 border-slate-700 text-white h-11 text-sm rounded-xl" />
+                <Label htmlFor="phoneNumber" className="text-xs font-bold text-foreground">رقم الهاتف / الواتساب (اختياري)</Label>
+                <Input id="phoneNumber" {...form.register('phoneNumber')} placeholder="01012345678" className="bg-background border-input text-foreground h-11 text-sm rounded-xl" />
                 {form.formState.errors.phoneNumber && (
-                  <p className="text-xs font-medium text-red-400">{form.formState.errors.phoneNumber.message}</p>
+                  <p className="text-xs font-medium text-destructive">{form.formState.errors.phoneNumber.message}</p>
                 )}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="bio" className="text-xs font-bold text-slate-300">النبذة التعريفية (Bio)</Label>
+              <Label htmlFor="bio" className="text-xs font-bold text-foreground">النبذة التعريفية (Bio)</Label>
               <Textarea
                 id="bio"
                 {...form.register('bio')}
-                className="min-h-[100px] bg-slate-900 border-slate-700 text-white text-xs rounded-xl"
+                className="min-h-[100px] bg-background border-input text-foreground text-xs rounded-xl"
                 placeholder="اكتب نبذة مختصرة عن مؤهلاتك ورؤيتك التعليمية..."
               />
               {form.formState.errors.bio && (
-                <p className="text-xs font-medium text-red-400">{form.formState.errors.bio.message}</p>
+                <p className="text-xs font-medium text-destructive">{form.formState.errors.bio.message}</p>
               )}
             </div>
 
             {/* Profile Picture Section */}
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
-              <Label className="text-sm font-bold text-white flex items-center gap-2">
+            <div className="p-4 rounded-2xl bg-muted/40 border border-border space-y-4">
+              <Label className="text-sm font-bold text-foreground flex items-center gap-2">
                 <span>الصورة الشخصية للدكتور (Profile Picture)</span>
               </Label>
               <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -476,80 +476,84 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
                 <div className="space-y-3 w-full">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-xs text-slate-400 mb-1 block">رفع صورة مباشرة من الجهاز</Label>
+                      <Label className="text-xs text-muted-foreground mb-1 block">رفع صورة مباشرة من الجهاز</Label>
                       <Input
                         type="file"
                         accept="image/*"
                         onChange={handlePfpFileChange}
-                        className="bg-slate-950 text-xs border-slate-700 h-9 rounded-xl text-white"
+                        className="bg-background text-xs border-input h-9 rounded-xl text-foreground"
                       />
                     </div>
                     <div>
-                      <Label className="text-xs text-slate-400 mb-1 block">أو رابط صورة مباشرة (URL)</Label>
+                      <Label className="text-xs text-muted-foreground mb-1 block">أو رابط صورة مباشرة (URL)</Label>
                       <Input
                         type="text"
                         placeholder="https://..."
                         {...form.register('profilePictureUrl')}
-                        className="bg-slate-950 text-xs border-slate-700 h-9 rounded-xl text-white"
+                        className="bg-background text-xs border-input h-9 rounded-xl text-foreground"
                       />
                     </div>
                   </div>
-                  <CldUploadButton
-                      uploadPreset="unsigned_pfp_upload"
-                      className="bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-medium h-9 px-3 w-full flex items-center justify-center gap-2 border border-slate-700"
-                      onSuccess={handlePfpUpload}
-                  >
-                    <UploadCloud className="w-3.5 h-3.5 text-blue-400" /> رفع عبر Cloudinary
-                  </CldUploadButton>
+                  {typeof process !== 'undefined' && process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME && (
+                    <CldUploadButton
+                        uploadPreset="unsigned_pfp_upload"
+                        className="bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-xl text-xs font-medium h-9 px-3 w-full flex items-center justify-center gap-2 border border-border cursor-pointer"
+                        onSuccess={handlePfpUpload}
+                    >
+                      <UploadCloud className="w-3.5 h-3.5 text-blue-500" /> رفع عبر Cloudinary
+                    </CldUploadButton>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Hero Banner Section */}
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
-              <Label className="text-sm font-bold text-white flex items-center gap-2">
+            <div className="p-4 rounded-2xl bg-muted/40 border border-border space-y-4">
+              <Label className="text-sm font-bold text-foreground flex items-center gap-2">
                 <span>صورة البانر العلوي للمنصة (Hero Banner)</span>
               </Label>
               {watchedHero && (
-                <img src={watchedHero} alt="Hero preview" className="rounded-xl mt-2 object-cover aspect-[3/1] w-full border border-slate-700 shadow-sm" />
+                <img src={watchedHero} alt="Hero preview" className="rounded-xl mt-2 object-cover aspect-[3/1] w-full border border-border shadow-sm" />
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-xs text-slate-400 mb-1 block">رفع صورة بنر من الجهاز</Label>
+                  <Label className="text-xs text-muted-foreground mb-1 block">رفع صورة بنر من الجهاز</Label>
                   <Input
                     type="file"
                     accept="image/*"
                     onChange={handleHeroFileChange}
-                    className="bg-slate-950 text-xs border-slate-700 h-9 rounded-xl text-white"
+                    className="bg-background text-xs border-input h-9 rounded-xl text-foreground"
                   />
                 </div>
                 <div>
-                  <Label className="text-xs text-slate-400 mb-1 block">أو رابط صورة مباشرة (URL)</Label>
+                  <Label className="text-xs text-muted-foreground mb-1 block">أو رابط صورة مباشرة (URL)</Label>
                   <Input
                     type="text"
                     placeholder="https://..."
                     {...form.register('heroImageUrl')}
-                    className="bg-slate-950 text-xs border-slate-700 h-9 rounded-xl text-white"
+                    className="bg-background text-xs border-input h-9 rounded-xl text-foreground"
                   />
                 </div>
               </div>
-              <CldUploadButton
-                  uploadPreset="unsigned_pfp_upload"
-                  className="bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-medium h-9 px-3 w-full flex items-center justify-center gap-2 border border-slate-700"
-                  onSuccess={handleHeroUpload}
-              >
-                  <UploadCloud className="w-3.5 h-3.5 text-blue-400" /> رفع البانر عبر Cloudinary
-              </CldUploadButton>
+              {typeof process !== 'undefined' && process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME && (
+                <CldUploadButton
+                    uploadPreset="unsigned_pfp_upload"
+                    className="bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-xl text-xs font-medium h-9 px-3 w-full flex items-center justify-center gap-2 border border-border cursor-pointer"
+                    onSuccess={handleHeroUpload}
+                >
+                    <UploadCloud className="w-3.5 h-3.5 text-blue-500" /> رفع البانر عبر Cloudinary
+                </CldUploadButton>
+              )}
             </div>
             
             {/* Subjects Selection & Custom Subject Creation */}
-            <div className="space-y-3 p-4 rounded-2xl bg-slate-900/40 border border-slate-800">
+            <div className="space-y-3 p-4 rounded-2xl bg-muted/30 border border-border">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-bold text-white flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-emerald-400" />
+                  <Label className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-emerald-500" />
                     <span>المواد والمقررات التي تدرسها</span>
                   </Label>
-                  <span className="text-[11px] text-slate-400">حدد المواد أو أضف مادة مخصصة</span>
+                  <span className="text-[11px] text-muted-foreground">حدد المواد أو أضف مادة مخصصة</span>
                 </div>
 
                 {/* Add Custom Subject Bar */}
@@ -558,13 +562,13 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
                     value={customSubjectInput}
                     onChange={(e) => setCustomSubjectInput(e.target.value)}
                     placeholder="أدخل اسم مادة مخصصة جديد (مثل: الفيزياء الطبية، التشريح، ...)"
-                    className="h-10 text-xs bg-slate-950 border-slate-700 text-white rounded-xl"
+                    className="h-10 text-xs bg-background border-input text-foreground rounded-xl"
                   />
                   <Button 
                     type="button" 
                     onClick={handleAddCustomSubject}
                     disabled={!customSubjectInput.trim()}
-                    className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shrink-0 flex items-center gap-1.5"
+                    className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shrink-0 flex items-center gap-1.5 cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     <span>إضافة مادة مخصصة</span>
@@ -575,9 +579,9 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
                     name="subjects"
                     control={form.control}
                     render={({ field }) => (
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 rounded-xl border border-slate-800 bg-slate-950/60 p-3 max-h-60 overflow-y-auto">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 rounded-xl border border-border bg-background/60 p-3 max-h-60 overflow-y-auto">
                             {availableSubjects.map(subject => (
-                                <div key={subject} className="flex items-center space-x-2 space-x-reverse bg-slate-900/80 p-2 rounded-lg border border-slate-800/60">
+                                <div key={subject} className="flex items-center space-x-2 space-x-reverse bg-card p-2 rounded-lg border border-border/80">
                                     <Checkbox 
                                         id={`subject-${subject}`}
                                         checked={field.value?.includes(subject)}
@@ -587,25 +591,25 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
                                                 : field.onChange(field.value?.filter(s => s !== subject))
                                         }}
                                     />
-                                    <Label htmlFor={`subject-${subject}`} className="text-xs text-slate-200 font-medium cursor-pointer truncate">{subject}</Label>
+                                    <Label htmlFor={`subject-${subject}`} className="text-xs text-foreground font-medium cursor-pointer truncate">{subject}</Label>
                                 </div>
                             ))}
                         </div>
                     )}
                 />
                 {form.formState.errors.subjects && (
-                    <p className="text-xs font-medium text-red-400">{form.formState.errors.subjects.message}</p>
+                    <p className="text-xs font-medium text-destructive">{form.formState.errors.subjects.message}</p>
                 )}
             </div>
 
             {/* Grades Selection & Custom Grade Creation */}
-            <div className="space-y-3 p-4 rounded-2xl bg-slate-900/40 border border-slate-800">
+            <div className="space-y-3 p-4 rounded-2xl bg-muted/30 border border-border">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-bold text-white flex items-center gap-2">
-                    <GraduationCap className="w-4 h-4 text-purple-400" />
+                  <Label className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-purple-500" />
                     <span>الصفوف والفرق الدراسية التي تدرس لها</span>
                   </Label>
-                  <span className="text-[11px] text-slate-400">حدد المراحل أو أضف فرقة مخصصة</span>
+                  <span className="text-[11px] text-muted-foreground">حدد المراحل أو أضف فرقة مخصصة</span>
                 </div>
 
                 {/* Add Custom Grade Bar */}
@@ -614,13 +618,13 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
                     value={customGradeInput}
                     onChange={(e) => setCustomGradeInput(e.target.value)}
                     placeholder="أدخل اسم فرقة/صف مخصص جديد (مثل: الفرقة الخامسة، المستوى الثالث، ...)"
-                    className="h-10 text-xs bg-slate-950 border-slate-700 text-white rounded-xl"
+                    className="h-10 text-xs bg-background border-input text-foreground rounded-xl"
                   />
                   <Button 
                     type="button" 
                     onClick={handleAddCustomGrade}
                     disabled={!customGradeInput.trim()}
-                    className="h-10 px-4 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shrink-0 flex items-center gap-1.5"
+                    className="h-10 px-4 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shrink-0 flex items-center gap-1.5 cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     <span>إضافة فرقة مخصصة</span>
@@ -631,9 +635,9 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
                     name="gradesTaught"
                     control={form.control}
                     render={({ field }) => (
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 rounded-xl border border-slate-800 bg-slate-950/60 p-3 max-h-60 overflow-y-auto">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 rounded-xl border border-border bg-background/60 p-3 max-h-60 overflow-y-auto">
                             {availableGrades.map(grade => (
-                                <div key={grade} className="flex items-center space-x-2 space-x-reverse bg-slate-900/80 p-2 rounded-lg border border-slate-800/60">
+                                <div key={grade} className="flex items-center space-x-2 space-x-reverse bg-card p-2 rounded-lg border border-border/80">
                                     <Checkbox 
                                         id={`grade-${grade}`}
                                         checked={field.value?.includes(grade)}
@@ -643,18 +647,18 @@ export function TeacherProfileForm({ teacher }: TeacherProfileFormProps) {
                                                 : field.onChange(field.value?.filter(g => g !== grade))
                                         }}
                                     />
-                                    <Label htmlFor={`grade-${grade}`} className="text-xs text-slate-200 font-medium cursor-pointer truncate">{grade}</Label>
+                                    <Label htmlFor={`grade-${grade}`} className="text-xs text-foreground font-medium cursor-pointer truncate">{grade}</Label>
                                 </div>
                             ))}
                         </div>
                     )}
                 />
                 {form.formState.errors.gradesTaught && (
-                    <p className="text-xs font-medium text-red-400">{form.formState.errors.gradesTaught.message}</p>
+                    <p className="text-xs font-medium text-destructive">{form.formState.errors.gradesTaught.message}</p>
                 )}
             </div>
 
-            <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 rounded-xl text-sm shadow-lg shadow-blue-600/20" disabled={isSubmitting}>
+            <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 rounded-xl text-sm shadow-lg shadow-blue-600/20 cursor-pointer" disabled={isSubmitting}>
               {isSubmitting ? 'جارٍ حفظ التغييرات...' : 'حفظ التغييرات في الملف الأكاديمي'}
             </Button>
           </form>

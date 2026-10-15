@@ -2,13 +2,16 @@
 'use client';
 
 import { useUser } from '@/firebase';
+import { useLocalData } from '@/context/LocalDataContext';
 import { ManageCourses } from '@/components/ManageCourses';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function TeacherCoursesPage() {
     const { user, isUserLoading } = useUser();
+    const { teacherId } = useLocalData();
+    const effectiveTeacherId = (user && !user.isAnonymous ? user.uid : null) || teacherId || (typeof window !== 'undefined' ? localStorage.getItem('teacherId') : null);
 
-    if (isUserLoading || !user) {
+    if (isUserLoading && !effectiveTeacherId) {
         return (
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
@@ -23,6 +26,6 @@ export default function TeacherCoursesPage() {
         );
     }
     
-    // We can assume the user is a teacher here because of route guards or component logic
-    return <ManageCourses teacherId={user.uid} teacher={{id: user.uid} as any} />;
+    const currentId = effectiveTeacherId || 'default_teacher';
+    return <ManageCourses teacherId={currentId} teacher={{id: currentId} as any} />;
 }

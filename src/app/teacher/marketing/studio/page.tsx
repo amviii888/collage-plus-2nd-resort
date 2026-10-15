@@ -16,11 +16,15 @@ import { format } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+import { getEffectiveTeacherId } from '@/lib/teacher-session';
+
 export default function TeacherStudioMarketingPage() {
   const { t } = useTranslation();
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+
+  const effectiveTeacherId = getEffectiveTeacherId(user);
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('09:00 - 13:00');
@@ -29,9 +33,9 @@ export default function TeacherStudioMarketingPage() {
 
   // Fetch teacher's profile details
   const teacherDocRef = useMemo(() => {
-    if (!firestore || !user?.uid) return null;
-    return doc(firestore, 'teachers', user.uid);
-  }, [firestore, user?.uid]);
+    if (!firestore || !effectiveTeacherId) return null;
+    return doc(firestore, 'teachers', effectiveTeacherId);
+  }, [firestore, effectiveTeacherId]);
   const { data: teacherProfile } = useDoc<any>(teacherDocRef);
 
   const [showPrices, setShowPrices] = useState<boolean>(true);

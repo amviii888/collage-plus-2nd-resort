@@ -2,13 +2,16 @@
 'use client';
 
 import { useUser } from '@/firebase';
+import { useLocalData } from '@/context/LocalDataContext';
 import { ManageCollections } from '@/components/teacher/ManageCollections';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function TeacherCollectionsPage() {
     const { user, isUserLoading } = useUser();
+    const { teacherId } = useLocalData();
+    const effectiveTeacherId = (user && !user.isAnonymous ? user.uid : null) || teacherId || (typeof window !== 'undefined' ? localStorage.getItem('teacherId') : null);
 
-    if (isUserLoading || !user) {
+    if (isUserLoading && !effectiveTeacherId) {
         return (
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
@@ -23,5 +26,6 @@ export default function TeacherCollectionsPage() {
         );
     }
     
-    return <ManageCollections teacherId={user.uid} />;
+    const currentId = effectiveTeacherId || 'default_teacher';
+    return <ManageCollections teacherId={currentId} />;
 }

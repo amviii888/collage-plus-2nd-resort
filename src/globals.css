@@ -42,6 +42,10 @@
     --glow-english: 240 80% 70%;
     --glow-art: 330 90% 60%;
     --glow-default: 206 91% 54%;
+
+    --glass: 0 0% 100%;
+    --glass-border: 240 5.9% 88%;
+    --deep-purple-black: 240 10% 80%;
   }
 
   .dark {

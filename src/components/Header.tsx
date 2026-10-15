@@ -45,13 +45,22 @@ function UserProfile() {
         }
     }, [user]);
 
-    const isFirebaseTeacher = !!(user && !user.isAnonymous && user.email && !isStudentEmail(user.email));
-    const isFirebaseStudent = !!(user && (user.isAnonymous || isStudentEmail(user.email)));
+    const hasLocalTeacherSession = typeof window !== 'undefined' && (
+        localStorage.getItem('teacher_session') === 'true' ||
+        !!localStorage.getItem('teacherId')
+    );
+    const hasLocalStudentSession = typeof window !== 'undefined' && (
+        !!localStorage.getItem('viewingStudentId') ||
+        !!localStorage.getItem('studentBarcode')
+    );
+
+    const isFirebaseTeacher = !!(user && !user.isAnonymous && (!user.email || !isStudentEmail(user.email)));
+    const isFirebaseStudent = !!(user && (user.isAnonymous || (user.email && isStudentEmail(user.email))));
 
     // Strict priority hierarchy: Real teacher account always overrides stale student localStorage
-    const isTeacher = isFirebaseTeacher;
+    const isTeacher = isFirebaseTeacher || hasLocalTeacherSession;
     const isAssistant = !isTeacher && !!assistantTeacherName;
-    const isStudent = !isTeacher && !isAssistant && (isFirebaseStudent || !!studentId);
+    const isStudent = !isTeacher && !isAssistant && (isFirebaseStudent || !!studentId || hasLocalStudentSession);
     
     // Purge stale student/assistant localStorage keys if actively authenticated as a teacher
     useEffect(() => {
@@ -64,7 +73,7 @@ function UserProfile() {
         }
     }, [isTeacher]);
     
-    const userId = user?.uid || studentId;
+    const userId = user?.uid || (typeof window !== 'undefined' ? localStorage.getItem('teacherId') : null) || studentId;
 
     const teacherRef = useMemoFirebase(() => {
         if (!firestore || !isTeacher || !userId) return null;
@@ -81,7 +90,7 @@ function UserProfile() {
 
     const student = cloudStudent || cachedStudent;
 
-    const isLoading = isUserLoading || (isTeacher && isTeacherLoading) || (isStudent && isStudentLoading && !cachedStudent);
+    const isLoading = isUserLoading && !user && !hasLocalTeacherSession && !hasLocalStudentSession;
 
     const [studentAvatarImg, setStudentAvatarImg] = useState<string | null>(null);
     const [studentAvatarEmoji, setStudentAvatarEmoji] = useState<string>('🎓');
@@ -116,14 +125,32 @@ function UserProfile() {
         name = 'Assistant';
         detail = assistantTeacherName ? `Assisting: ${assistantTeacherName}` : 'Assistant Mode';
     } else if (isStudent) {
-        name = student?.name || (user?.email ? `Student [${getStudentBarcodeFromEmail(user.email)}]` : 'University Scholar');
+        name = student?.name || user?.displayName || (user?.email ? `Student [${getStudentBarcodeFromEmail(user.email)}]` : 'University Scholar');
         const faculty = student?.facultyLabel || student?.facultyCategory;
         const uni = student?.university;
         detail = faculty ? `${faculty}` : (uni ? `${uni}` : 'Mol5saty Scholar');
     } else if (isTeacher) {
-        name = teacher?.name || 'Professor';
-        detail = teacher?.email || 'Faculty Account';
-        pfpUrl = teacher?.profilePictureUrl;
+        let cachedTeacherName = '';
+        let cachedTeacherEmail = '';
+        let cachedTeacherPfp = '';
+        if (typeof window !== 'undefined') {
+            try {
+                const accs = JSON.parse(localStorage.getItem('teacher_accounts') || '[]');
+                const found = accs.find((a: any) => a.id === userId) || accs[0];
+                if (found) {
+                    cachedTeacherName = found.name;
+                    cachedTeacherEmail = found.email;
+                    cachedTeacherPfp = found.profilePictureUrl;
+                }
+            } catch (e) {}
+        }
+        name = teacher?.name || cachedTeacherName || user?.displayName || (user?.email ? user.email.split('@')[0] : 'الأستاذ');
+        detail = teacher?.email || cachedTeacherEmail || user?.email || 'حساب المعلم';
+        pfpUrl = teacher?.profilePictureUrl || cachedTeacherPfp || (typeof window !== 'undefined' && userId ? localStorage.getItem(`custom_teacher_avatar_${userId}`) : undefined) || undefined;
+    } else if (user) {
+        name = user.displayName || user.email?.split('@')[0] || 'User';
+        detail = user.email || 'Logged In';
+        pfpUrl = user.photoURL || undefined;
     }
 
     return (
@@ -227,8 +254,13 @@ export function Header() {
         }
     }, [pathname, user]);
 
-    const isTeacher = !!(user && !user.isAnonymous && user.email && !isStudentEmail(user.email));
-    const isStudentUser = !isTeacher && !!(user && (user.isAnonymous || isStudentEmail(user.email)));
+    const hasLocalTeacherSession = typeof window !== 'undefined' && (
+        localStorage.getItem('teacher_session') === 'true' ||
+        !!localStorage.getItem('teacherId') ||
+        !!localStorage.getItem('teacher_accounts')
+    );
+    const isTeacher = !!(user && !user.isAnonymous && (!user.email || !isStudentEmail(user.email))) || hasLocalTeacherSession;
+    const isStudentUser = !isTeacher && !!(user && (user.isAnonymous || (user.email && isStudentEmail(user.email))));
     const isStudent = !isTeacher && (isStudentUser || isStudentSession);
 
     useEffect(() => {

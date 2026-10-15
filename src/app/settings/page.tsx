@@ -611,12 +611,49 @@ function TeacherDisasterRecoverySection({ teacherId, isArabic }: { teacherId: st
 export default function SettingsPage() {
     const { i18n, t } = useTranslation();
     const { user, isUserLoading } = useUser();
-    const [studentId, setStudentId] = useState<string | null>(null);
-    const [assistantTeacherName, setAssistantTeacherName] = useState<string | null>(null);
+    const [studentId, setStudentId] = useState<string | null>(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('viewingStudentId') || localStorage.getItem('student_barcode') || null;
+        }
+        return null;
+    });
+    const [assistantTeacherName, setAssistantTeacherName] = useState<string | null>(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('assistantTeacherName') || null;
+        }
+        return null;
+    });
+    const [hasLocalTeacherSession, setHasLocalTeacherSession] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('teacher_session') === 'true' || !!localStorage.getItem('teacherId') || !!localStorage.getItem('teacher_accounts');
+        }
+        return false;
+    });
+    const [localTeacherId, setLocalTeacherId] = useState<string | null>(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('teacherId') || null;
+        }
+        return null;
+    });
+
     const isArabic = i18n.language === 'ar';
     const isAssistant = !!assistantTeacherName;
     const isUserStudent = !!(user && (isStudentEmail(user.email) || user.isAnonymous));
-    const isTeacherPotential = user && !user.isAnonymous && !isAssistant && !isUserStudent && !studentId;
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const hasSess = localStorage.getItem('teacher_session') === 'true' || !!localStorage.getItem('teacherId') || !!localStorage.getItem('teacher_accounts');
+            const tid = localStorage.getItem('teacherId');
+            setHasLocalTeacherSession(hasSess);
+            setLocalTeacherId(tid);
+        }
+    }, [user]);
+
+    const effectiveTeacherId = (user && !user.isAnonymous ? user.uid : null) || localTeacherId;
+    const isTeacherPotential = (
+        (user && !user.isAnonymous && !isAssistant && !isUserStudent) || 
+        (hasLocalTeacherSession && !isUserStudent)
+    );
 
     const effectiveStudentId = studentId || (isUserStudent && user ? user.uid : null);
     const { student: cloudStudent, isLoading: isStudentLoading } = useStudent(effectiveStudentId);
@@ -658,12 +695,12 @@ export default function SettingsPage() {
     }, [user, isUserLoading]);
     
     const teacherRef = useMemoFirebase(() => {
-        if (!firestore || !isTeacherPotential || !user) return null;
-        return doc(firestore, 'teachers', user.uid);
-    }, [firestore, isTeacherPotential, user]);
+        if (!firestore || !isTeacherPotential || !effectiveTeacherId) return null;
+        return doc(firestore, 'teachers', effectiveTeacherId);
+    }, [firestore, isTeacherPotential, effectiveTeacherId]);
     const { data: teacher, isLoading: isTeacherLoading } = useDoc<Teacher>(teacherRef);
 
-    const isTeacher = !!(isTeacherPotential && teacher);
+    const isTeacher = !!(isTeacherPotential && (teacher || effectiveTeacherId));
 
     const auth = useAuth();
     const { toast } = useToast();
@@ -694,7 +731,7 @@ export default function SettingsPage() {
     };
 
     const student = cloudStudent || localStudent;
-    const isLoading = isUserLoading || isStudentLoading || isTeacherLoading;
+    const isLoading = isUserLoading && !user && !hasLocalTeacherSession && !studentId;
     
     let displayName = isArabic ? 'مستخدم زائر' : 'Guest User';
     let displayDetail = isArabic ? 'لم يتم تسجيل الدخول' : 'Not logged in';
@@ -704,9 +741,23 @@ export default function SettingsPage() {
         displayName = isArabic ? 'مساعد' : 'Assistant';
         displayDetail = isArabic ? `مساعد للمعلم: ${assistantTeacherName}` : `Assisting: ${assistantTeacherName}`;
     } else if (isTeacher) {
-        displayName = teacher?.name || (isArabic ? 'المعلم' : 'Teacher');
-        displayDetail = teacher?.email || (isArabic ? 'حساب المعلم' : 'Teacher Account');
-        avatarUrl = teacher?.profilePictureUrl;
+        let cachedTeacherName = '';
+        let cachedTeacherEmail = '';
+        let cachedTeacherPfp = '';
+        if (typeof window !== 'undefined') {
+            try {
+                const accs = JSON.parse(localStorage.getItem('teacher_accounts') || '[]');
+                const found = accs.find((a: any) => a.id === effectiveTeacherId) || accs[0];
+                if (found) {
+                    cachedTeacherName = found.name;
+                    cachedTeacherEmail = found.email;
+                    cachedTeacherPfp = found.profilePictureUrl;
+                }
+            } catch (e) {}
+        }
+        displayName = teacher?.name || cachedTeacherName || user?.displayName || (user?.email ? user.email.split('@')[0] : (isArabic ? 'المعلم' : 'Teacher'));
+        displayDetail = teacher?.email || cachedTeacherEmail || user?.email || (isArabic ? 'حساب المعلم الأكاديمي' : 'Teacher Account');
+        avatarUrl = teacher?.profilePictureUrl || cachedTeacherPfp || (typeof window !== 'undefined' && effectiveTeacherId ? localStorage.getItem(`custom_teacher_avatar_${effectiveTeacherId}`) : undefined) || user?.photoURL || undefined;
     } else if (student || isUserStudent) {
         displayName = student?.name || user?.displayName || (student?.barcodeId ? `Student [${student.barcodeId}]` : (user?.email && isStudentEmail(user.email) ? `Student [${getStudentBarcodeFromEmail(user.email)}]` : (isArabic ? 'طالب جامعي' : 'University Scholar')));
         const academicParts = [
@@ -715,9 +766,13 @@ export default function SettingsPage() {
             student?.academicYearLabel || (student?.academicYear ? (isArabic ? 'الفرقة الجامعية' : 'University Year') : '')
         ].filter(Boolean);
         displayDetail = academicParts.length > 0 ? academicParts.join(' • ') : (isArabic ? 'حساب طالب جامعي' : 'University Student Account');
+    } else if (user) {
+        displayName = user.displayName || (user.email ? user.email.split('@')[0] : (isArabic ? 'المستخدم' : 'User'));
+        displayDetail = user.email || (isArabic ? 'حساب مسجل' : 'Registered Account');
+        avatarUrl = user.photoURL || undefined;
     }
 
-    const isLoggedIn = user || studentId || isAssistant;
+    const isLoggedIn = !!user || isTeacher || isAssistant || (!!studentId && !isTeacher) || hasLocalTeacherSession || !!localTeacherId;
     const ChevronIcon = isArabic ? ChevronLeft : ChevronRight;
 
     const navGroups = [
@@ -794,7 +849,9 @@ export default function SettingsPage() {
                                 </div>
                             )}
 
-                            {isLoggedIn ? (
+                            {isLoading ? (
+                                <Skeleton className="h-9 w-20 rounded-xl" />
+                            ) : isLoggedIn ? (
                                 <Button 
                                     type="button"
                                     variant="ghost" 
@@ -816,9 +873,9 @@ export default function SettingsPage() {
             </motion.div>
 
             {/* Teacher Disaster Recovery Card */}
-            {isTeacherPotential && user && (
+            {isTeacherPotential && effectiveTeacherId && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-                    <TeacherDisasterRecoverySection teacherId={user.uid} isArabic={isArabic} />
+                    <TeacherDisasterRecoverySection teacherId={effectiveTeacherId} isArabic={isArabic} />
                 </motion.div>
             )}
 

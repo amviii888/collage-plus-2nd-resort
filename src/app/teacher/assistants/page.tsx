@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useUser, useDoc, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
+import { useLocalData } from '@/context/LocalDataContext';
 import { doc, collection, query, where, deleteDoc } from 'firebase/firestore';
 import type { Teacher } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,23 +14,38 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function TeacherAssistantsPage() {
     const { user, isUserLoading } = useUser();
+    const { teacherId } = useLocalData();
     const firestore = useFirestore();
     const { t } = useTranslation();
     const { toast } = useToast();
     const [isRemoving, setIsRemoving] = useState<string | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+    const effectiveTeacherId = (user && !user.isAnonymous ? user.uid : null) || teacherId || (typeof window !== 'undefined' ? localStorage.getItem('teacherId') : null);
+
     const teacherRef = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
-        return doc(firestore, 'teachers', user.uid);
-    }, [firestore, user]);
+        if (!firestore || !effectiveTeacherId) return null;
+        return doc(firestore, 'teachers', effectiveTeacherId);
+    }, [firestore, effectiveTeacherId]);
     
-    const { data: teacher, isLoading: isTeacherLoading } = useDoc<Teacher>(teacherRef);
+    const { data: cloudTeacher, isLoading: isTeacherLoading } = useDoc<Teacher>(teacherRef);
+
+    const currentId = effectiveTeacherId || 'default_teacher';
+    const teacher: Teacher = cloudTeacher || {
+        id: currentId,
+        name: user?.displayName || 'الأستاذ',
+        email: user?.email || '',
+        assistantCode: (effectiveTeacherId ? effectiveTeacherId.substring(0, 6).toUpperCase() : 'ASST01'),
+        subjects: [],
+        gradesTaught: [],
+        approved: true,
+        createdAt: new Date().toISOString() as any,
+    };
 
     const assistantsRef = useMemoFirebase(() => {
-        if (!firestore || !teacher) return null;
-        return query(collection(firestore, 'assistants'), where('teacherId', '==', teacher.id));
-    }, [firestore, teacher, refreshTrigger]);
+        if (!firestore || !effectiveTeacherId) return null;
+        return query(collection(firestore, 'assistants'), where('teacherId', '==', effectiveTeacherId));
+    }, [firestore, effectiveTeacherId, refreshTrigger]);
 
     const { data: assistants, isLoading: isAssistantsLoading } = useCollection<any>(assistantsRef);
 
@@ -54,7 +70,7 @@ export default function TeacherAssistantsPage() {
         }
     };
 
-    if (isUserLoading || isTeacherLoading || !teacher) {
+    if (isUserLoading && !effectiveTeacherId) {
         return (
             <div className="space-y-6 max-w-lg">
                 <Skeleton className="h-64 w-full" />

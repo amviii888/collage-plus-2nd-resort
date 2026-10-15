@@ -119,33 +119,39 @@
   }
 }
 
-.screen-protected {
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
+/* Global Text Copy & Selection Lockdown across Web and iOS */
+*, *::before, *::after {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
 }
 
-/* Allow users and developers to copy errors, alerts, codes, and inputs */
-.screen-protected pre,
-.screen-protected code,
-.screen-protected [data-error],
-.screen-protected [role="alert"],
-.screen-protected [data-radix-toast-announce],
-.screen-protected .toaster,
-.screen-protected .toast,
-.screen-protected input,
-.screen-protected textarea,
-.screen-protected [data-selectable],
-.screen-protected .selectable-text,
-.screen-protected .font-mono,
-pre,
-code,
-[role="alert"],
-[data-error] {
+/* Allow text cursor and editing in inputs without enabling copy callout */
+input, textarea {
+  -webkit-user-select: auto;
+  user-select: auto;
+  -webkit-touch-callout: none;
+}
+
+/* Strictly ONLY Next.js, Webpack, Turbopack error overlays allow selection and copying */
+nextjs-portal,
+nextjs-portal *,
+[data-nextjs-dialog],
+[data-nextjs-dialog] *,
+[data-nextjs-toast],
+[data-nextjs-toast] *,
+#nextjs__container_errors__,
+#nextjs__container_errors__ *,
+[data-nextjs-error-feedback],
+[data-nextjs-error-feedback] *,
+.nextjs-container-errors-body,
+.nextjs-container-errors-body * {
   -webkit-user-select: text !important;
   -moz-user-select: text !important;
   -ms-user-select: text !important;
   user-select: text !important;
+  -webkit-touch-callout: default !important;
 }
 

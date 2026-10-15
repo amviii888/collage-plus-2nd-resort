@@ -79,11 +79,7 @@ export function useDoc<T = any>(
                 AppCache.set(cacheKey, docData, ttlMs);
                 setData(docData);
                 setIsLoading(false);
-            } else if (!isRetry) {
-                // If the doc doesn't exist on the first try, wait and retry once.
-                setTimeout(() => fetchDoc(true), 1500);
             } else {
-                // If it still doesn't exist on retry, check if we have any stale cache
                 const staleFallback = AppCache.get<WithId<T>>(cacheKey, { allowStale: true });
                 if (staleFallback) {
                   setData(staleFallback);

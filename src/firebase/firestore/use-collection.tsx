@@ -47,9 +47,13 @@ export function useCollection<T = any>(
   const [error, setError] = useState<FirestoreError | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     if (!memoizedTargetRefOrQuery) {
-        setData(null);
-        setIsLoading(false);
+        if (isMounted) {
+            setData(null);
+            setIsLoading(false);
+        }
         return;
     }
 
@@ -58,8 +62,10 @@ export function useCollection<T = any>(
     const cachedData = AppCache.get<ResultItemType[]>(cacheKey, { allowStale: isOffline });
 
     if (cachedData) {
-      setData(cachedData);
-      setIsLoading(false);
+      if (isMounted) {
+        setData(cachedData);
+        setIsLoading(false);
+      }
       // We already have cached data; avoid redundant network reads unless explicitly stale
       if (isOffline) {
         return;
@@ -67,7 +73,7 @@ export function useCollection<T = any>(
     }
 
     if (!cachedData) {
-      setIsLoading(true);
+      if (isMounted) setIsLoading(true);
     }
 
     // Skip network call if offline and we already have cached data
@@ -75,10 +81,18 @@ export function useCollection<T = any>(
       return;
     }
 
-    getDocs(memoizedTargetRefOrQuery)
-        .then((querySnapshot: QuerySnapshot) => {
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Firestore timeout')), 3500)
+    );
+
+    Promise.race([
+      getDocs(memoizedTargetRefOrQuery),
+      timeoutPromise
+    ])
+        .then((querySnapshot: any) => {
+            if (!isMounted) return;
             const results: ResultItemType[] = [];
-            querySnapshot.forEach((doc) => {
+            querySnapshot.forEach((doc: any) => {
                 results.push({ ...(doc.data() as T), id: doc.id });
             });
             AppCache.set(cacheKey, results, ttlMs);
@@ -87,16 +101,22 @@ export function useCollection<T = any>(
             setError(null);
         })
         .catch((err: FirestoreError) => {
+            if (!isMounted) return;
             const staleFallback = AppCache.get<ResultItemType[]>(cacheKey, { allowStale: true });
             if (staleFallback) {
               setData(staleFallback);
               setError(null);
             } else {
               setError(err);
+              setData([]);
             }
             setIsLoading(false);
-            console.warn("useCollection getDocs offline/network note:", err?.message || err);
+            console.warn("useCollection getDocs offline/network/timeout note:", err?.message || err);
         });
+
+    return () => {
+      isMounted = false;
+    };
     
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memoizedTargetRefOrQuery]); // Re-run if the query object itself changes.

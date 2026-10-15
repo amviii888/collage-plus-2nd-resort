@@ -38,7 +38,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 }) => {
   const [userAuthState, setUserAuthState] = React.useState<UserAuthState>({
     user: auth?.currentUser || null,
-    isUserLoading: false,
+    isUserLoading: auth ? !auth.currentUser : false,
     userError: null,
   });
 

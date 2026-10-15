@@ -37,6 +37,9 @@ export default function LandingPage() {
         localStorage.getItem('viewingStudentId') ||
         localStorage.getItem('mol5saty_active_student_profile') ||
         localStorage.getItem('student_logged_in') ||
+        localStorage.getItem('teacherId') ||
+        localStorage.getItem('teacher_session') ||
+        localStorage.getItem('teacher_accounts') ||
         localStorage.getItem('assistantTeacherName') ||
         localStorage.getItem('admin-session')
       );
@@ -50,6 +53,10 @@ export default function LandingPage() {
 
     const viewingStudentId = localStorage.getItem('viewingStudentId');
     const hasStudentProfile = localStorage.getItem('mol5saty_active_student_profile');
+    const studentLoggedIn = localStorage.getItem('student_logged_in');
+    const teacherId = localStorage.getItem('teacherId');
+    const teacherSess = localStorage.getItem('teacher_session');
+    const teacherAccounts = localStorage.getItem('teacher_accounts');
     const assistant = localStorage.getItem('assistantTeacherName');
     const admin = localStorage.getItem('admin-session');
 
@@ -63,7 +70,12 @@ export default function LandingPage() {
       window.location.replace('/admin/dashboard');
       return;
     }
-    if (viewingStudentId || hasStudentProfile) {
+    if (teacherId || teacherSess === 'true' || teacherAccounts) {
+      setIsRedirecting(true);
+      window.location.replace('/profile');
+      return;
+    }
+    if (viewingStudentId || hasStudentProfile || studentLoggedIn) {
       setIsRedirecting(true);
       window.location.replace('/profile');
       return;
@@ -71,11 +83,7 @@ export default function LandingPage() {
 
     if (!isUserLoading && user) {
       setIsRedirecting(true);
-      if (isStudentEmail(user.email) || user.isAnonymous) {
-        window.location.replace('/profile');
-      } else {
-        window.location.replace('/teacher');
-      }
+      window.location.replace('/profile');
     }
   }, [user, isUserLoading]);
 

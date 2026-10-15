@@ -1879,6 +1879,16 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
     }
   }, [teacherId, isFormOpen]);
 
+  useEffect(() => {
+    if (cloudCourses && cloudCourses.length > 0 && typeof window !== 'undefined' && teacherId) {
+      try {
+        const localKey = `offline_teacher_courses_${teacherId}`;
+        localStorage.setItem(localKey, JSON.stringify(cloudCourses));
+        setOfflineCourses(cloudCourses);
+      } catch (e) {}
+    }
+  }, [cloudCourses, teacherId]);
+
   const courses = useMemo(() => {
     const list: Course[] = cloudCourses ? [...cloudCourses] : [];
     if (offlineCourses.length > 0) {
@@ -1977,7 +1987,7 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
       </div>
 
       <div>
-        {isLoadingData ? (
+        {isLoadingData && courses.length === 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(3)].map((_, i) => (
               <Skeleton key={i} className="h-64 w-full rounded-3xl bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800" />

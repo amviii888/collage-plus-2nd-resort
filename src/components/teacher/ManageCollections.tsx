@@ -497,10 +497,16 @@ export function ManageCollections({ teacherId }: { teacherId: string }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [collectionToEdit, setCollectionToEdit] = useState<CourseCollection | null>(null);
 
-    const collectionsQuery = useMemoFirebase(() => collection(firestore, `teachers/${teacherId}/courseCollections`), [firestore, teacherId]);
+    const collectionsQuery = useMemoFirebase(() => {
+        if (!firestore || !teacherId) return null;
+        return collection(firestore, `teachers/${teacherId}/courseCollections`);
+    }, [firestore, teacherId]);
     const { data: collections, isLoading: collectionsLoading } = useCollection<CourseCollection>(collectionsQuery);
 
-    const coursesQuery = useMemoFirebase(() => collection(firestore, `teachers/${teacherId}/courses`), [firestore, teacherId]);
+    const coursesQuery = useMemoFirebase(() => {
+        if (!firestore || !teacherId) return null;
+        return collection(firestore, `teachers/${teacherId}/courses`);
+    }, [firestore, teacherId]);
     const { data: courses, isLoading: coursesLoading } = useCollection<Course>(coursesQuery);
 
     const handleSaveCollection = async (data: CourseCollection) => {
@@ -539,54 +545,56 @@ export function ManageCollections({ teacherId }: { teacherId: string }) {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-                        <Library className="w-6 h-6 text-emerald-400" /> My Course Collections
+                    <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                        <Library className="w-6 h-6 text-emerald-600 dark:text-emerald-400" /> My Course Collections
                     </h2>
-                    <p className="text-xs text-zinc-400 mt-0.5">
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
                         Build tailored collections containing chosen courses, specific units, lessons, and PDF files.
                     </p>
                 </div>
-                <Button onClick={openCreateModal} size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold rounded-xl">
+                <Button onClick={openCreateModal} size="sm" className="bg-emerald-600 hover:bg-emerald-700 !text-white font-bold rounded-xl shadow-xs">
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Collection
                 </Button>
             </div>
             
             {isLoading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-64 w-full rounded-3xl bg-zinc-900 border border-zinc-800" />)}
+                    {[0, 1, 2].map((i) => (
+                        <Skeleton key={i} className="h-64 w-full rounded-3xl bg-slate-200 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800" />
+                    ))}
                 </div>
             ) : collections && collections.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {collections.map(collection => {
                         const totalCustom = collection.customItems?.length || 0;
                         return (
-                            <Card key={collection.id} className="flex flex-col rounded-3xl bg-zinc-950 border border-zinc-800 overflow-hidden shadow-xl hover:border-zinc-700 transition-all">
+                            <Card key={collection.id} className="flex flex-col rounded-3xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 overflow-hidden shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-zinc-700 transition-all">
                                 <CardHeader className="p-0">
-                                    <div className="aspect-video w-full overflow-hidden relative bg-zinc-900">
+                                    <div className="aspect-video w-full overflow-hidden relative bg-slate-100 dark:bg-zinc-900">
                                         <Image src={collection.thumbnailUrl || 'https://picsum.photos/seed/course-bundle/800/450'} alt={collection.title || 'Collection'} fill className="object-cover"/>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="flex-grow p-5 space-y-2">
-                                    <h3 className="font-bold text-base text-white line-clamp-2">{collection.title}</h3>
-                                    <p className="text-xs text-zinc-400 line-clamp-2">{collection.description}</p>
-                                    <div className="flex flex-wrap items-center gap-2 mt-2 pt-1 text-xs text-zinc-400">
-                                        <Badge variant="outline" className="text-[11px] bg-zinc-900 border-zinc-800 text-zinc-300 flex items-center gap-1">
-                                            <BookOpen className="w-3 h-3 text-emerald-400" />
+                                    <h3 className="font-bold text-base text-slate-900 dark:text-white line-clamp-2">{collection.title}</h3>
+                                    <p className="text-xs text-slate-600 dark:text-zinc-400 line-clamp-2">{collection.description}</p>
+                                    <div className="flex flex-wrap items-center gap-2 mt-2 pt-1 text-xs text-slate-500 dark:text-zinc-400">
+                                        <Badge variant="outline" className="text-[11px] bg-slate-100 dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 flex items-center gap-1">
+                                            <BookOpen className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                                             <span>{collection.courseIds?.length || 0} Courses</span>
                                         </Badge>
                                         {totalCustom > 0 && (
-                                            <Badge variant="outline" className="text-[11px] bg-zinc-900 border-zinc-800 text-zinc-300 flex items-center gap-1">
-                                                <Layers className="w-3 h-3 text-blue-400" />
+                                            <Badge variant="outline" className="text-[11px] bg-slate-100 dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 flex items-center gap-1">
+                                                <Layers className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                                                 <span>{totalCustom} Tailored Items</span>
                                             </Badge>
                                         )}
                                     </div>
                                 </CardContent>
-                                <CardFooter className="flex justify-end gap-2 p-4 pt-0 border-t border-zinc-900">
-                                    <Button variant="ghost" size="sm" onClick={() => openEditModal(collection)} className="text-xs text-zinc-300 hover:text-white rounded-xl">
+                                <CardFooter className="flex justify-end gap-2 p-4 pt-0 border-t border-slate-100 dark:border-zinc-900">
+                                    <Button variant="ghost" size="sm" onClick={() => openEditModal(collection)} className="text-xs text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white rounded-xl">
                                         <Edit className="mr-1.5 h-3.5 w-3.5" /> Edit
                                     </Button>
-                                    <Button variant="ghost" size="sm" className="text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl" onClick={() => handleDeleteCollection(collection.id)}>
+                                    <Button variant="ghost" size="sm" className="text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:bg-rose-500/10 rounded-xl" onClick={() => handleDeleteCollection(collection.id)}>
                                         <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete
                                     </Button>
                                 </CardFooter>
@@ -595,10 +603,10 @@ export function ManageCollections({ teacherId }: { teacherId: string }) {
                     })}
                 </div>
             ) : (
-                 <div className="col-span-full text-center py-16 text-zinc-500 space-y-4 border-2 border-dashed border-zinc-800 rounded-3xl">
-                    <Library className="mx-auto h-12 w-12 text-zinc-600" />
+                 <div className="col-span-full text-center py-16 text-slate-500 dark:text-zinc-500 space-y-4 border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-3xl bg-slate-50/50 dark:bg-zinc-950/40">
+                    <Library className="mx-auto h-12 w-12 text-slate-400 dark:text-zinc-600" />
                     <p className="text-sm">No course collections created yet.</p>
-                    <Button onClick={openCreateModal} className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold rounded-xl text-xs">
+                    <Button onClick={openCreateModal} className="bg-emerald-600 hover:bg-emerald-700 !text-white font-bold rounded-xl text-xs shadow-xs">
                         Create your first collection
                     </Button>
                 </div>
