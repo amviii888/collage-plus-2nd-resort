@@ -65,20 +65,47 @@ export function ProtectedBookReader({
     ? activeUnitFile.pages 
     : (book.pages || []);
 
-  // Check if rawActivePdfUrl is actually an image (e.g. Cloudinary image upload, or jpg/png/webp)
-  const isImageResource = (url?: string) => {
-    if (!url) return false;
-    const clean = url.split('?')[0].toLowerCase();
-    return /\.(jpe?g|png|webp|gif|svg|bmp)$/i.test(clean) || url.includes('/image/upload/');
+  // Helper to verify if a string is a real valid URL/data URI rather than a text label like "Img 1" or "Page 1"
+  const isValidUrlString = (str?: string) => {
+    if (!str || typeof str !== 'string') return false;
+    const trimmed = str.trim().toLowerCase();
+    return (
+      trimmed.startsWith('http://') || 
+      trimmed.startsWith('https://') || 
+      trimmed.startsWith('data:') || 
+      trimmed.startsWith('/') ||
+      trimmed.includes('/image/upload/') ||
+      trimmed.includes('cloudinary.com')
+    );
   };
 
-  const activePages: string[] = (rawActivePages && rawActivePages.length > 0)
-    ? rawActivePages
-    : (rawActivePdfUrl && isImageResource(rawActivePdfUrl))
+  // Check if rawActivePdfUrl is actually an image (e.g. Cloudinary image upload, or jpg/png/webp)
+  const isImageResource = (url?: string) => {
+    if (!url || typeof url !== 'string') return false;
+    const clean = url.split('?')[0].toLowerCase();
+    return (
+      /\.(jpe?g|png|webp|gif|svg|bmp|tiff?|heic)$/i.test(clean) || 
+      url.includes('/image/upload/') ||
+      url.includes('cloudinary.com') ||
+      url.includes('f_auto') ||
+      url.includes('q_auto')
+    );
+  };
+
+  // Filter rawActivePages to ensure only real image URLs are used
+  const validPagesList = (rawActivePages && Array.isArray(rawActivePages))
+    ? rawActivePages.filter(isValidUrlString)
+    : [];
+
+  const activePages: string[] = (validPagesList.length > 0)
+    ? validPagesList
+    : (rawActivePdfUrl && isImageResource(rawActivePdfUrl) && isValidUrlString(rawActivePdfUrl))
       ? [rawActivePdfUrl]
       : [];
 
-  const activePdfUrl = (rawActivePdfUrl && !isImageResource(rawActivePdfUrl)) ? rawActivePdfUrl : null;
+  const activePdfUrl = (rawActivePdfUrl && !isImageResource(rawActivePdfUrl) && isValidUrlString(rawActivePdfUrl)) 
+    ? rawActivePdfUrl 
+    : null;
 
   const hasMultiplePages = Boolean(activePages && activePages.length > 0);
   const totalPagesCount = hasMultiplePages ? activePages.length : 0;
