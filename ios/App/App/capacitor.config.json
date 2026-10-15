@@ -1,0 +1,70 @@
+{
+	"appId": "site.universeacademy.app",
+	"appName": "Universe Academy",
+	"webDir": "out",
+	"server": {
+		"url": "https://universeacademy.site",
+		"cleartext": false,
+		"allowNavigation": [
+			"universeacademy.site",
+			"*.universeacademy.site",
+			"*.run.app",
+			"*.firebaseapp.com",
+			"*.googleapis.com",
+			"accounts.google.com"
+		]
+	},
+	"backgroundColor": "#09090b",
+	"ios": {
+		"contentInset": "always",
+		"preferredContentMode": "mobile",
+		"scheme": "UniverseAcademy",
+		"allowsLinkPreview": false,
+		"scrollEnabled": true,
+		"limitsNavigationsToAppBoundDomains": true
+	},
+	"android": {
+		"allowMixedContent": false,
+		"captureInput": true,
+		"webContentsDebuggingEnabled": false,
+		"backgroundColor": "#09090b"
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 2000,
+			"launchAutoHide": true,
+			"backgroundColor": "#09090b",
+			"androidSplashResourceName": "splash",
+			"androidScaleType": "CENTER_CROP",
+			"showSpinner": true,
+			"spinnerColor": "#22c55e",
+			"splashFullScreen": true,
+			"splashImmersive": true
+		},
+		"StatusBar": {
+			"style": "DARK",
+			"backgroundColor": "#09090b"
+		},
+		"PushNotifications": {
+			"presentationOptions": [
+				"badge",
+				"sound",
+				"alert"
+			]
+		},
+		"PrivacyScreen": {
+			"enable": true,
+			"iosBlur": "dark",
+			"image": "splash",
+			"protected": true
+		}
+	},
+	"packageClassList": [
+		"CAPCameraPlugin",
+		"CAPNetworkPlugin",
+		"PrivacyScreenPlugin",
+		"PushNotificationsPlugin",
+		"SplashScreenPlugin",
+		"StatusBarPlugin"
+	]
+}

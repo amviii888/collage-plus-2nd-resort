@@ -79,7 +79,7 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
       if (specific) {
         const parsed = JSON.parse(specific);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.filter(c => !c.teacherId || c.teacherId === teacherId);
+          return parsed.filter(c => (c.teacherId || teacherId) === teacherId);
         }
       }
     } catch (e) {}
@@ -94,7 +94,7 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
         if (specific) {
           const parsed = JSON.parse(specific);
           if (Array.isArray(parsed)) {
-            setCachedCourses(parsed.filter(c => !c.teacherId || c.teacherId === teacherId));
+            setCachedCourses(parsed.filter(c => (c.teacherId || teacherId) === teacherId));
             return;
           }
         }
@@ -106,7 +106,9 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
   // Sync cloud courses with local cache
   useEffect(() => {
     if (cloudCourses && typeof window !== 'undefined' && teacherId) {
-      const teacherCloudCourses = cloudCourses.filter(c => !c.teacherId || c.teacherId === teacherId);
+      const teacherCloudCourses = cloudCourses
+        .map(c => ({ ...c, teacherId: c.teacherId || teacherId }))
+        .filter(c => c.teacherId === teacherId);
       setCachedCourses(teacherCloudCourses);
       try {
         localStorage.setItem(`offline_teacher_courses_${teacherId}`, JSON.stringify(teacherCloudCourses));
@@ -117,11 +119,13 @@ export function CourseAnalytics({ teacherId, initialCourseId }: CourseAnalyticsP
   // Combined courses list strictly filtered for current teacherId
   const courses = useMemo(() => {
     const list: Course[] = cloudCourses 
-      ? cloudCourses.filter(c => !c.teacherId || c.teacherId === teacherId) 
+      ? cloudCourses
+          .map(c => ({ ...c, teacherId: c.teacherId || teacherId }))
+          .filter(c => c.teacherId === teacherId) 
       : [];
     if (cachedCourses.length > 0) {
       cachedCourses.forEach(cc => {
-        if (!cc.teacherId || cc.teacherId === teacherId) {
+        if (cc.teacherId === teacherId) {
           const idx = list.findIndex(c => c.id === cc.id);
           if (idx === -1) {
             list.push(cc);

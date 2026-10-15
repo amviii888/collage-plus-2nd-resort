@@ -1,0 +1,57 @@
+name: Capacitor iOS Cloud IPA Build Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    name: Build & Sign iOS .IPA Package
+    runs-on: macos-14 # Uses GitHub Cloud macOS runner with Xcode pre-installed
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Next.js Web App
+        run: npm run build
+        env:
+          NEXT_PUBLIC_APP_ENV: production
+
+      - name: Sync Capacitor iOS Native Project
+        run: |
+          npx cap add ios || true
+          npx cap sync ios
+
+      - name: Setup CocoaPods
+        run: |
+          cd ios/App
+          pod install
+
+      - name: Build Unsigned iOS App Archive (.xcarchive)
+        run: |
+          xcodebuild -workspace ios/App/App.xcworkspace \
+                     -scheme App \
+                     -configuration Release \
+                     -sdk iphoneos \
+                     -archivePath $GITHUB_WORKSPACE/build/App.xcarchive \
+                     archive \
+                     CODE_SIGN_IDENTITY="" \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload Unsigned Xcode Archive Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-xcarchive-package
+          path: build/App.xcarchive
