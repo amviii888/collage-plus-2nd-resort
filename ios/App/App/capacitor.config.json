@@ -1,13 +1,13 @@
 {
-	"appId": "site.universeacademy.app",
-	"appName": "Universe Academy",
+	"appId": "com.mol5saty.app",
+	"appName": "Mol5saty",
 	"webDir": "out",
 	"server": {
-		"url": "https://universeacademy.site",
+		"url": "https://collage-plus-2nd-resort.vercel.app/",
 		"cleartext": false,
 		"allowNavigation": [
-			"universeacademy.site",
-			"*.universeacademy.site",
+			"collage-plus-2nd-resort.vercel.app",
+			"*.vercel.app",
 			"*.run.app",
 			"*.firebaseapp.com",
 			"*.googleapis.com",
@@ -18,7 +18,7 @@
 	"ios": {
 		"contentInset": "always",
 		"preferredContentMode": "mobile",
-		"scheme": "UniverseAcademy",
+		"scheme": "Mol5saty",
 		"allowsLinkPreview": false,
 		"scrollEnabled": true,
 		"limitsNavigationsToAppBoundDomains": true

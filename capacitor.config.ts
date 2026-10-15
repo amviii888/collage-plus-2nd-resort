@@ -1,16 +1,16 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'site.universeacademy.app',
-  appName: 'Universe Academy',
+  appId: 'com.mol5saty.app',
+  appName: 'Mol5saty',
   webDir: 'out',
   server: {
     // Remote Native Container: Loads the live production web app over HTTPS
-    url: 'https://universeacademy.site',
+    url: 'https://collage-plus-2nd-resort.vercel.app/',
     cleartext: false, // Strictly enforce HTTPS for iOS ATS compliance
     allowNavigation: [
-      'universeacademy.site',
-      '*.universeacademy.site',
+      'collage-plus-2nd-resort.vercel.app',
+      '*.vercel.app',
       '*.run.app',
       '*.firebaseapp.com',
       '*.googleapis.com',
@@ -21,7 +21,7 @@ const config: CapacitorConfig = {
   ios: {
     contentInset: 'always',
     preferredContentMode: 'mobile',
-    scheme: 'UniverseAcademy',
+    scheme: 'Mol5saty',
     allowsLinkPreview: false,
     scrollEnabled: true,
     limitsNavigationsToAppBoundDomains: true
