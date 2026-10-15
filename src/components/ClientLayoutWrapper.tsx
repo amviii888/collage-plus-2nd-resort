@@ -19,7 +19,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ShieldAlert } from 'lucide-react';
 
 import { ScreenProtectionGuard } from '@/components/security/ScreenProtectionGuard';
-import { DynamicWatermark } from '@/components/security/DynamicWatermark';
 import { GlobalStudentPassStamp } from '@/components/security/GlobalStudentPassStamp';
 import { NotificationListener } from '@/components/NotificationListener';
 import { DynamicBrandingManager } from '@/components/DynamicBrandingManager';
@@ -249,7 +248,6 @@ export function ClientLayoutWrapper({ children }: { children: React.ReactNode })
   return (
     <I18nextProvider i18n={i18n}>
       <ScreenProtectionGuard />
-      <DynamicWatermark />
       <GlobalStudentPassStamp />
       <NotificationListener />
       <DynamicBrandingManager />

@@ -125,7 +125,9 @@ export function DynamicWatermark({
                         localStorage.getItem('studentName') || 
                         (JSON.parse(localStorage.getItem('mol5saty_active_student_profile') || '{}')?.name)
                       ) : '') ||
-                      (user && !user.isAnonymous ? (user.displayName || user.email?.split('@')[0]) : '') || '';
+                      user?.displayName ||
+                      user?.email?.split('@')[0] || 
+                      'Registered Student';
 
   const studentPhone = useMemo(() => {
     if (previewStudent?.phone) return previewStudent.phone;
@@ -158,7 +160,7 @@ export function DynamicWatermark({
                         localStorage.getItem('studentBarcode') || 
                         localStorage.getItem('studentCode')
                       ) : '') ||
-                      (user && !user.isAnonymous ? (user.email?.includes('@universe.student') ? user.email.split('@')[0] : user.uid.slice(0, 8).toUpperCase()) : '') || '';
+                      (user?.email?.includes('@universe.student') ? user.email.split('@')[0] : (user?.uid ? user.uid.slice(0, 8).toUpperCase() : 'MOL5SATY_PASS'));
 
   // University dynamically retrieved from student profile
   const studentUniversity = useMemo(() => {
@@ -614,8 +616,8 @@ export function DynamicWatermark({
     fullscreenEl
   );
 
-  // Strictly block rendering if unauthenticated, on public pages, or without valid student data
-  if (!cfg.enabled || isPublicRoute || !hasStudentSession || (!previewStudent && !studentCode)) return null;
+  // Strictly block rendering only if watermark disabled or on public landing/auth pages
+  if (!cfg.enabled || isPublicRoute) return null;
 
   // Compute Coordinates / Classes based on movement type
   let positionStyle: React.CSSProperties = {};

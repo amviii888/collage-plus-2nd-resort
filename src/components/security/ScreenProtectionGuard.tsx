@@ -400,29 +400,34 @@ export function ScreenProtectionGuard() {
     };
 
     const handleWindowBlur = () => {
-      // Do NOT trigger blackout when user focuses input/password on iOS or interacts with player
-      if (isUserEditingOrInteracting()) {
-        return;
+      // Do NOT trigger blackout when user interacts with video iframe, controls, or inputs
+      if (typeof document !== 'undefined') {
+        const active = document.activeElement;
+        if (
+          active && 
+          (active.tagName === 'IFRAME' || 
+           active.tagName === 'VIDEO' || 
+           active.closest?.('.protected-media') || 
+           active.closest?.('#player-container') ||
+           active.closest?.('iframe'))
+        ) {
+          return;
+        }
       }
-      // On mobile/iOS devices, focusing password inputs / QuickType / Keychain sheets triggers blur
-      if (isMobileDevice) {
+      if (isUserEditingOrInteracting() || isMobileDevice) {
         return;
       }
 
-      applyInstantBlackout();
-      wipeClipboard();
-      setIsBlackedOut(true);
-      setWarningMessage('أداة التقاط الشاشة / النافذة غير نشطة (Screen Capture / Snipping Tool Intercepted).');
+      // Only trigger blackout if document is hidden / tab switched
+      if (document.hidden) {
+        applyInstantBlackout();
+        wipeClipboard();
+        setIsBlackedOut(true);
+      }
     };
 
     const handleMouseLeave = (e: MouseEvent) => {
-      // Only for desktop mouse navigation
-      if (isMobileDevice) return;
-      // Trigger instant blackout if cursor leaves browser viewport towards Snipping Tool or OS taskbar
-      if (e.clientY <= 0 || e.clientX <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
-        applyInstantBlackout();
-        setIsBlackedOut(true);
-      }
+      // Mouse movement outside viewport does not trigger blackout so video controls remain smooth
     };
 
     const handleWindowFocus = () => {

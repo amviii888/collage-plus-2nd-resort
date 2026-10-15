@@ -276,23 +276,27 @@ function LoginFormContent() {
                 }
             }
 
-            // Check if user is Admin in Firestore
-            let detectedRole = 'teacher';
+            // Accurately resolve role from Firestore collections
+            let detectedRole = 'student';
             if (firestore && userCredential?.user) {
                 try {
                     const { doc, getDoc } = await import('firebase/firestore');
-                    const userDoc = await getDoc(doc(firestore, 'users', userCredential.user.uid));
-                    if (userDoc.exists()) {
-                        const uData = userDoc.data();
-                        if (uData?.role) {
-                            detectedRole = uData.role.toLowerCase();
+                    const uid = userCredential.user.uid;
+
+                    const teacherDoc = await getDoc(doc(firestore, 'teachers', uid));
+                    if (teacherDoc.exists()) {
+                        detectedRole = 'teacher';
+                    } else {
+                        const userDoc = await getDoc(doc(firestore, 'users', uid));
+                        if (userDoc.exists() && userDoc.data()?.role) {
+                            detectedRole = userDoc.data().role.toLowerCase();
                         }
                     }
                 } catch (e) {}
             }
 
-            const isStudent = isStudentAttempt || 
-                              detectedRole === 'student' ||
+            const isStudent = detectedRole === 'student' ||
+                              isStudentAttempt || 
                               identifier.trim().toLowerCase().endsWith('@mol5saty.student') || 
                               identifier.trim().toLowerCase().endsWith('@universe.student') ||
                               userCredential.user.email?.toLowerCase().endsWith('@mol5saty.student') ||
@@ -312,6 +316,11 @@ function LoginFormContent() {
             }
 
             if (isStudent) {
+                // Purge any stale teacher session keys
+                localStorage.removeItem('teacher_session');
+                localStorage.removeItem('teacherId');
+                localStorage.removeItem('teacher_accounts');
+
                 const studentCode = isStudentAttempt 
                     ? identifier.trim() 
                     : (userCredential.user.email ? userCredential.user.email.split('@')[0] : identifier.trim());
