@@ -1,6 +1,6 @@
 {
-  "summary": "Updated Capacitor iOS cloud build and GitHub repository handover plan for direct App Store Connect TestFlight publishing.",
-  "updatedAt": "2026-10-15T16:01:35.005971698Z",
+  "summary": "Comprehensive web protection architecture plan for ScreenProtectionGuard. Leaves DynamicWatermark completely untouched. Implements exhaustive Windows and Mac screenshot/recording key combinations, zero-latency focus loss blackout (defeating Windows Snipping Tool), video playback shutter (instant pause, mute, and blanking on focus loss or backgrounding), recording API traps, virtual audio capture detection, and mobile web Safari/Chrome recording protection on iPhone and Android.",
+  "updatedAt": "2026-10-20T00:29:05.118984989Z",
   "requestFeedback": true,
   "userFacing": true
 }

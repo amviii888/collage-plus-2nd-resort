@@ -15,24 +15,60 @@ export function ScreenProtectionGuard() {
     setMounted(true);
   }, []);
 
+  const engageVideoShutter = () => {
+    if (typeof document === 'undefined') return;
+    try {
+      const media = document.querySelectorAll('video, audio');
+      media.forEach((m: any) => {
+        try {
+          if (!m.paused) {
+            m.setAttribute('data-was-playing', 'true');
+            m.pause?.();
+          }
+          m.muted = true;
+          m.classList.add('mol5asaty-shutter-blank');
+        } catch {}
+      });
+    } catch {}
+  };
+
+  const releaseVideoShutter = () => {
+    if (typeof document === 'undefined') return;
+    try {
+      const media = document.querySelectorAll('video, audio');
+      media.forEach((m: any) => {
+        try {
+          m.classList.remove('mol5asaty-shutter-blank');
+        } catch {}
+      });
+    } catch {}
+  };
+
   const applyInstantBlackout = () => {
     if (typeof document !== 'undefined') {
       document.body?.classList.add('mol5asaty-guard-protected');
+      engageVideoShutter();
     }
   };
 
   const removeInstantBlackout = () => {
     if (typeof document !== 'undefined') {
       document.body?.classList.remove('mol5asaty-guard-protected');
+      releaseVideoShutter();
     }
   };
 
   const wipeClipboard = () => {
-    // Intentionally disabled: allows users/developers to copy errors and logs freely without interference
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard.writeText('').catch(() => {});
+      }
+    } catch {}
   };
 
   const showSecurityWarning = (msg: string, blackoutDurationMs = 5000) => {
     applyInstantBlackout();
+    engageVideoShutter();
     setIsBlackedOut(true);
     setWarningMessage(msg);
 
@@ -127,6 +163,28 @@ export function ScreenProtectionGuard() {
       } catch {}
     }
 
+    // Intercept Canvas & Media Element captureStream APIs to block browser recording extensions
+    if (typeof HTMLCanvasElement !== 'undefined' && HTMLCanvasElement.prototype) {
+      try {
+        (HTMLCanvasElement.prototype as any).captureStream = function () {
+          applyInstantBlackout();
+          engageVideoShutter();
+          showSecurityWarning('⛔ تم حظر تسجيل إطارات الكانفاس والفيديو بالأدوات البرمجية.', 7000);
+          return new MediaStream();
+        };
+      } catch {}
+    }
+    if (typeof HTMLMediaElement !== 'undefined' && HTMLMediaElement.prototype) {
+      try {
+        (HTMLMediaElement.prototype as any).captureStream = function () {
+          applyInstantBlackout();
+          engageVideoShutter();
+          showSecurityWarning('⛔ تم حظر تسجيل وتصدير دفق الفيديو.', 7000);
+          return new MediaStream();
+        };
+      } catch {}
+    }
+
     // Engage Web Keyboard Lock API on desktop browsers to intercept OS screenshot keys
     if (typeof navigator !== 'undefined' && (navigator as any).keyboard?.lock) {
       try {
@@ -136,20 +194,14 @@ export function ScreenProtectionGuard() {
 
     let lastMetaKeyTime = 0;
 
-    const wipeClipboard = () => {
-      try {
-        if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-          navigator.clipboard.writeText('').catch(() => {});
-        }
-      } catch {}
-    };
-
-    // 3. Ultra-Fast Synchronous Keyboard Event Capture for Screenshots
+    // 3. Ultra-Fast Synchronous Keyboard Event Capture for Screenshots & Recordings
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key ? e.key.toLowerCase() : '';
+      const code = e.code || '';
       const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+      const isMeta = e.key === 'Meta' || e.key === 'OS' || e.code === 'MetaLeft' || e.code === 'MetaRight' || (e as any).windowsKey;
 
-      if (e.key === 'Meta' || e.key === 'OS' || e.code === 'MetaLeft' || e.code === 'MetaRight' || (e as any).windowsKey) {
+      if (isMeta) {
         lastMetaKeyTime = Date.now();
       }
 
@@ -161,14 +213,17 @@ export function ScreenProtectionGuard() {
         return;
       }
 
-      // 1. Dedicated Hardware PrintScreen / PrtScn / Snipping Key Capture (Banned completely)
+      // 1. Dedicated Hardware PrintScreen / PrtScn / Snipping Key Capture (Banned completely in all combos)
       const isPrtScn = e.key === 'PrintScreen' || 
                        e.keyCode === 44 || 
                        e.code === 'PrintScreen' || 
-                       e.key === 'Snapshot';
+                       e.key === 'Snapshot' ||
+                       key === 'printscreen' ||
+                       key === 'snapshot';
 
-      if (isPrtScn) {
+      if (isPrtScn || (e.altKey && isPrtScn) || (e.ctrlKey && isPrtScn) || (e.shiftKey && isPrtScn) || (e.metaKey && isPrtScn)) {
         applyInstantBlackout();
+        engageVideoShutter();
         wipeClipboard();
         e.preventDefault();
         e.stopPropagation();
@@ -177,24 +232,58 @@ export function ScreenProtectionGuard() {
         return false;
       }
 
-      // 2. Windows Snipping Tool (Win + Shift + S) & macOS (Cmd + Shift + 3/4/5/S) & Combos:
-      // Catches Win+Shift+S, Ctrl+Shift+S, Alt+PrintScreen, Win+PrintScreen, Win+G (Game Bar)
-      const isShiftS = e.shiftKey && (key === 's' || key === 'س' || e.code === 'KeyS');
-      const isWinOrCmd = e.metaKey || (e as any).windowsKey || (Date.now() - lastMetaKeyTime < 1500);
-      const isWinShiftS = (isWinOrCmd || isCmdOrCtrl) && isShiftS;
-      const isMacCapture = (e.metaKey || (e as any).windowsKey) && e.shiftKey && ['3', '4', '5', '6', 's'].includes(key);
-      const isWinGameBar = (e.metaKey || (e as any).windowsKey) && (key === 'g' || key === 'ل');
+      // 2. Windows & Mac Screen Snipping & Recording Combos (Exhaustive Detection)
+      const isShiftS = e.shiftKey && (key === 's' || key === 'س' || code === 'KeyS');
+      const isWinOrMeta = e.metaKey || (e as any).windowsKey || (Date.now() - lastMetaKeyTime < 2000);
 
-      // Also if Shift+S is pressed on Windows outside of any active text input, it is Snipping tool
+      // Win + Shift + S (Windows Snipping Tool)
+      const isWinShiftS = (isWinOrMeta || isCmdOrCtrl) && isShiftS;
+
+      // Win + S (Windows Search / Screen Capture Hotkey)
+      const isWinS = isWinOrMeta && (key === 's' || key === 'س' || code === 'KeyS') && !isUserEditingOrInteracting();
+
+      // Win + Alt + R (Windows Game Bar / Xbox Screen Recording)
+      const isWinAltR = (isWinOrMeta || e.metaKey) && e.altKey && (key === 'r' || key === 'ق' || code === 'KeyR');
+
+      // Win + G (Windows Game Bar Overlay)
+      const isWinGameBar = isWinOrMeta && (key === 'g' || key === 'ل' || code === 'KeyG');
+
+      // Edge & Browser Web Capture: Ctrl + Shift + S
+      const isBrowserCapture = isCmdOrCtrl && isShiftS;
+
+      // Third-Party Screen Capture Hotkeys (Lightshot, ShareX, Greenshot, Screenpresso, WeChat)
+      // Alt + A, Ctrl + Alt + A, Ctrl + Alt + S, Ctrl + Shift + X (Opera Snapshot)
+      const isLightshot = e.altKey && (key === 'a' || key === 'ش' || code === 'KeyA') && !isUserEditingOrInteracting();
+      const isGreenshot = isCmdOrCtrl && e.altKey && (key === 's' || key === 'س' || code === 'KeyS');
+      const isOperaSnapshot = isCmdOrCtrl && e.shiftKey && (key === 'x' || key === 'ء' || code === 'KeyX');
+
+      // macOS Screen Capture Combos: Cmd + Shift + 3, Cmd + Shift + 4, Cmd + Shift + 5, Cmd + Shift + 6, Cmd + Option + 5
+      const isMacNumberCapture = (e.metaKey || isWinOrMeta) && e.shiftKey && ['3', '4', '5', '6', '#', '$', '%', '^'].includes(key);
+      const isMacOptionCapture = e.metaKey && e.altKey && (key === '5' || key === '%');
+      const isMacCapture = isMacNumberCapture || isMacOptionCapture || ((e.metaKey || isWinOrMeta) && isShiftS);
+
+      // Suspicious Shift + S without an active typing cursor
       const isSuspiciousShiftS = isShiftS && !isUserEditingOrInteracting();
 
-      if (isWinShiftS || isMacCapture || isWinGameBar || isSuspiciousShiftS || (e.altKey && isPrtScn)) {
+      if (
+        isWinShiftS ||
+        isWinS ||
+        isWinAltR ||
+        isWinGameBar ||
+        isBrowserCapture ||
+        isLightshot ||
+        isGreenshot ||
+        isOperaSnapshot ||
+        isMacCapture ||
+        isSuspiciousShiftS
+      ) {
         applyInstantBlackout();
+        engageVideoShutter();
         wipeClipboard();
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation?.();
-        showSecurityWarning('⛔ تم حظر أداة التقاط الشاشة (Win + Shift + S / Snipping Tool). المحتوى محمي.', 6000);
+        showSecurityWarning('⛔ تم حظر واعتراض أداة التقاط وتسجيل الشاشة (Snipping Tool / Screen Recording). المحتوى محمي.', 6000);
         return false;
       }
 
@@ -209,6 +298,7 @@ export function ScreenProtectionGuard() {
         (isCmdOrCtrl && key === 'u')
       ) {
         applyInstantBlackout();
+        engageVideoShutter();
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation?.();
@@ -224,6 +314,7 @@ export function ScreenProtectionGuard() {
         // Save HTML: Cmd/Ctrl + S
         if (key === 'p' || key === 's') {
           applyInstantBlackout();
+          engageVideoShutter();
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation?.();
@@ -234,20 +325,27 @@ export function ScreenProtectionGuard() {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key ? e.key.toLowerCase() : '';
+      const code = e.code || '';
       if (e.key === 'Meta' || e.key === 'OS' || e.code === 'MetaLeft' || e.code === 'MetaRight' || (e as any).windowsKey) {
         lastMetaKeyTime = Date.now();
       }
       const isPrtScn = e.key === 'PrintScreen' || 
                        e.keyCode === 44 || 
                        e.code === 'PrintScreen' || 
-                       e.key === 'Snapshot';
-      if (isPrtScn || ((e.metaKey || (Date.now() - lastMetaKeyTime < 1500)) && e.shiftKey && (e.key?.toLowerCase() === 's' || e.code === 'KeyS'))) {
+                       e.key === 'Snapshot' ||
+                       key === 'printscreen';
+
+      const isShiftS = e.shiftKey && (key === 's' || key === 'س' || code === 'KeyS');
+      const isWinOrMeta = e.metaKey || (e as any).windowsKey || (Date.now() - lastMetaKeyTime < 2000);
+
+      if (isPrtScn || (isWinOrMeta && isShiftS) || (isWinOrMeta && (key === 's' || key === 'س' || code === 'KeyS') && !isUserEditingOrInteracting())) {
         applyInstantBlackout();
+        engageVideoShutter();
         wipeClipboard();
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation?.();
-        showSecurityWarning('⛔ تم حظر واعتراض أداة التقاط الشاشة.');
       }
     };
 
@@ -279,11 +377,40 @@ export function ScreenProtectionGuard() {
       }
     };
 
-    // 5. Bluetooth & External Audio Output Device Interception (Allow Wired Headphones only)
+    // 5. Virtual Audio Loopback & External Audio Output Device Interception (Blocks screen recorders capturing audio)
     const checkAudioOutputRouting = async () => {
       try {
         if (typeof navigator !== 'undefined' && navigator.mediaDevices?.enumerateDevices) {
           const devices = await navigator.mediaDevices.enumerateDevices();
+          
+          // Check for virtual audio recording devices (OBS, Stereo Mix, VB-Cable, BlackHole, VoiceMeeter)
+          const virtualRecordingDevice = devices.find(d => {
+            const label = (d.label || '').toLowerCase();
+            return (
+              label.includes('stereo mix') ||
+              label.includes('virtual audio') ||
+              label.includes('virtual cable') ||
+              label.includes('obs audio') ||
+              label.includes('obs virtual') ||
+              label.includes('blackhole') ||
+              label.includes('vb-audio') ||
+              label.includes('voicemeeter') ||
+              label.includes('soundflower') ||
+              label.includes('screencapture') ||
+              label.includes('screen recorder') ||
+              label.includes('cable input') ||
+              label.includes('loopback') ||
+              label.includes('camo audio')
+            );
+          });
+
+          if (virtualRecordingDevice) {
+            engageVideoShutter();
+            applyInstantBlackout();
+            showSecurityWarning('⛔ تم رصد برامج التقاط الصوت الافتراضية (Virtual Audio / Recording Loopback). تم كتم وإيقاف المحتوى.', 7000);
+            return;
+          }
+
           const bluetoothAudioDevice = devices.find(d => {
             const label = (d.label || '').toLowerCase();
             return (
@@ -293,14 +420,7 @@ export function ScreenProtectionGuard() {
           });
 
           if (bluetoothAudioDevice) {
-            // Mute media elements if Bluetooth or external wireless audio sink is active
-            const media = document.querySelectorAll('video, audio');
-            media.forEach((m: any) => {
-              if (m && !m.muted) {
-                m.muted = true;
-                m.pause?.();
-              }
-            });
+            engageVideoShutter();
             showSecurityWarning('⚠️ تنبيه أمني: استخدام أجهزة البلوتوث أو مكبرات الصوت الخارجية محظور. يرجى استخدام سماعات سلكية (Wired Headphones).', 5000);
           }
         }
@@ -400,7 +520,15 @@ export function ScreenProtectionGuard() {
     };
 
     const handleWindowBlur = () => {
-      // Do NOT trigger blackout when user interacts with video iframe, controls, or inputs
+      // 1. Immediately engage video playback shutter (auto-pause, mute, and blank video frame)
+      engageVideoShutter();
+
+      // Check if user is actively editing text inputs or typing
+      if (isUserEditingOrInteracting()) {
+        return;
+      }
+
+      // Check if focus is strictly inside a video iframe/player control
       if (typeof document !== 'undefined') {
         const active = document.activeElement;
         if (
@@ -408,22 +536,17 @@ export function ScreenProtectionGuard() {
           (active.tagName === 'IFRAME' || 
            active.tagName === 'VIDEO' || 
            active.closest?.('.protected-media') || 
-           active.closest?.('#player-container') ||
-           active.closest?.('iframe'))
+           active.closest?.('#player-container'))
         ) {
           return;
         }
       }
-      if (isUserEditingOrInteracting() || isMobileDevice) {
-        return;
-      }
 
-      // Only trigger blackout if document is hidden / tab switched
-      if (document.hidden) {
-        applyInstantBlackout();
-        wipeClipboard();
-        setIsBlackedOut(true);
-      }
+      // 2. Immediate zero-latency blackout for Snipping Tool (Win+Shift+S), OBS, Game Bar, or tab switch
+      applyInstantBlackout();
+      wipeClipboard();
+      setIsBlackedOut(true);
+      showSecurityWarning('⛔ تم تجميد وحجب الشاشة لحماية المواد الأكاديمية (Snipping / Focus Guard).', 5000);
     };
 
     const handleMouseLeave = (e: MouseEvent) => {
@@ -432,22 +555,28 @@ export function ScreenProtectionGuard() {
 
     const handleWindowFocus = () => {
       setTimeout(() => {
-        if (!document.hidden && (document.hasFocus?.() || isUserEditingOrInteracting())) {
-          setIsBlackedOut(false);
-          setWarningMessage(null);
-          removeInstantBlackout();
+        if (!document.hidden && document.hasFocus?.()) {
+          releaseVideoShutter();
+          if (!isUserEditingOrInteracting()) {
+            setIsBlackedOut(false);
+            setWarningMessage(null);
+            removeInstantBlackout();
+          }
         }
       }, 150);
     };
 
-    // 8. Visibility Change (Detect minimizing or tab switching)
+    // 8. Visibility Change (Detect minimizing, tab switching, or iOS Control Center)
     const handleVisibilityChange = () => {
       if (document.hidden) {
+        engageVideoShutter();
         applyInstantBlackout();
+        wipeClipboard();
         setIsBlackedOut(true);
       } else {
         setTimeout(() => {
           if (!document.hidden && (document.hasFocus?.() || isUserEditingOrInteracting())) {
+            releaseVideoShutter();
             setIsBlackedOut(false);
             removeInstantBlackout();
           }
@@ -455,21 +584,30 @@ export function ScreenProtectionGuard() {
       }
     };
 
-    // 9. Focus Watchdog (Optimized 1000ms interval to prevent layout thrashing)
+    // Mobile touch gestures (3-finger / 4-finger screenshot gestures)
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches && e.touches.length >= 3) {
+        applyInstantBlackout();
+        engageVideoShutter();
+        showSecurityWarning('⛔ تم حظر إيماءة التقاط الشاشة على الجهاز.', 4000);
+      }
+    };
+
+    // 9. Focus Watchdog (Detect backgrounding and external screen recorders stealing focus)
     let focusCheckInterval: NodeJS.Timeout | null = null;
-    if (!isMobileDevice) {
-      focusCheckInterval = setInterval(() => {
-        if (typeof document !== 'undefined') {
-          if (document.hidden) {
-            applyInstantBlackout();
-            setIsBlackedOut(true);
-          } else if (!document.hasFocus() && !isUserEditingOrInteracting()) {
-            applyInstantBlackout();
-            setIsBlackedOut(true);
-          }
+    focusCheckInterval = setInterval(() => {
+      if (typeof document !== 'undefined') {
+        if (document.hidden) {
+          engageVideoShutter();
+          applyInstantBlackout();
+          setIsBlackedOut(true);
+        } else if (!document.hasFocus() && !isUserEditingOrInteracting()) {
+          engageVideoShutter();
+          applyInstantBlackout();
+          setIsBlackedOut(true);
         }
-      }, 1000);
-    }
+      }
+    }, 1000);
 
     // 9. Active DevTools Detection & Console Shield
     const devToolsCheck = setInterval(() => {
@@ -558,6 +696,7 @@ export function ScreenProtectionGuard() {
     document.addEventListener('copy', handleCopyCut, { capture: true, passive: false });
     document.addEventListener('cut', handleCopyCut, { capture: true, passive: false });
     document.addEventListener('selectstart', handleSelectStart, { capture: true });
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
 
     return () => {
       if (focusCheckInterval !== null) {
@@ -580,12 +719,13 @@ export function ScreenProtectionGuard() {
       document.removeEventListener('copy', handleCopyCut, { capture: true });
       document.removeEventListener('cut', handleCopyCut, { capture: true });
       document.removeEventListener('selectstart', handleSelectStart, { capture: true });
+      window.removeEventListener('touchstart', handleTouchStart);
     };
   }, []);
 
   const modalOverlay = (
     <>
-      {/* Global CSS injection for instant hardware blackout and print blockage */}
+      {/* Global CSS injection for instant hardware blackout, video blanking, and print blockage */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           html, body {
@@ -602,6 +742,15 @@ export function ScreenProtectionGuard() {
           pointer-events: none !important;
           user-select: none !important;
           visibility: hidden !important;
+        }
+        body.mol5asaty-guard-protected video,
+        body.mol5asaty-guard-protected audio,
+        video.mol5asaty-shutter-blank,
+        audio.mol5asaty-shutter-blank {
+          filter: brightness(0) !important;
+          opacity: 0 !important;
+          visibility: hidden !important;
+          pointer-events: none !important;
         }
         #screen-protection-curtain, #screen-protection-warning {
           filter: none !important;

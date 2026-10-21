@@ -1,96 +1,84 @@
-# Capacitor iOS GitHub Handover & App Store Connect Deployment Plan
+# Web & Mobile Browser Screen Protection & Anti-Recording Architecture
 
-A comprehensive architectural roadmap and step-by-step handover package for preparing your GitHub repository so your publisher can clone the code, run cloud builds, and publish directly to Apple App Store Connect and TestFlight via web portal.
+A dedicated, comprehensive plan focused exclusively on **`ScreenProtectionGuard.tsx`** and video playback containers across desktop browsers (Windows, macOS) and mobile web browsers (iPhone Safari/Chrome, Android). 
 
-## Confirmed Handover Decisions
-
-- **Repository Access**: GitHub repository distribution allowing the publisher to clone and build directly.
-- **Publisher Environment**: Web-only App Store Connect portal access (no local Mac/Xcode required).
-- **Handover Documentation**: Complete step-by-step guide covering GitHub setup, automated cloud `.ipa` builds, TestFlight beta distribution, and App Store Connect publishing.
-- **Native Security Features**: Native iOS Privacy Screen & Screenshot Protection enabled via `@capacitor/privacy-screen`.
+> **Important**: The watermark (`DynamicWatermark.tsx`) remains completely untouched as requested.
 
 ---
 
-## 1. Overview & Core Concept
+## 1. Core Threat Vectors & Solutions
 
-### What It Delivers
-This plan prepares your codebase for seamless GitHub handover and configures an automated GitHub Actions CI/CD workflow (`ios-build-appstore.yml`) running on Apple macOS cloud runners. 
+### A. Windows Snipping Tool (`Win + Shift + S`, `Win + S`) & Snipping Program
+- **Mechanism**: The OS steals window focus before taking a snapshot.
+- **Solution**: 
+  - On the immediate millisecond `window.onblur` or `document.hasFocus() === false` occurs (outside of text fields), execute an instant DOM hardware blackout (`#000000` curtain + blur/brightness zero filter).
+  - When the Snipping Tool cursor crosshair freezes the screen, the frozen frame is pitch black.
 
-When your publisher pushes code or triggers the workflow on GitHub, the pipeline:
-1. Builds the Next.js web app static export (`npm run build`).
-2. Syncs native Capacitor iOS files (`npx cap sync ios`).
-3. Signs the iOS bundle using Apple Developer API key credentials.
-4. Uploads the compiled `.ipa` binary directly to **Apple App Store Connect / TestFlight**.
+### B. Exhaustive Key Combinations (Windows & macOS)
+- **Windows Capture Combos**:
+  - `Win + Shift + S` (Windows Snipping Tool)
+  - `Win + S` (Windows Search / Screen Snipping)
+  - `Win + Alt + R` (Windows Game Bar Screen Recording)
+  - `Win + G` (Windows Game Bar Overlay)
+  - `PrintScreen`, `PrtScn`, `Snapshot` (all variations: standalone, `Alt + PrtScn`, `Ctrl + PrtScn`, `Win + PrtScn`)
+  - `Ctrl + Shift + S` (Edge / Browser Web Capture)
+  - `Alt + A`, `Ctrl + Alt + S` (common third-party screenshot hotkeys: Lightshot, ShareX, Greenshot)
+- **macOS Capture Combos**:
+  - `Cmd + Shift + 3` (Full screen capture)
+  - `Cmd + Shift + 4` (Selected area capture)
+  - `Cmd + Shift + 5` (Screen recording / screenshot panel)
+  - `Cmd + Shift + 6` (Touch bar screenshot)
+  - `Cmd + Shift + S` (Third-party screen capture tools)
+  - `Cmd + Option + 5`
+- **Actions on Trigger**: Immediate blackout, `e.preventDefault()`, `e.stopPropagation()`, system clipboard wipe (`navigator.clipboard.writeText('')`), and display of the academic security warning.
 
-Your publisher can manage builds, invite beta testers, and submit the app for review entirely through their web browser on the **App Store Connect web portal** without ever needing a physical Mac.
+### C. Screen Recording Defense & Video Playback Shutter
+- **Video Playback Shutter**:
+  - Whenever the browser window loses focus (`document.hasFocus() === false`), is minimized, or switches tabs (`document.hidden === true`):
+    - All `<video>` and `<audio>` elements instantly **pause**.
+    - All media is **muted** (`muted = true`, `volume = 0`).
+    - The video rendering surface is blanked (`filter: brightness(0)`, `opacity: 0`, `visibility: hidden`).
+    - The blackout security curtain covers the video player container.
+  - As soon as the user refocuses the window, the display surface is restored and the student can resume playback.
+- **Recording API Interception**:
+  - Trap `navigator.mediaDevices.getDisplayMedia` to throw `NotAllowedError`.
+  - Trap `window.MediaRecorder` to inject empty/stopped streams.
+  - Trap `HTMLCanvasElement.prototype.captureStream` and `HTMLMediaElement.prototype.captureStream` so browser recording extensions cannot capture video pixel buffers.
+- **Virtual Audio Capture Detection**:
+  - Monitor `navigator.mediaDevices.enumerateDevices` to detect virtual audio loopback drivers (e.g., "Stereo Mix", "Virtual Audio Cable", "OBS Virtual Audio", "BlackHole", "VB-Audio").
+  - Auto-mute playback if a virtual recording device is actively selected.
 
----
-
-## 2. Technical Workflow Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    1. GITHUB REPOSITORY (HANDOVER)                          │
-│                                                                             │
-│   Publisher Clones Repo  ──>  Pushes Commit or Triggers Action             │
-└────────────────────────────────────┬────────────────────────────────────────┘
-                                     │
-                                     ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│             2. AUTOMATED GITHUB ACTIONS CLOUD BUILD (MACOS RUNNER)          │
-│                                                                             │
-│   ├── Next.js Static Export (`npm run build`)                              │
-│   ├── Capacitor iOS Sync (`npx cap sync ios`)                              │
-│   ├── Native Screenshot Guard Injection (`@capacitor/privacy-screen`)       │
-│   ├── Import Apple App Store Connect Auth Key (`.p8`)                      │
-│   └── Xcode Cloud Compilation & Sign (`xcodebuild -exportArchive`)          │
-└────────────────────────────────────┬────────────────────────────────────────┘
-                                     │
-                                     ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│            3. APP STORE CONNECT WEB PORTAL (PUBLISHER MANAGED)              │
-│                                                                             │
-│   TestFlight Beta Build Appears  ──>  Submit for App Store Review (Browser)│
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 3. Step-by-Step Execution Blueprint
-
-### Phase A: Local Repository & Capacitor Setup
-1. **Capacitor Configuration (`capacitor.config.json`)**:
-   - Set `appId: "com.mol5saty.app"` (or your publisher's Apple App ID).
-   - Set `appName: "Mol5saty"`.
-   - Ensure `webDir: "out"` for Next.js static export alignment.
-2. **Native iOS Screenshot Guard**:
-   - Verify `@capacitor/privacy-screen` is initialized in `capacitor.config.json` and native layout wrappers.
-
-### Phase B: Automated Cloud Build Pipeline (`.github/workflows/ios-appstore.yml`)
-1. **Configure GitHub Secrets**:
-   - `APP_STORE_CONNECT_API_KEY`: App Store Connect API Key (`.p8` file content).
-   - `APP_STORE_CONNECT_KEY_ID`: Key ID from Apple Developer.
-   - `APP_STORE_CONNECT_ISSUER_ID`: Issuer ID from Apple Developer.
-2. **Workflow Execution Steps**:
-   - Setup Node.js & CocoaPods dependencies.
-   - Run Next.js static build (`npm run build`).
-   - Run Capacitor iOS sync (`npx cap sync ios`).
-   - Run `xcrun altool` or `xcrun app-store-connect` to deliver `.ipa` package directly to TestFlight.
-
-### Phase C: Publisher Handover Guide Document (`HANDOVER_IOS.md`)
-1. Create a clean `HANDOVER_IOS.md` in the repository root explaining:
-   - How to link their Apple Developer account.
-   - How to set the 3 GitHub secrets.
-   - How to trigger the cloud build from GitHub Actions tab.
-   - How to release the build to users on App Store Connect web interface.
+### D. Mobile Web Protection (iPhone Safari & Android Chrome)
+- **iOS Safari Recording & Capture Detection**:
+  - Detect Control Center pull-down: On iOS Safari, pulling down Control Center to start screen recording causes immediate `window.blur` and `visibilitychange` events. The guard instantly pauses the video and turns the player black.
+  - Deny AirPlay & wireless screen mirroring: Enforce `disableRemotePlayback = true` and `x-webkit-airplay: deny` on all media elements to block screen broadcasting to Apple TV or Mac recorders.
+  - Intercept multi-finger screen capture gestures and iOS screenshot notifications via WebKit hooks.
+- **Android Mobile Browser Protection**:
+  - Detect app switching, floating screen recorder overlays (e.g., AZ Screen Recorder, XRecorder) via rapid window blur and focus loss events.
+  - Auto-blank video playback immediately when an overlay steals focus.
 
 ---
 
-## 4. Key Product & Security Decisions
+## 2. Implementation Steps
 
-- **Decision 1: Direct TestFlight Cloud Upload**:
-  - *Chosen Approach*: Automated `xcrun app-store-connect` upload in GitHub Actions.
-  - *Why*: Allows publisher to manage TestFlight beta testing and App Store submission entirely via browser without Xcode or a Mac.
-- **Decision 2: Clear Repository Documentation**:
-  - *Chosen Approach*: Include root `HANDOVER_IOS.md` and repository setup scripts.
-  - *Why*: Gives publisher an instant 5-minute setup experience when cloning the repo.
+1. **Update `src/components/security/ScreenProtectionGuard.tsx`**:
+   - Implement zero-latency focus loss blackout (remove `document.hidden` requirement on blur).
+   - Expand keydown and keyup capture listeners with all Windows and macOS screenshot/recording shortcuts.
+   - Implement global video playback shutter (auto-pause, mute, and blanking on focus loss or backgrounding).
+   - Intercept canvas and media `captureStream` APIs.
+   - Harden virtual audio loopback detection and iOS Safari Control Center / AirPlay defense.
+2. **Lint & Syntax Verification**:
+   - Run `lint_applet` to ensure zero compilation or React hook errors.
+
+---
+
+## 3. Verification & Acceptance Criteria
+
+1. **Windows Snipping Tool Test**:
+   - Pressing `Win + Shift + S` or `Win + S` immediately turns the screen black before the snipping tool can freeze the frame.
+2. **Lecture Video Focus Test**:
+   - Clicking outside the browser window while a lecture video is playing immediately mutes, pauses, and blanks the video. Refocusing the window restores the display.
+3. **Screen Recording Extension Test**:
+   - Extensions attempting `getDisplayMedia` or `MediaRecorder` fail with security errors.
+4. **Mobile Web Safari Test**:
+   - Pulling down iOS Control Center or switching apps immediately blanks video playback.
