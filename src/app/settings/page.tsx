@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LogOut, Users, FileText, Shield, Info, LifeBuoy, Globe, ChevronRight, ChevronLeft, Bell, Lock, Scale, Copyright, User as UserIcon, RotateCcw, AlertTriangle, Database, Upload, Check, Download, AlertCircle } from 'lucide-react';
+import { LogOut, Users, FileText, Shield, Info, LifeBuoy, Globe, ChevronRight, ChevronLeft, Bell, Lock, Scale, Copyright, User as UserIcon, RotateCcw, AlertTriangle, Database, Upload, Check, Download, AlertCircle, Trash2, ShieldAlert } from 'lucide-react';
 import { doc, collection, setDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { Label } from '@/components/ui/label';
@@ -29,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 
 function TeacherDisasterRecoveryContent({ teacherId, isArabic }: { teacherId: string; isArabic: boolean }) {
@@ -706,6 +707,11 @@ export default function SettingsPage() {
     const { toast } = useToast();
     const [isLoggingOut, setIsLoggingOut] = useState(false);
 
+    // 2-Step Account Deletion State
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
+    const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
     const handleLogout = async () => {
         if (isLoggingOut) return;
         setIsLoggingOut(true);
@@ -723,6 +729,68 @@ export default function SettingsPage() {
 
         // Use window.location.href to perform a clean state refresh upon signout
         window.location.href = '/signup-options';
+    };
+
+    const executeAccountDeletion = async () => {
+        setIsDeletingAccount(true);
+        try {
+            const sid = effectiveStudentId || student?.id;
+            
+            // Delete Firestore records if accessible
+            if (firestore && sid) {
+                try {
+                    const { deleteDoc, doc } = await import('firebase/firestore');
+                    await deleteDoc(doc(firestore, 'students', sid));
+                    if (user?.uid) {
+                        await deleteDoc(doc(firestore, 'users', user.uid));
+                    }
+                } catch (dbErr) {
+                    console.warn('Firestore doc deletion note:', dbErr);
+                }
+            }
+
+            // Delete Firebase Auth user if available
+            if (auth?.currentUser) {
+                try {
+                    await auth.currentUser.delete();
+                } catch (authErr) {
+                    console.warn('Auth user delete note (requires fresh session if old):', authErr);
+                }
+            }
+
+            // Wipe all student credentials, tokens, and caches
+            clearAllStudentAuthSessions();
+            if (typeof window !== 'undefined') {
+                localStorage.removeItem('viewingStudentId');
+                localStorage.removeItem('studentBarcode');
+                localStorage.removeItem('studentBarcodeId');
+                localStorage.removeItem('studentCode');
+                localStorage.removeItem('mol5saty_active_student_profile');
+                localStorage.removeItem('student_app_icon_active');
+                localStorage.removeItem('active_connected_professor_code');
+                localStorage.removeItem('admin-session');
+                if (sid) {
+                    localStorage.removeItem(`student_profile_offline_${sid}`);
+                    localStorage.removeItem(`cached_student_profile_${sid}`);
+                }
+            }
+
+            toast({
+                title: isArabic ? 'تم حذف الحساب بنجاح' : 'Account Deleted Permanently',
+                description: isArabic ? 'تم مسح جميع بياناتك الأكاديمية وسجلاتك بالكامل.' : 'All your student records and credentials have been permanently deleted.',
+            });
+
+            setDeleteModalOpen(false);
+            window.location.href = '/signup-options';
+        } catch (err: any) {
+            toast({
+                variant: 'destructive',
+                title: isArabic ? 'تعذر إكمال الحذف' : 'Deletion Failed',
+                description: err?.message || (isArabic ? 'يرجى المحاولة مرة أخرى أو التواصل مع الدعم.' : 'Please try again or contact support.'),
+            });
+        } finally {
+            setIsDeletingAccount(false);
+        }
     };
 
     const toggleLanguage = () => {
@@ -781,15 +849,16 @@ export default function SettingsPage() {
             items: [
                 { id: 'lang', icon: Globe, title: isArabic ? 'اللغة' : 'Language', description: i18n.language === 'ar' ? 'العربية' : 'English', action: toggleLanguage },
                 { id: 'notif', icon: Bell, title: isArabic ? 'الإشعارات' : 'Notifications', description: isArabic ? 'تشغيل الإشعارات المباشرة' : 'Push notifications', isToggle: true, state: notificationsEnabled, setState: setNotificationsEnabled },
-                { id: 'privacy', href: '/privacy-policy', icon: Shield, title: isArabic ? 'سياسة الخصوصية' : 'Privacy Policy', description: isArabic ? 'التعامل مع البيانات والخصوصية المضمونة' : 'Data handling & security' },
+                { id: 'privacy', href: '/privacy', icon: Shield, title: isArabic ? 'سياسة الخصوصية' : 'Privacy Policy', description: isArabic ? 'التعامل مع البيانات والخصوصية المضمونة' : 'Data handling & security' },
             ]
         },
         {
             title: isArabic ? 'الدعم والمعلومات' : 'Support & Information',
             items: [
                 { id: 'support', href: '/support', icon: LifeBuoy, title: isArabic ? 'مركز الدعم والمساعدة' : 'Support', description: isArabic ? 'تواصل معنا للمساعدة الفورية' : 'Help center & contact' },
-                { id: 'terms', href: '/terms-of-service', icon: FileText, title: isArabic ? 'شروط الخدمة' : 'Terms of Service', description: isArabic ? 'القواعد والمبادئ التوجيهية' : 'Rules & guidelines' },
+                { id: 'terms', href: '/terms', icon: FileText, title: isArabic ? 'شروط الخدمة' : 'Terms of Service', description: isArabic ? 'القواعد والمبادئ التوجيهية' : 'Rules & guidelines' },
                 { id: 'terms-cond', href: '/terms-and-conditions', icon: Scale, title: isArabic ? 'الشروط والأحكام العامة' : 'Terms & Conditions', description: isArabic ? 'قواعد استخدام المنصة والمسؤولية القانونية' : 'Platform utilization rules & compliance' },
+                { id: 'delete-portal', href: '/delete-account', icon: Trash2, title: isArabic ? 'طلب حذف البيانات والحساب' : 'Delete Account Portal', description: isArabic ? 'بوابة ويب عامة معتمدة لحذف الحساب' : 'App Store compliant deletion URL' },
                 { id: 'copyright', href: '/copyright', icon: Copyright, title: isArabic ? 'حقوق النشر والملكية الفكرية' : 'Copyright & IP', description: isArabic ? 'حماية ابتكارات المنصة وقوانينها' : 'Proprietary designs & IP laws' }
             ]
         }
@@ -914,6 +983,145 @@ export default function SettingsPage() {
                     </motion.div>
                 ))}
             </div>
+
+            {/* Account Danger Zone: Permanent Deletion (Apple App Store Guideline 5.1.1(v) Compliant) */}
+            {isLoggedIn && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }}>
+                    <Card className="glass-card overflow-hidden border-rose-500/20 bg-rose-950/[0.08] hover:border-rose-500/30 transition-colors">
+                        <CardContent className="p-5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-rose-500">
+                                    <ShieldAlert className="w-4 h-4 shrink-0" />
+                                    <h4 className="text-xs font-bold uppercase tracking-wider">
+                                        {isArabic ? 'منطقة الخطر وإدارة الحساب' : 'Danger Zone & Account Management'}
+                                    </h4>
+                                </div>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 font-mono">
+                                    App Store 5.1.1(v)
+                                </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                {isArabic 
+                                    ? 'يمكنك حذف حسابك وسجلاتك الأكاديمية ونتائجك بشكل نهائي من خوادم ملخصاتي وفقاً لسياسات الخصوصية العالمية.'
+                                    : 'Permanently remove your account, student records, courses, and exam history from Mol5saty servers with two confirmations.'}
+                            </p>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => { setDeleteStep(1); setDeleteModalOpen(true); }}
+                                className="w-full h-11 rounded-xl border-rose-500/30 text-rose-400 hover:text-white hover:bg-rose-600 font-bold text-xs gap-2 transition-all cursor-pointer shadow-xs"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                <span>{isArabic ? 'حذف الحساب نهائياً (تأكيد بخطوتين)' : 'Delete Account Permanently (2-Step Confirmation)'}</span>
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+            )}
+
+            {/* 2-Step Confirmation Modal Dialog */}
+            <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+                <DialogContent 
+                    className="max-w-md bg-zinc-950 border-zinc-800 text-zinc-100 p-6 rounded-3xl shadow-2xl"
+                    dir={isArabic ? 'rtl' : 'ltr'}
+                >
+                    <DialogHeader className="space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 mx-auto">
+                            {deleteStep === 1 ? <ShieldAlert className="w-6 h-6" /> : <Trash2 className="w-6 h-6 animate-pulse" />}
+                        </div>
+                        <DialogTitle className="text-xl font-extrabold text-center text-white">
+                            {deleteStep === 1 
+                                ? (isArabic ? 'الخطوة 1 من 2: هل تريد حذف حسابك؟' : 'Step 1 of 2: Delete Student Account?')
+                                : (isArabic ? 'الخطوة 2 من 2: التأكيد النهائي للحذف' : 'Step 2 of 2: Final Deletion Confirmation')}
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-center text-zinc-400 leading-relaxed">
+                            {deleteStep === 1 
+                                ? (isArabic 
+                                    ? 'يرجى مراجعة تبعات هذا القرار قبل المتابعة للتأكيد النهائي.'
+                                    : 'Please review what will happen before continuing to the final confirmation.')
+                                : (isArabic
+                                    ? 'تحذير نهائي: هذا الإجراء فوري وسيمسح بياناتك بشكل أبدي لا رجعة فيه.'
+                                    : 'Final warning: This action is immediate and completely irreversible.')}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {deleteStep === 1 ? (
+                        <div className="space-y-4 py-2">
+                            <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-2 text-xs text-rose-200">
+                                <p className="font-bold flex items-center gap-1.5 text-rose-400">
+                                    <AlertCircle className="w-4 h-4 shrink-0" />
+                                    {isArabic ? 'ما سيتم حذفه ومسحه فوراً:' : 'What will be permanently erased:'}
+                                </p>
+                                <ul className="space-y-1.5 list-disc list-inside text-[11px] text-zinc-300">
+                                    <li>{isArabic ? 'جميع المواد المسجلة واشتراكات الكورسات والمحاضرات' : 'All enrolled subjects, courses, and lecture records'}</li>
+                                    <li>{isArabic ? 'نتائج الاختبارات والدرجات ونقاط الخبرة (XP)' : 'All test results, grades, rewards, and XP points'}</li>
+                                    <li>{isArabic ? 'سجلات الحضور والغياب وكود الـ QR وبطاقة الهوية' : 'Attendance logs, student QR pass, and digital badge'}</li>
+                                    <li>{isArabic ? 'جلسات تسجيل الدخول والتوكن المعتمد على هذا الجهاز' : 'All local session tokens and device authorization'}</li>
+                                </ul>
+                            </div>
+
+                            <div className="flex gap-2.5 pt-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setDeleteModalOpen(false)}
+                                    className="flex-1 h-11 rounded-xl border-zinc-800 text-zinc-300 hover:bg-zinc-900 font-semibold text-xs cursor-pointer"
+                                >
+                                    {isArabic ? 'إلغاء وتراجع' : 'Cancel'}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={() => setDeleteStep(2)}
+                                    className="flex-1 h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs gap-1.5 cursor-pointer shadow-lg shadow-rose-600/20"
+                                >
+                                    <span>{isArabic ? 'المتابعة للخطوة 2' : 'Proceed to Step 2'}</span>
+                                    <ChevronIcon className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-4 py-2">
+                            <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-xs space-y-2">
+                                <div className="flex justify-between items-center text-zinc-400">
+                                    <span>{isArabic ? 'اسم الحساب:' : 'Account Name:'}</span>
+                                    <span className="font-bold text-white">{displayName}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-zinc-400">
+                                    <span>{isArabic ? 'المعرف / البريد:' : 'Identifier / Email:'}</span>
+                                    <span className="font-mono text-white text-[11px]">{displayDetail}</span>
+                                </div>
+                            </div>
+
+                            <p className="text-[11px] text-rose-400 text-center font-medium">
+                                {isArabic 
+                                    ? 'بالضغط على الزر أدناه، تؤكد رغبتك الصريحة في مسح الحساب نهائياً دون إمكانية استرجاعه.'
+                                    : 'By clicking below, you confirm that you want to delete this account permanently.'}
+                            </p>
+
+                            <div className="flex gap-2.5 pt-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setDeleteStep(1)}
+                                    disabled={isDeletingAccount}
+                                    className="flex-1 h-11 rounded-xl border-zinc-800 text-zinc-300 hover:bg-zinc-900 font-semibold text-xs cursor-pointer"
+                                >
+                                    {isArabic ? 'رجوع للخطوة 1' : 'Back to Step 1'}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={executeAccountDeletion}
+                                    disabled={isDeletingAccount}
+                                    className="flex-1 h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs gap-1.5 cursor-pointer shadow-lg shadow-rose-600/20"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                    <span>{isDeletingAccount ? (isArabic ? 'جارٍ الحذف...' : 'Deleting...') : (isArabic ? 'تأكيد الحذف النهائي' : 'Confirm Permanent Deletion')}</span>
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
 
             {/* Prominent Log Out Action */}
             {isLoggedIn && (

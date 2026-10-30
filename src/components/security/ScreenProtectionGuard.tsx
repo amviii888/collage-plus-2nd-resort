@@ -1,11 +1,14 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { ShieldAlert, EyeOff, Lock } from 'lucide-react';
 import { PrivacyScreen } from '@capacitor/privacy-screen';
 
 export function ScreenProtectionGuard() {
+  const pathname = usePathname();
+  const isPublicRoute = !pathname || pathname === '/' || pathname.startsWith('/terms') || pathname.startsWith('/privacy') || pathname.startsWith('/support') || pathname.startsWith('/delete-account') || pathname.startsWith('/login') || pathname.startsWith('/signup');
   const [isBlackedOut, setIsBlackedOut] = useState(false);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -520,6 +523,9 @@ export function ScreenProtectionGuard() {
     };
 
     const handleWindowBlur = () => {
+      // Don't blackout on public legal/support/auth pages
+      if (isPublicRoute) return;
+
       // 1. Immediately engage video playback shutter (auto-pause, mute, and blank video frame)
       engageVideoShutter();
 

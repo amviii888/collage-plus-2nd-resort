@@ -183,22 +183,30 @@ export function ClientLayoutWrapper({ children }: { children: React.ReactNode })
 
   const publicRoutes = [
     '/', '/login', '/teacher-signup', '/student-signup', '/signup-options',
-    '/terms-of-service', '/privacy-policy', '/copyright', '/terms-and-conditions',
-    '/meet-the-devs', '/offline', '/parent-login', '/assistant-login', '/student-login', '/forgot-password',
-    '/support'
+    '/terms', '/terms-of-service', '/terms-and-conditions',
+    '/privacy', '/privacy-policy',
+    '/support', '/delete-account',
+    '/copyright', '/meet-the-devs', '/offline',
+    '/parent-login', '/assistant-login', '/student-login', '/forgot-password'
   ];
 
   const noNavRoutes = [
     '/', '/login', '/teacher-signup', '/student-signup', '/admin/login',
     '/assistant-login', '/parent-login', '/signup-options', '/student-login',
     '/admin/canvas/login', '/admin/access', '/offline', '/forgot-password',
-    '/terms-of-service', '/privacy-policy', '/copyright', '/terms-and-conditions',
-    '/meet-the-devs', '/support'
+    '/terms', '/terms-of-service', '/terms-and-conditions',
+    '/privacy', '/privacy-policy',
+    '/support', '/delete-account',
+    '/copyright', '/meet-the-devs'
   ];
   
   const cleanedPathname = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
 
   const isPublicRoute = publicRoutes.includes(cleanedPathname) || 
+                        pathname.startsWith('/terms') ||
+                        pathname.startsWith('/privacy') ||
+                        pathname.startsWith('/support') ||
+                        pathname.startsWith('/delete-account') ||
                         pathname.startsWith('/courses') ||
                         pathname.startsWith('/collections') ||
                         pathname.startsWith('/discover') ||
