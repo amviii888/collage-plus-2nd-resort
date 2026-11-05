@@ -1612,69 +1612,6 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
         window.location.href = '/signup-options';
     };
 
-    // 2-Step Account Deletion for Students (App Store 5.1.1(v) Compliant)
-    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-    const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
-    const [isDeletingAccount, setIsDeletingAccount] = useState(false);
-
-    const executeAccountDeletion = async () => {
-        setIsDeletingAccount(true);
-        try {
-            const sid = activeStudentId || student?.id;
-            if (firestore && sid && typeof sid === 'string' && !sid.startsWith('offline_')) {
-                try {
-                    const { deleteDoc, doc } = await import('firebase/firestore');
-                    await deleteDoc(doc(firestore, 'students', sid));
-                    if (auth?.currentUser?.uid) {
-                        await deleteDoc(doc(firestore, 'users', auth.currentUser.uid));
-                    }
-                } catch (dbErr) {
-                    console.warn('Firestore doc deletion note:', dbErr);
-                }
-            }
-
-            if (auth?.currentUser) {
-                try {
-                    await auth.currentUser.delete();
-                } catch (authErr) {
-                    console.warn('Auth user delete note:', authErr);
-                }
-            }
-
-            clearAllStudentAuthSessions();
-            if (typeof window !== 'undefined') {
-                localStorage.removeItem('viewingStudentId');
-                localStorage.removeItem('studentBarcode');
-                localStorage.removeItem('studentBarcodeId');
-                localStorage.removeItem('studentCode');
-                localStorage.removeItem('mol5saty_active_student_profile');
-                localStorage.removeItem('student_app_icon_active');
-                localStorage.removeItem('active_connected_professor_code');
-                localStorage.removeItem('admin-session');
-                if (sid) {
-                    localStorage.removeItem(`student_profile_offline_${sid}`);
-                    localStorage.removeItem(`cached_student_profile_${sid}`);
-                }
-            }
-
-            toast({
-                title: isArabic ? 'تم حذف الحساب بنجاح' : 'Account Deleted Permanently',
-                description: isArabic ? 'تم مسح جميع بياناتك الأكاديمية وسجلاتك بالكامل.' : 'All your student records and credentials have been permanently deleted.',
-            });
-
-            setDeleteModalOpen(false);
-            window.location.href = '/signup-options';
-        } catch (err: any) {
-            toast({
-                variant: 'destructive',
-                title: isArabic ? 'تعذر إكمال الحذف' : 'Deletion Failed',
-                description: err?.message || (isArabic ? 'يرجى المحاولة مرة أخرى أو التواصل مع الدعم.' : 'Please try again or contact support.'),
-            });
-        } finally {
-            setIsDeletingAccount(false);
-        }
-    };
-
     const themeStyles = useMemo(() => {
         return getThemeStyles(equippedTheme, isDarkMode, libraryThemesList);
     }, [equippedTheme, isDarkMode, libraryThemesList]);
@@ -1830,7 +1767,7 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
                         </div>
                     </div>
 
-                    {/* Action Buttons: Unified Avatar & Theme Customizer + Library Access + Settings + Delete Account */}
+                    {/* Action Buttons: Unified Avatar & Theme Customizer + Library Access + Settings */}
                     <div className="flex items-center gap-2.5 w-full md:w-auto z-10 shrink-0 flex-wrap">
                         <Button
                             asChild
@@ -1859,15 +1796,6 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
                                 <Settings className="w-4 h-4 text-slate-500 dark:text-zinc-400" />
                                 <span>{isArabic ? 'الإعدادات' : 'Settings'}</span>
                             </Link>
-                        </Button>
-                        <Button
-                            onClick={() => { setDeleteStep(1); setDeleteModalOpen(true); }}
-                            variant="outline"
-                            className="flex-1 sm:flex-initial h-11 px-3.5 rounded-2xl border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold text-xs gap-1.5 transition-all hover:scale-105 shadow-xs cursor-pointer"
-                            title={isArabic ? 'حذف الحساب نهائياً' : 'Delete Account Permanently'}
-                        >
-                            <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                            <span>{isArabic ? 'حذف الحساب' : 'Delete Account'}</span>
                         </Button>
                     </div>
                 </div>
@@ -2701,110 +2629,6 @@ function StudentProfile({ studentId }: { studentId?: string | null }) {
                                 {isArabic ? 'إلغاء' : 'Cancel'}
                             </Button>
                         </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-
-                {/* 2-Step Account Deletion Confirmation Modal Dialog */}
-                <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
-                    <DialogContent 
-                        className="max-w-md bg-zinc-950 border-zinc-800 text-zinc-100 p-6 rounded-3xl shadow-2xl"
-                        dir={isArabic ? 'rtl' : 'ltr'}
-                    >
-                        <DialogHeader className="space-y-3">
-                            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 mx-auto">
-                                {deleteStep === 1 ? <ShieldAlert className="w-6 h-6" /> : <Trash2 className="w-6 h-6 animate-pulse" />}
-                            </div>
-                            <DialogTitle className="text-xl font-extrabold text-center text-white">
-                                {deleteStep === 1 
-                                    ? (isArabic ? 'الخطوة 1 من 2: هل تريد حذف حسابك؟' : 'Step 1 of 2: Delete Student Account?')
-                                    : (isArabic ? 'الخطوة 2 من 2: التأكيد النهائي للحذف' : 'Step 2 of 2: Final Deletion Confirmation')}
-                            </DialogTitle>
-                            <DialogDescription className="text-xs text-center text-zinc-400 leading-relaxed">
-                                {deleteStep === 1 
-                                    ? (isArabic 
-                                        ? 'يرجى مراجعة تبعات هذا القرار قبل المتابعة للتأكيد النهائي.'
-                                        : 'Please review what will happen before continuing to the final confirmation.')
-                                    : (isArabic
-                                        ? 'تحذير نهائي: هذا الإجراء فوري وسيمسح بياناتك بشكل أبدي لا رجعة فيه.'
-                                        : 'Final warning: This action is immediate and completely irreversible.')}
-                            </DialogDescription>
-                        </DialogHeader>
-
-                        {deleteStep === 1 ? (
-                            <div className="space-y-4 py-2">
-                                <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-2 text-xs text-rose-200">
-                                    <p className="font-bold flex items-center gap-1.5 text-rose-400">
-                                        <AlertCircle className="w-4 h-4 shrink-0" />
-                                        {isArabic ? 'ما سيتم حذفه ومسحه فوراً:' : 'What will be permanently erased:'}
-                                    </p>
-                                    <ul className="space-y-1.5 list-disc list-inside text-[11px] text-zinc-300">
-                                        <li>{isArabic ? 'جميع المواد المسجلة واشتراكات الكورسات والمحاضرات' : 'All enrolled subjects, courses, and lecture records'}</li>
-                                        <li>{isArabic ? 'نتائج الاختبارات والدرجات ونقاط الخبرة (XP)' : 'All test results, grades, rewards, and XP points'}</li>
-                                        <li>{isArabic ? 'سجلات الحضور والغياب وكود الـ QR وبطاقة الهوية' : 'Attendance logs, student QR pass, and digital badge'}</li>
-                                        <li>{isArabic ? 'جلسات تسجيل الدخول والتوكن المعتمد على هذا الجهاز' : 'All local session tokens and device authorization'}</li>
-                                    </ul>
-                                </div>
-
-                                <div className="flex gap-2.5 pt-2">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() => setDeleteModalOpen(false)}
-                                        className="flex-1 h-11 rounded-xl border-zinc-800 text-zinc-300 hover:bg-zinc-900 font-semibold text-xs cursor-pointer"
-                                    >
-                                        {isArabic ? 'إلغاء وتراجع' : 'Cancel'}
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        onClick={() => setDeleteStep(2)}
-                                        className="flex-1 h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs gap-1.5 cursor-pointer shadow-lg shadow-rose-600/20"
-                                    >
-                                        <span>{isArabic ? 'المتابعة للخطوة 2' : 'Proceed to Step 2'}</span>
-                                        <ArrowLeft className={cn("w-4 h-4", isArabic && "rotate-180")} />
-                                    </Button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="space-y-4 py-2">
-                                <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-xs space-y-2">
-                                    <div className="flex justify-between items-center text-zinc-400">
-                                        <span>{isArabic ? 'اسم الطالب:' : 'Student Name:'}</span>
-                                        <span className="font-bold text-white">{studentDisplayName}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-zinc-400">
-                                        <span>{isArabic ? 'كود الطالب:' : 'Student Code:'}</span>
-                                        <span className="font-mono text-emerald-400 font-bold">{student?.barcodeId || '—'}</span>
-                                    </div>
-                                </div>
-
-                                <p className="text-[11px] text-rose-400 text-center font-medium">
-                                    {isArabic 
-                                        ? 'بالضغط على الزر أدناه، تؤكد رغبتك الصريحة في مسح الحساب نهائياً دون إمكانية استرجاعه.'
-                                        : 'By clicking below, you confirm that you want to delete this account permanently.'}
-                                </p>
-
-                                <div className="flex gap-2.5 pt-2">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() => setDeleteStep(1)}
-                                        disabled={isDeletingAccount}
-                                        className="flex-1 h-11 rounded-xl border-zinc-800 text-zinc-300 hover:bg-zinc-900 font-semibold text-xs cursor-pointer"
-                                    >
-                                        {isArabic ? 'رجوع للخطوة 1' : 'Back to Step 1'}
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        onClick={executeAccountDeletion}
-                                        disabled={isDeletingAccount}
-                                        className="flex-1 h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs gap-1.5 cursor-pointer shadow-lg shadow-rose-600/20"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                        <span>{isDeletingAccount ? (isArabic ? 'جارٍ الحذف...' : 'Deleting...') : (isArabic ? 'تأكيد الحذف النهائي' : 'Confirm Permanent Deletion')}</span>
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
                     </DialogContent>
                 </Dialog>
 
