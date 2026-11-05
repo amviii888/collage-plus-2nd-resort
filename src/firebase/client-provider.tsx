@@ -38,27 +38,23 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
   const [services] = useState(() => getServices());
 
   useEffect(() => {
-    if (services.auth && services.firestore) {
-      setPersistence(services.auth, browserLocalPersistence)
-        .catch((err) => {
-          if (err.code === 'failed-precondition') {
-            console.warn('Multiple tabs open, persistence can only be enabled in one.');
-          } else if (err.code === 'unimplemented') {
-            console.warn('The current browser does not support all features required for persistence.');
-          } else {
-            console.error('Error enabling auth persistence:', err);
-          }
+    if (services.auth) {
+      try {
+        setPersistence(services.auth, browserLocalPersistence).catch((err) => {
+          console.warn('Auth persistence fallback:', err?.message || err);
         });
-        
-      enableMultiTabIndexedDbPersistence(services.firestore).catch((err) => {
-          if (err.code === 'failed-precondition') {
-             console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-          } else if (err.code === 'unimplemented') {
-             console.warn('The current browser does not support all features required for persistence.');
-          } else {
-             console.error('Error enabling firestore persistence:', err);
-          }
-      });
+      } catch (authErr) {
+        console.warn('Auth setPersistence notice:', authErr);
+      }
+    }
+    if (services.firestore) {
+      try {
+        enableMultiTabIndexedDbPersistence(services.firestore).catch((err) => {
+          console.warn('Firestore multi-tab persistence fallback:', err?.message || err);
+        });
+      } catch (fsErr) {
+        console.warn('Firestore persistence init notice:', fsErr);
+      }
     }
   }, [services]);
 

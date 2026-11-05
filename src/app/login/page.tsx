@@ -335,18 +335,58 @@ function LoginFormContent() {
                 if (firestore) {
                     const { doc, getDoc } = await import('firebase/firestore');
                     const studentRef = doc(firestore, 'students', userCredential.user.uid);
-                    const studentSnap = await getDoc(studentRef);
-                    if (!studentSnap.exists()) {
-                        const cached = localStorage.getItem('student_profile_offline_' + userCredential.user.uid) ||
-                                       localStorage.getItem('cached_student_profile_' + userCredential.user.uid);
-                        if (!cached) {
-                            await auth.signOut();
-                            setError(isArabic ? 'الحساب غير موجود. لم يتم العثور على هذا الحساب للطالب.' : 'Account not found. This student account does not exist.');
-                            setIsSubmitting(false);
-                            return;
-                        }
+                    let studentSnap: any = null;
+                    try {
+                        studentSnap = await getDoc(studentRef);
+                    } catch (snapErr) {
+                        console.warn("Direct student doc lookup notice:", snapErr);
+                    }
+
+                    let sData: any = null;
+                    if (studentSnap && studentSnap.exists()) {
+                        sData = { id: userCredential.user.uid, ...studentSnap.data() };
                     } else {
-                        const sData = { id: userCredential.user.uid, ...studentSnap.data() };
+                        // Check users collection as fallback
+                        try {
+                            const userRef = doc(firestore, 'users', userCredential.user.uid);
+                            const userSnap = await getDoc(userRef);
+                            if (userSnap.exists()) {
+                                sData = { id: userCredential.user.uid, role: 'student', ...userSnap.data() };
+                            }
+                        } catch (uErr) {
+                            console.warn('Fallback users doc lookup notice:', uErr);
+                        }
+
+                        if (!sData) {
+                            const cached = localStorage.getItem('student_profile_offline_' + userCredential.user.uid) ||
+                                           localStorage.getItem('cached_student_profile_' + userCredential.user.uid);
+                            if (cached) {
+                                try {
+                                    sData = JSON.parse(cached);
+                                } catch (e) {}
+                            }
+                        }
+
+                        // If user successfully authenticated via Firebase Auth, never lock them out: synthesize valid student profile
+                        if (!sData) {
+                            sData = {
+                                id: userCredential.user.uid,
+                                name: userCredential.user.displayName || (studentCode ? `طالب ${studentCode}` : 'طالب أكاديمي'),
+                                email: userCredential.user.email,
+                                barcodeId: studentCode || userCredential.user.uid.slice(0, 6),
+                                role: 'student',
+                                createdAt: new Date().toISOString()
+                            };
+                            try {
+                                const { setDoc } = await import('firebase/firestore');
+                                await setDoc(studentRef, sData, { merge: true });
+                            } catch (saveErr) {
+                                console.warn('Auto-save student profile notice:', saveErr);
+                            }
+                        }
+                    }
+
+                    if (sData) {
                         localStorage.setItem('cached_student_profile_' + userCredential.user.uid, JSON.stringify(sData));
                         localStorage.setItem('mol5saty_active_student_profile', JSON.stringify(sData));
                         localStorage.setItem('student_logged_in', 'true');

@@ -37,7 +37,7 @@ export function DynamicWatermark({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const isPublicRoute = !pathname || pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/teacher-signup') || pathname.startsWith('/student-signup') || pathname.startsWith('/signup-options') || pathname.startsWith('/admin') || pathname.startsWith('/terms') || pathname.startsWith('/privacy') || pathname.startsWith('/support') || pathname.startsWith('/delete-account') || pathname.startsWith('/copyright');
+  const isPublicRoute = !pathname || pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/student-login') || pathname.startsWith('/assistant-login') || pathname.startsWith('/parent-login') || pathname.startsWith('/signup') || pathname.startsWith('/teacher-signup') || pathname.startsWith('/student-signup') || pathname.startsWith('/signup-options') || pathname.startsWith('/forgot-password') || pathname.startsWith('/admin') || pathname.startsWith('/terms') || pathname.startsWith('/privacy') || pathname.startsWith('/support') || pathname.startsWith('/delete-account') || pathname.startsWith('/copyright');
 
   const hasStudentSession = Boolean(
     (user && !user.isAnonymous && user.uid) ||
@@ -403,6 +403,18 @@ export function DynamicWatermark({
 
     // B. Block DevTools Shortcuts (F12, Ctrl+Shift+I/J/C, Cmd+Option+I/J/C, Ctrl+U)
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable ||
+          Boolean(target.closest?.('input, textarea, select, [contenteditable="true"]')))
+      ) {
+        return; // Never intercept when user is typing in form fields or passwords
+      }
+
       const isCmdOrCtrl = e.metaKey || e.ctrlKey;
       const key = e.key ? e.key.toLowerCase() : '';
 
@@ -438,8 +450,29 @@ export function DynamicWatermark({
       }
     };
 
-    // C. DevTools Window Resize / Split detection
+    // C. DevTools Window Resize / Split detection (Desktop only, ignores mobile virtual keyboards)
     const checkDevTools = () => {
+      const isMobileOrTouch = typeof window !== 'undefined' && (
+        'ontouchstart' in window ||
+        navigator.maxTouchPoints > 0 ||
+        /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent)
+      );
+      if (isMobileOrTouch) {
+        setIsDevToolsDetected(false);
+        return;
+      }
+
+      const activeTag = document.activeElement?.tagName?.toUpperCase();
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') {
+        setIsDevToolsDetected(false);
+        return;
+      }
+
+      if (typeof window !== 'undefined' && window.visualViewport && window.visualViewport.height < window.innerHeight - 80) {
+        setIsDevToolsDetected(false);
+        return;
+      }
+
       const threshold = 170;
       const widthThreshold = window.outerWidth - window.innerWidth > threshold;
       const heightThreshold = window.outerHeight - window.innerHeight > threshold;

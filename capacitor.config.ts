@@ -14,6 +14,12 @@ const config: CapacitorConfig = {
       '*.run.app',
       '*.firebaseapp.com',
       '*.googleapis.com',
+      '*.google.com',
+      '*.firebaseio.com',
+      '*.firebasestorage.app',
+      'identitytoolkit.googleapis.com',
+      'securetoken.googleapis.com',
+      'firestore.googleapis.com',
       'accounts.google.com'
     ]
   },
@@ -24,7 +30,7 @@ const config: CapacitorConfig = {
     scheme: 'Mol5saty',
     allowsLinkPreview: false,
     scrollEnabled: true,
-    limitsNavigationsToAppBoundDomains: true
+    limitsNavigationsToAppBoundDomains: false
   },
   android: {
     allowMixedContent: false,

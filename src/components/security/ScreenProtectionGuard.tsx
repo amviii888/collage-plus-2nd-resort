@@ -8,7 +8,21 @@ import { PrivacyScreen } from '@capacitor/privacy-screen';
 
 export function ScreenProtectionGuard() {
   const pathname = usePathname();
-  const isPublicRoute = !pathname || pathname === '/' || pathname.startsWith('/terms') || pathname.startsWith('/privacy') || pathname.startsWith('/support') || pathname.startsWith('/delete-account') || pathname.startsWith('/login') || pathname.startsWith('/signup');
+  const isPublicRoute = !pathname ||
+    pathname === '/' ||
+    pathname.startsWith('/terms') ||
+    pathname.startsWith('/privacy') ||
+    pathname.startsWith('/support') ||
+    pathname.startsWith('/delete-account') ||
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/student-login') ||
+    pathname.startsWith('/teacher-signup') ||
+    pathname.startsWith('/student-signup') ||
+    pathname.startsWith('/assistant-login') ||
+    pathname.startsWith('/parent-login') ||
+    pathname.startsWith('/signup') ||
+    pathname.startsWith('/signup-options') ||
+    pathname.startsWith('/forgot-password');
   const [isBlackedOut, setIsBlackedOut] = useState(false);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -199,6 +213,36 @@ export function ScreenProtectionGuard() {
 
     // 3. Ultra-Fast Synchronous Keyboard Event Capture for Screenshots & Recordings
     const handleKeyDown = (e: KeyboardEvent) => {
+      // On mobile devices (iPhone / iPad / Android), virtual keyboard typing should NEVER trigger desktop shortcuts
+      if (isMobileDevice) {
+        markInputActive();
+        return;
+      }
+
+      const target = e.target as HTMLElement;
+      const isTypingInInput = Boolean(
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable ||
+          target.closest?.('input, textarea, select, [contenteditable="true"]'))
+      );
+
+      // If user is typing in a password or form field, keep interaction alive and unblackout
+      if (isTypingInInput) {
+        markInputActive();
+        // Hardware PrintScreen key is banned even inside inputs
+        const isHardwarePrtScn = e.key === 'PrintScreen' || e.keyCode === 44 || e.code === 'PrintScreen';
+        if (isHardwarePrtScn) {
+          applyInstantBlackout();
+          wipeClipboard();
+          e.preventDefault();
+          return false;
+        }
+        return; // Allow all normal characters, Shift combinations, symbols, and autofill!
+      }
+
       const key = e.key ? e.key.toLowerCase() : '';
       const code = e.code || '';
       const isCmdOrCtrl = e.metaKey || e.ctrlKey;
@@ -328,6 +372,10 @@ export function ScreenProtectionGuard() {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      if (isMobileDevice) {
+        return;
+      }
+
       const key = e.key ? e.key.toLowerCase() : '';
       const code = e.code || '';
       if (e.key === 'Meta' || e.key === 'OS' || e.code === 'MetaLeft' || e.code === 'MetaRight' || (e as any).windowsKey) {
@@ -469,12 +517,23 @@ export function ScreenProtectionGuard() {
     const isMobileDevice = typeof window !== 'undefined' && (
       'ontouchstart' in window ||
       navigator.maxTouchPoints > 0 ||
-      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+      /iPhone|iPad|iPod|Android|Mobile|Tablet/i.test(navigator.userAgent)
     );
+
+    // Detect if virtual on-screen keyboard is open (iOS Safari / Android Chrome resize visualViewport)
+    const isKeyboardOpen = () => {
+      if (typeof window === 'undefined') return false;
+      if (window.visualViewport) {
+        if (window.visualViewport.height < window.innerHeight - 75 || window.visualViewport.height < window.screen.height - 130) {
+          return true;
+        }
+      }
+      return false;
+    };
 
     const markInputActive = () => {
       lastInputInteractionTimestamp = Date.now();
-      // Ensure any blackout is immediately dismissed if user is typing or focusing an input
+      // Ensure any blackout is immediately dismissed if user is typing, focusing, or using virtual keyboard
       removeInstantBlackout();
       setIsBlackedOut(false);
       setWarningMessage(null);
@@ -487,7 +546,8 @@ export function ScreenProtectionGuard() {
         (target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
           target.tagName === 'SELECT' ||
-          target.isContentEditable)
+          target.isContentEditable ||
+          Boolean(target.closest?.('input, textarea, select, [contenteditable="true"]')))
       ) {
         markInputActive();
       }
@@ -495,21 +555,31 @@ export function ScreenProtectionGuard() {
 
     const isUserEditingOrInteracting = () => {
       if (typeof document === 'undefined') return false;
-      // If user recently tapped or focused an input in the last 4 seconds, ignore blur/focus loss
-      if (Date.now() - lastInputInteractionTimestamp < 4000) {
+      // If user recently interacted with a password/input field in the last 25 seconds, ignore blur/focus loss
+      if (Date.now() - lastInputInteractionTimestamp < 25000) {
+        return true;
+      }
+      // If virtual keyboard is currently visible on mobile
+      if (isKeyboardOpen()) {
         return true;
       }
       const active = document.activeElement;
       if (active) {
         const tagName = active.tagName ? active.tagName.toUpperCase() : '';
-        if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT' || (active as HTMLElement).isContentEditable) {
+        if (
+          tagName === 'INPUT' || 
+          tagName === 'TEXTAREA' || 
+          tagName === 'SELECT' || 
+          (active as HTMLElement).isContentEditable ||
+          Boolean(active.closest?.('input, textarea, select, [contenteditable="true"]'))
+        ) {
           return true;
         }
         if (tagName === 'IFRAME' || (active.closest && active.closest('.protected-media'))) {
           return true;
         }
       }
-      // Also check if any input or password field in document is currently focused
+      // Also check if any input or password field in document currently has focus
       const focusedInput = document.querySelector('input:focus, textarea:focus, select:focus, [contenteditable="true"]:focus');
       if (focusedInput) {
         return true;
@@ -523,16 +593,19 @@ export function ScreenProtectionGuard() {
     };
 
     const handleWindowBlur = () => {
+      // On mobile devices (iOS/Android), window blur is fired whenever the keyboard, password autofill, or input accessory appears. Never blackout on mobile blur!
+      if (isMobileDevice) return;
+
       // Don't blackout on public legal/support/auth pages
       if (isPublicRoute) return;
 
-      // 1. Immediately engage video playback shutter (auto-pause, mute, and blank video frame)
-      engageVideoShutter();
-
-      // Check if user is actively editing text inputs or typing
-      if (isUserEditingOrInteracting()) {
+      // On desktop: if typing, editing passwords, or virtual keyboard is active, NEVER trigger!
+      if (isUserEditingOrInteracting() || isKeyboardOpen()) {
         return;
       }
+
+      // 1. Immediately engage video playback shutter (auto-pause, mute, and blank video frame)
+      engageVideoShutter();
 
       // Check if focus is strictly inside a video iframe/player control
       if (typeof document !== 'undefined') {
@@ -575,13 +648,16 @@ export function ScreenProtectionGuard() {
     // 8. Visibility Change (Detect minimizing, tab switching, or iOS Control Center)
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        engageVideoShutter();
-        applyInstantBlackout();
-        wipeClipboard();
-        setIsBlackedOut(true);
+        // Only blackout if user isn't actively in an input/password prompt
+        if (!isUserEditingOrInteracting() && !isKeyboardOpen()) {
+          engageVideoShutter();
+          applyInstantBlackout();
+          wipeClipboard();
+          setIsBlackedOut(true);
+        }
       } else {
         setTimeout(() => {
-          if (!document.hidden && (document.hasFocus?.() || isUserEditingOrInteracting())) {
+          if (!document.hidden && (document.hasFocus?.() || isUserEditingOrInteracting() || isMobileDevice)) {
             releaseVideoShutter();
             setIsBlackedOut(false);
             removeInstantBlackout();
@@ -592,6 +668,19 @@ export function ScreenProtectionGuard() {
 
     // Mobile touch gestures (3-finger / 4-finger screenshot gestures)
     const handleTouchStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable ||
+          Boolean(target.closest?.('input, textarea, select, [contenteditable="true"]')))
+      ) {
+        markInputActive();
+        return;
+      }
+
       if (e.touches && e.touches.length >= 3) {
         applyInstantBlackout();
         engageVideoShutter();
@@ -603,11 +692,13 @@ export function ScreenProtectionGuard() {
     let focusCheckInterval: NodeJS.Timeout | null = null;
     focusCheckInterval = setInterval(() => {
       if (typeof document !== 'undefined') {
+        if (isPublicRoute) return;
+        if (isUserEditingOrInteracting() || isKeyboardOpen()) return;
         if (document.hidden) {
           engageVideoShutter();
           applyInstantBlackout();
           setIsBlackedOut(true);
-        } else if (!document.hasFocus() && !isUserEditingOrInteracting()) {
+        } else if (!isMobileDevice && !document.hasFocus()) {
           engageVideoShutter();
           applyInstantBlackout();
           setIsBlackedOut(true);
@@ -615,8 +706,11 @@ export function ScreenProtectionGuard() {
       }
     }, 1000);
 
-    // 9. Active DevTools Detection & Console Shield
+    // 9. Active DevTools Detection & Console Shield (Desktop only; strictly bypassed on mobile virtual keyboards)
     const devToolsCheck = setInterval(() => {
+      if (isMobileDevice || isKeyboardOpen() || isUserEditingOrInteracting()) {
+        return;
+      }
       const threshold = 180;
       const isOpen = (window.outerWidth - window.innerWidth > threshold) ||
                      (window.outerHeight - window.innerHeight > threshold);
@@ -690,11 +784,33 @@ export function ScreenProtectionGuard() {
       return false;
     };
 
+    const handlePointerOrInput = (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable ||
+          Boolean(target.closest?.('input, textarea, select, [contenteditable="true"]')))
+      ) {
+        markInputActive();
+      }
+    };
+
+    const handleViewportResize = () => {
+      if (isKeyboardOpen()) {
+        markInputActive();
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown, { capture: true, passive: false });
     window.addEventListener('keyup', handleKeyUp, { capture: true, passive: false });
     window.addEventListener('blur', handleWindowBlur, { passive: true });
     window.addEventListener('focus', handleWindowFocus, { passive: true });
     document.addEventListener('focusin', handleFocusIn, { passive: true });
+    document.addEventListener('pointerdown', handlePointerOrInput, { passive: true });
+    document.addEventListener('input', handlePointerOrInput, { passive: true });
     document.addEventListener('mouseleave', handleMouseLeave);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('contextmenu', handleContextMenu);
@@ -703,6 +819,9 @@ export function ScreenProtectionGuard() {
     document.addEventListener('cut', handleCopyCut, { capture: true, passive: false });
     document.addEventListener('selectstart', handleSelectStart, { capture: true });
     window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportResize, { passive: true });
+    }
 
     return () => {
       if (focusCheckInterval !== null) {
@@ -718,6 +837,8 @@ export function ScreenProtectionGuard() {
       window.removeEventListener('blur', handleWindowBlur);
       window.removeEventListener('focus', handleWindowFocus);
       document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('pointerdown', handlePointerOrInput);
+      document.removeEventListener('input', handlePointerOrInput);
       document.removeEventListener('mouseleave', handleMouseLeave);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('contextmenu', handleContextMenu);
@@ -726,6 +847,9 @@ export function ScreenProtectionGuard() {
       document.removeEventListener('cut', handleCopyCut, { capture: true });
       document.removeEventListener('selectstart', handleSelectStart, { capture: true });
       window.removeEventListener('touchstart', handleTouchStart);
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportResize);
+      }
     };
   }, []);
 

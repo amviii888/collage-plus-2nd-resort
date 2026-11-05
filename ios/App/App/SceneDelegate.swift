@@ -7,11 +7,20 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = scene as? UIWindowScene else { return }
 
-        window = UIWindow(windowScene: windowScene)
-        window?.rootViewController = CAPBridgeViewController()
-        window?.makeKeyAndVisible()
+        let bridgeVC = CAPBridgeViewController()
+        let win = UIWindow(windowScene: windowScene)
+        win.rootViewController = bridgeVC
+        win.makeKeyAndVisible()
+        self.window = win
+
+        // Activate hardware-level screenshot and screen recording blackout
+        HardwareSecurityManager.shared.configureProtection(for: win, bridgeController: bridgeVC)
 
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
+    }
+
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        HardwareSecurityManager.shared.verifyProtection()
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
