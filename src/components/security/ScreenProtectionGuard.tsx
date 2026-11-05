@@ -14,6 +14,7 @@ export function ScreenProtectionGuard() {
     pathname.startsWith('/privacy') ||
     pathname.startsWith('/support') ||
     pathname.startsWith('/delete-account') ||
+    pathname.startsWith('/download-ios') ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/student-login') ||
     pathname.startsWith('/teacher-signup') ||

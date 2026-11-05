@@ -37,7 +37,7 @@ export function DynamicWatermark({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const isPublicRoute = !pathname || pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/student-login') || pathname.startsWith('/assistant-login') || pathname.startsWith('/parent-login') || pathname.startsWith('/signup') || pathname.startsWith('/teacher-signup') || pathname.startsWith('/student-signup') || pathname.startsWith('/signup-options') || pathname.startsWith('/forgot-password') || pathname.startsWith('/admin') || pathname.startsWith('/terms') || pathname.startsWith('/privacy') || pathname.startsWith('/support') || pathname.startsWith('/delete-account') || pathname.startsWith('/copyright');
+  const isPublicRoute = !pathname || pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/student-login') || pathname.startsWith('/assistant-login') || pathname.startsWith('/parent-login') || pathname.startsWith('/signup') || pathname.startsWith('/teacher-signup') || pathname.startsWith('/student-signup') || pathname.startsWith('/signup-options') || pathname.startsWith('/forgot-password') || pathname.startsWith('/admin') || pathname.startsWith('/terms') || pathname.startsWith('/privacy') || pathname.startsWith('/support') || pathname.startsWith('/delete-account') || pathname.startsWith('/download-ios') || pathname.startsWith('/copyright');
 
   const hasStudentSession = Boolean(
     (user && !user.isAnonymous && user.uid) ||
