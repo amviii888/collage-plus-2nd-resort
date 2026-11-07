@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,6 +76,7 @@ const EGYPTIAN_GOVERNORATES = [
 ];
 
 const EGYPTIAN_UNIVERSITIES = [
+  // --- الجامعات الحكومية (Public Universities) ---
   'جامعة القاهرة (Cairo University)',
   'جامعة عين شمس (Ain Shams University)',
   'جامعة الإسكندرية (Alexandria University)',
@@ -100,34 +101,94 @@ const EGYPTIAN_UNIVERSITIES = [
   'جامعة السويس (Suez University)',
   'جامعة مطروح (Matrouh University)',
   'جامعة الوادي الجديد (New Valley University)',
+  'جامعة الأقصر (Luxor University)',
   'جامعة الأزهر (Al-Azhar University)',
+  'مدينة زويل للعلوم والتكنولوجيا (Zewail City)',
+  'الجامعة المصرية اليابانية للعلوم والتكنولوجيا (E-JUST)',
+
+  // --- الجامعات الأهلية والدولية (National Universities) ---
   'جامعة الجلالة الأهلية (Galala University)',
   'جامعة الملك سلمان الدولية (King Salman University)',
   'جامعة العلمين الدولية (Alamein University)',
   'جامعة المنصورة الجديدة (New Mansoura University)',
-  'مدينة زويل للعلوم والتكنولوجيا (Zewail City)',
-  'الجامعة المصرية اليابانية (E-JUST)',
-  'جامعة النيل (Nile University)',
+  'جامعة النيل الأهلية (Nile University)',
+  'جامعة مصر للمعلوماتية (Egypt University of Informatics - EUI)',
+  'الجامعة الفرنسية في مصر (UFE)',
+  'جامعة حلوان الأهلية (Helwan National University)',
+  'جامعة بنها الأهلية (Benha National University)',
+  'جامعة المنصورة الأهلية (Mansoura National University)',
+  'جامعة الإسكندرية الأهلية (Alexandria National University)',
+  'جامعة الزقازيق الأهلية (Zagazig National University)',
+  'جامعة أسيوط الأهلية (Assiut National University)',
+  'جامعة المنيا الأهلية (Minia National University)',
+  'جامعة بني سويف الأهلية (Beni-Suef National University)',
+  'جامعة المنوفية الأهلية (Menoufia National University)',
+  'جامعة شرق بورسعيد الأهلية (East Port Said National University)',
+  'جامعة الإسماعيلية الجديدة الأهلية (New Ismailia National University)',
+  'جامعة جنوب الوادي الأهلية (South Valley National University)',
+
+  // --- الجامعات التكنولوجية (Technological Universities) ---
+  'جامعة القاهرة الجديدة التكنولوجية (New Cairo Tech)',
+  'جامعة الدلتا التكنولوجية بقويسنا (Delta Tech)',
+  'جامعة بني سويف التكنولوجية (Beni Suef Tech)',
+  'جامعة 6 أكتوبر التكنولوجية (6th of October Tech)',
+  'جامعة برج العرب التكنولوجية (Borg El Arab Tech)',
+  'جامعة مصر التكنولوجية الدولية (MIU Tech)',
+  'جامعة سمنود التكنولوجية (Samanoud Tech)',
+  'جامعة شرق بورسعيد التكنولوجية (East Port Said Tech)',
+  'جامعة أسيوط الجديدة التكنولوجية (New Assiut Tech)',
+  'جامعة طيبة التكنولوجية بالأقصر (Thebes Tech)',
+
+  // --- الجامعات الخاصة (Private Universities) ---
+  'جامعة 6 أكتوبر (October 6 University)',
+  'جامعة أكتوبر للآداب والعلوم الحديثة (MSA)',
+  'جامعة مصر للعلوم والتكنولوجيا (MUST)',
+  'جامعة مصر الدولية (MIU)',
   'جامعة بدر بالقاهرة (BUC)',
   'جامعة بدر بأسيوط (BUA)',
-  'جامعة مصر للعلوم والتكنولوجيا (MUST)',
-  'جامعة 6 أكتوبر (October 6 University)',
-  'جامعة أكتوبر للآداب والعلوم (MSA)',
-  'جامعة مصر الدولية (MIU)',
   'الجامعة الألمانية بالقاهرة (GUC)',
   'الجامعة البريطانية في مصر (BUE)',
-  'جامعة المستقبل (FUE)',
+  'جامعة المستقبل بمصر (FUE)',
   'الجامعة الأمريكية بالقاهرة (AUC)',
   'جامعة النهضة ببني سويف (NUB)',
   'جامعة الدلتا للعلوم والتكنولوجيا (Delta University)',
-  'جامعة هليوبوليس (Heliopolis University)',
-  'جامعة حورس (HUE)',
-  'جامعة سفنكس (Sphinx University)',
-  'جامعة دراية (Deraya University)',
+  'جامعة هليوبوليس للتنمية المستدامة (Heliopolis University)',
+  'جامعة حورس بمصر (Horus University - HUE)',
+  'جامعة سفنكس بأسيوط (Sphinx University)',
+  'جامعة دراية بالمنيا (Deraya University)',
   'جامعة سيناء (Sinai University)',
   'جامعة نيو جيزة (New Giza University - NGU)',
   'جامعة الأهرام الكندية (ACU)',
-  'جامعة أو معهد عالٍ آخر (Other / Institute)'
+  'الجامعة الحديثة للتكنولوجيا والمعلومات (MTI)',
+  'جامعة فاروس بالإسكندرية (Pharos University - PUA)',
+  'الجامعة المصرية الصينية (ECU)',
+  'جامعة ميريت بسوهاج (Merit University)',
+  'جامعة السلام بالغربية (Al-Salam University)',
+  'جامعة الصالحية الجديدة (New Salhia University)',
+  'جامعة مايو بالقاهرة (May University - MUC)',
+  'جامعة الحياة بالقاهرة (AlHayah University in Cairo)',
+  'الجامعة الألمانية الدولية بالعاصمة الإدارية (GIU)',
+  'الجامعات الأوروبية في مصر بالعاصمة الإدارية (EUE)',
+  'مؤسسة جامعات المعرفة الدولية بالعاصمة الإدارية (TKH)',
+  'جامعة كوفنتري بالعاصمة الإدارية (Coventry University)',
+  'جامعة لندن بالعاصمة الإدارية (University of London Branch)',
+  'جامعة هيرتفوردشاير بالعاصمة الإدارية (University of Hertfordshire)',
+
+  // --- الأكاديميات والمعاهد العليا المتخصصة (Specialized Academies & Institutes) ---
+  'الأكاديمية العربية للعلوم والتكنولوجيا والنقل البحري (AASTMT)',
+  'أكاديمية السادات للعلوم الإدارية (Sadat Academy)',
+  'أكاديمية الفنون (Academy of Arts)',
+  'أكاديمية الشروق (El Shorouk Academy)',
+  'المعهد التكنولوجي العالي بالعاشر من رمضان (HTI)',
+  'المعهد الكندي العالي لتكنولوجيا الهندسة والإدارة (CIC)',
+  'أكاديمية طيبة المتكاملة للعلوم (Thebes Academy)',
+  'أكاديمية أخبار اليوم (Akhbar El Yom Academy)',
+  'المعهد العالي للهندسة والتكنولوجيا (Higher Engineering Institute)',
+  'المعهد العالي للحاسبات وتكنولوجيا المعلومات (Higher Computer Institute)',
+  'المعهد العالي للعلوم الإدارية والتجارة (Higher Business Institute)',
+  'معهد الفراعنة العالي (Pharaohs Higher Institute)',
+  'معهد العبور العالي للهندسة والتكنولوجيا (Obour Higher Institute)',
+  'معهد الجزيرة العالي (Gezira Higher Institute)'
 ];
 
 const FACULTY_DISCIPLINES = [
@@ -258,9 +319,16 @@ export default function StudentSignupPage() {
   const [agreed, setAgreed] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Personal Details Controlled Inputs
+  const [nameInput, setNameInput] = useState<string>('');
+  const [ageInput, setAgeInput] = useState<string>('');
+  const [passwordInput, setPasswordInput] = useState<string>('');
+
   // University Student Form State
   const [governorate, setGovernorate] = useState<string>('');
   const [university, setUniversity] = useState<string>('');
+  const [customUniversity, setCustomUniversity] = useState<string>('');
+  const [isCustomUniversityMode, setIsCustomUniversityMode] = useState<boolean>(false);
   const [facultyCategory, setFacultyCategory] = useState<string>('');
   const [academicYear, setAcademicYear] = useState<string>('');
   const [professorCodeInput, setProfessorCodeInput] = useState<string>('');
@@ -280,9 +348,190 @@ export default function StudentSignupPage() {
   const [showQrCode, setShowQrCode] = useState<boolean>(false);
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
 
+  // Form Draft Persistence Helper
+  const saveFormDraft = useCallback((overrides: Record<string, any> = {}) => {
+    if (typeof window === 'undefined') return;
+    try {
+      const draft = {
+        name: overrides.name !== undefined ? overrides.name : nameInput,
+        age: overrides.age !== undefined ? overrides.age : ageInput,
+        password: overrides.password !== undefined ? overrides.password : passwordInput,
+        governorate: overrides.governorate !== undefined ? overrides.governorate : governorate,
+        phone: overrides.phone !== undefined ? overrides.phone : phoneInput,
+        isPhoneLocked: overrides.isPhoneLocked !== undefined ? overrides.isPhoneLocked : isPhoneLocked,
+        lockedPhone: overrides.lockedPhone !== undefined ? overrides.lockedPhone : lockedPhone,
+        isPhoneVerified: overrides.isPhoneVerified !== undefined ? overrides.isPhoneVerified : isPhoneVerified,
+        verifiedPhoneNumber: overrides.verifiedPhoneNumber !== undefined ? overrides.verifiedPhoneNumber : verifiedPhoneNumber,
+        verificationCode: overrides.verificationCode !== undefined ? overrides.verificationCode : verificationCode,
+        university: overrides.university !== undefined ? overrides.university : university,
+        customUniversity: overrides.customUniversity !== undefined ? overrides.customUniversity : customUniversity,
+        isCustomUniversityMode: overrides.isCustomUniversityMode !== undefined ? overrides.isCustomUniversityMode : isCustomUniversityMode,
+        facultyCategory: overrides.facultyCategory !== undefined ? overrides.facultyCategory : facultyCategory,
+        academicYear: overrides.academicYear !== undefined ? overrides.academicYear : academicYear,
+        professorCode: overrides.professorCode !== undefined ? overrides.professorCode : professorCodeInput,
+        agreed: overrides.agreed !== undefined ? overrides.agreed : agreed,
+        updatedAt: Date.now()
+      };
+      const json = JSON.stringify(draft);
+      localStorage.setItem('mol5saty_signup_form_draft', json);
+      sessionStorage.setItem('mol5saty_signup_form_draft', json);
+    } catch (e) {
+      console.warn('Draft save notice:', e);
+    }
+  }, [
+    nameInput, ageInput, passwordInput, governorate, phoneInput, isPhoneLocked, lockedPhone,
+    isPhoneVerified, verifiedPhoneNumber, verificationCode, university, customUniversity,
+    isCustomUniversityMode, facultyCategory, academicYear, professorCodeInput, agreed
+  ]);
+
+  // Restore Form Draft on Mount & Setup
   useEffect(() => {
     setHasMounted(true);
+    if (typeof window === 'undefined') return;
+
+    // 1. Initialize Bot Phone
+    const savedBotPhone = localStorage.getItem('mol5saty_bot_phone');
+    const activeBotPhone = (savedBotPhone && savedBotPhone !== '201201402632') ? savedBotPhone : '201201921424';
+    setBotPhone(activeBotPhone);
+    setTempBotPhone(activeBotPhone);
+    localStorage.setItem('mol5saty_bot_phone', activeBotPhone);
+
+    // 2. Restore Full Form Draft
+    try {
+      const rawDraft = localStorage.getItem('mol5saty_signup_form_draft') || sessionStorage.getItem('mol5saty_signup_form_draft');
+      if (rawDraft) {
+        const d = JSON.parse(rawDraft);
+        if (d.name) setNameInput(d.name);
+        if (d.age) setAgeInput(d.age);
+        if (d.password) setPasswordInput(d.password);
+        if (d.governorate) setGovernorate(d.governorate);
+        if (d.phone) setPhoneInput(d.phone);
+        if (d.isPhoneLocked) setIsPhoneLocked(true);
+        if (d.lockedPhone) setLockedPhone(d.lockedPhone);
+        if (d.isPhoneVerified) setIsPhoneVerified(true);
+        if (d.verifiedPhoneNumber) setVerifiedPhoneNumber(d.verifiedPhoneNumber);
+        if (d.verificationCode) setVerificationCode(d.verificationCode);
+        if (d.university) setUniversity(d.university);
+        if (d.customUniversity) setCustomUniversity(d.customUniversity);
+        if (d.isCustomUniversityMode) setIsCustomUniversityMode(true);
+        if (d.facultyCategory) setFacultyCategory(d.facultyCategory);
+        if (d.academicYear) setAcademicYear(d.academicYear);
+        if (d.professorCode) setProfessorCodeInput(d.professorCode);
+        if (d.agreed) setAgreed(true);
+
+        const storedDirectPhone = localStorage.getItem('verified_student_phone') || localStorage.getItem('student_phone');
+        if (storedDirectPhone && !d.phone) {
+          setPhoneInput(storedDirectPhone);
+          setLockedPhone(storedDirectPhone);
+          setIsPhoneLocked(true);
+        }
+      } else {
+        const storedDirectPhone = localStorage.getItem('verified_student_phone') || localStorage.getItem('student_phone');
+        if (storedDirectPhone) {
+          setPhoneInput(storedDirectPhone);
+          setLockedPhone(storedDirectPhone);
+          setIsPhoneLocked(true);
+        }
+      }
+    } catch (err) {
+      console.warn('Draft restore notice:', err);
+    }
   }, []);
+
+  // Continuous Auto-Save Draft on Change
+  useEffect(() => {
+    if (!hasMounted) return;
+    saveFormDraft();
+  }, [
+    nameInput, ageInput, passwordInput, governorate, phoneInput, isPhoneLocked, lockedPhone,
+    isPhoneVerified, verifiedPhoneNumber, verificationCode, university, customUniversity,
+    isCustomUniversityMode, facultyCategory, academicYear, professorCodeInput, agreed,
+    hasMounted, saveFormDraft
+  ]);
+
+  // Ensure Verification Code Exists Without Overwriting Restored Code
+  useEffect(() => {
+    if (!verificationCode) {
+      if (typeof window !== 'undefined') {
+        try {
+          const rawDraft = localStorage.getItem('mol5saty_signup_form_draft');
+          if (rawDraft) {
+            const d = JSON.parse(rawDraft);
+            if (d.verificationCode) {
+              setVerificationCode(d.verificationCode);
+              return;
+            }
+          }
+        } catch (e) {}
+      }
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setVerificationCode(code);
+    }
+  }, [verificationCode]);
+
+  // Window Focus / Visibility Event: Check for WhatsApp Verification Arrival on Return
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const checkVerificationOnReturn = async () => {
+      // Re-read draft in case memory was paused by external browser tab
+      try {
+        const rawDraft = localStorage.getItem('mol5saty_signup_form_draft');
+        if (rawDraft) {
+          const d = JSON.parse(rawDraft);
+          if (d.name && !nameInput) setNameInput(d.name);
+          if (d.age && !ageInput) setAgeInput(d.age);
+          if (d.phone && !phoneInput) setPhoneInput(d.phone);
+          if (d.verificationCode && !verificationCode) setVerificationCode(d.verificationCode);
+        }
+      } catch (e) {}
+
+      // One-off direct fetch from Firestore for current verification code
+      const currentCode = verificationCode || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('mol5saty_signup_form_draft') || '{}')?.verificationCode : null);
+      if (currentCode && firestore && !isPhoneVerified) {
+        try {
+          const { getDoc, doc: fsDoc } = await import('firebase/firestore');
+          const snap = await getDoc(fsDoc(firestore, 'phone_verifications', currentCode));
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data && data.verified) {
+              setIsPhoneVerified(true);
+              const authorPhone = (lockedPhone || phoneInput || data.phoneNumber || '').trim();
+              setVerifiedPhoneNumber(authorPhone);
+              setIsPhoneLocked(true);
+              setLockedPhone(authorPhone);
+              if (authorPhone) {
+                localStorage.setItem('verified_student_phone', authorPhone);
+                localStorage.setItem('student_phone', authorPhone);
+              }
+              toast({
+                title: isArabic ? '✅ تم استلام تفعيل واتساب بنجاح!' : '✅ WhatsApp Verification Confirmed!',
+                description: isArabic
+                  ? `تم استلام رسالة التفعيل وتثبيت رقم هاتفك [ ${authorPhone} ] بنجاح.`
+                  : `Verification received! Phone [ ${authorPhone} ] confirmed via WhatsApp.`,
+                duration: 7000
+              });
+            }
+          }
+        } catch (err) {
+          console.warn('Check on return note:', err);
+        }
+      }
+    };
+
+    window.addEventListener('focus', checkVerificationOnReturn);
+    const handleVis = () => {
+      if (document.visibilityState === 'visible') {
+        checkVerificationOnReturn();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVis);
+
+    return () => {
+      window.removeEventListener('focus', checkVerificationOnReturn);
+      document.removeEventListener('visibilitychange', handleVis);
+    };
+  }, [verificationCode, firestore, isPhoneVerified, lockedPhone, phoneInput, nameInput, ageInput, isArabic, toast]);
 
   const handleLockPhone = (overrideVal?: string) => {
     const candidate = (overrideVal || phoneInput || '').trim();
@@ -303,6 +552,12 @@ export default function StudentSignupPage() {
       localStorage.setItem('last_entered_phone', candidate);
       localStorage.setItem('verified_student_phone', candidate);
     }
+    saveFormDraft({
+      phone: candidate,
+      lockedPhone: candidate,
+      verifiedPhoneNumber: candidate,
+      isPhoneLocked: true
+    });
     toast({
       title: isArabic ? '🔒 تم قفل وتثبيت رقم هاتفك' : '🔒 Phone Number Confirmed & Locked',
       description: isArabic ? `تم اعتماد وتثبيت الرقم [ ${candidate} ] لحسابك وللعلامة المائية.` : `Number [ ${candidate} ] locked for your account and watermark.`,
@@ -313,26 +568,12 @@ export default function StudentSignupPage() {
 
   const handleUnlockPhone = () => {
     setIsPhoneLocked(false);
+    saveFormDraft({ isPhoneLocked: false });
     toast({
       title: isArabic ? 'تم إلغاء قفل الرقم' : 'Phone Unlocked',
       description: isArabic ? 'يمكنك الآن تعديل رقم هاتفك.' : 'You can now edit your phone number.'
     });
   };
-
-  // Initialize bot phone and code from storage/generator
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedBotPhone = localStorage.getItem('mol5saty_bot_phone');
-      const activeBotPhone = (savedBotPhone && savedBotPhone !== '201201402632') ? savedBotPhone : '201201921424';
-      setBotPhone(activeBotPhone);
-      setTempBotPhone(activeBotPhone);
-      localStorage.setItem('mol5saty_bot_phone', activeBotPhone);
-    }
-    if (!verificationCode) {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      setVerificationCode(code);
-    }
-  }, [verificationCode]);
 
   // Real-time Firestore listener on `phone_verifications/${verificationCode}`
   useEffect(() => {
@@ -387,6 +628,7 @@ export default function StudentSignupPage() {
     setVerificationCode(newCode);
     setIsPhoneVerified(false);
     setVerifiedPhoneNumber('');
+    saveFormDraft({ verificationCode: newCode, isPhoneVerified: false, verifiedPhoneNumber: '' });
     toast({
       title: isArabic ? 'كود تحقق جديد' : 'New Verification Code',
       description: isArabic ? `تم إنشاء كود جديد: VERIFY-${newCode}` : `Generated code: VERIFY-${newCode}`
@@ -455,11 +697,11 @@ export default function StudentSignupPage() {
     setErrors({});
     
     const formData = new FormData(event.currentTarget);
-    const name = (formData.get('name') as string || '').trim();
-    const age = (formData.get('age') as string || '').trim();
+    const name = (nameInput || (formData.get('name') as string) || '').trim();
+    const age = (ageInput || (formData.get('age') as string) || '').trim();
     const phone = (lockedPhone || verifiedPhoneNumber || phoneInput || (formData.get('phone') as string) || '').trim();
-    const professorCode = (formData.get('professorCode') as string || professorCodeInput || '').trim().toUpperCase();
-    const password = formData.get('password') as string;
+    const professorCode = (professorCodeInput || (formData.get('professorCode') as string) || '').trim().toUpperCase();
+    const password = (passwordInput || (formData.get('password') as string) || '');
 
     // Strict Validation
     const currentErrors: any = {};
@@ -488,8 +730,10 @@ export default function StudentSignupPage() {
     if (!governorate) {
       currentErrors.governorate = [isArabic ? 'يرجى اختيار المحافظة.' : 'Please select your governorate.'];
     }
-    if (!university) {
-      currentErrors.university = [isArabic ? 'يرجى اختيار جامعتك في مصر.' : 'Please select your university.'];
+    const isCustomUni = university === '__custom__' || isCustomUniversityMode;
+    const finalUniversity = (isCustomUni ? customUniversity : university).trim();
+    if (!finalUniversity || (isCustomUni && customUniversity.trim().length < 2)) {
+      currentErrors.university = [isArabic ? 'يرجى اختيار أو كتابة اسم جامعتك في مصر.' : 'Please select or type your university.'];
     }
     if (!facultyCategory) {
       currentErrors.facultyCategory = [isArabic ? 'يرجى اختيار الكلية أو التخصص الأكاديمي.' : 'Please select your faculty.'];
@@ -547,7 +791,7 @@ export default function StudentSignupPage() {
           verifiedPhoneNumber: finalVerifiedPhone,
           isPhoneVerified: true,
           governorate: governorateName,
-          university,
+          university: finalUniversity,
           facultyCategory,
           facultyLabel,
           academicYear,
@@ -570,6 +814,7 @@ export default function StudentSignupPage() {
         localStorage.setItem('student_phone', finalVerifiedPhone);
         localStorage.setItem('student_phone_' + studentId, finalVerifiedPhone);
         localStorage.setItem('verified_student_phone', finalVerifiedPhone);
+        localStorage.setItem('student_university', finalUniversity);
 
         if (matchedProfessor) {
           addProfessorCodeToStudent(studentId, professorCode);
@@ -583,6 +828,9 @@ export default function StudentSignupPage() {
             : `Your Student Code is [ ${barcodeId} ]. Linked to professor [ ${professorCode} ].`,
           duration: 12000,
         });
+
+        localStorage.removeItem('mol5saty_signup_form_draft');
+        sessionStorage.removeItem('mol5saty_signup_form_draft');
 
         router.push('/profile');
         return;
@@ -641,7 +889,7 @@ export default function StudentSignupPage() {
         phoneVerificationToken: verificationCode,
         phoneVerifiedAt: serverTimestamp(),
         governorate: governorateName,
-        university,
+        university: finalUniversity,
         facultyCategory,
         facultyLabel,
         academicYear,
@@ -668,7 +916,7 @@ export default function StudentSignupPage() {
         isPhoneVerified: true,
         verifiedPhoneNumber: finalVerifiedPhone,
         governorate: governorateName,
-        university,
+        university: finalUniversity,
         facultyCategory,
         academicYear: academicYearLabel,
         professorCode,
@@ -681,6 +929,7 @@ export default function StudentSignupPage() {
       localStorage.setItem('studentBarcode', barcodeId);
       localStorage.setItem('studentBarcodeId', barcodeId);
       localStorage.setItem('studentCode', barcodeId);
+      localStorage.setItem('student_university', finalUniversity);
       localStorage.setItem('cached_student_profile_' + studentId, JSON.stringify(studentData));
       localStorage.setItem('mol5saty_active_student_profile', JSON.stringify(studentData));
       localStorage.setItem('student_logged_in', 'true');
@@ -707,6 +956,9 @@ export default function StudentSignupPage() {
           : `Your student account has been created. Your Student Code is [ ${barcodeId} ]. Save this code to sign in anytime.`,
         duration: 15000,
       });
+      
+      localStorage.removeItem('mol5saty_signup_form_draft');
+      sessionStorage.removeItem('mol5saty_signup_form_draft');
       
       window.location.href = '/profile';
       
@@ -777,6 +1029,11 @@ export default function StudentSignupPage() {
                 name="name"
                 type="text"
                 required
+                value={nameInput}
+                onChange={(e) => {
+                  setNameInput(e.target.value);
+                  if (errors.name) setErrors((prev: any) => ({ ...prev, name: undefined }));
+                }}
                 placeholder={isArabic ? 'مثال: أحمد محمد علي حسن' : 'e.g. Ahmed Mohamed Ali'}
                 className="h-11 rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#0f172a] dark:text-white focus:border-[#2563eb] focus:ring-[#2563eb] text-sm"
               />
@@ -797,6 +1054,11 @@ export default function StudentSignupPage() {
                   min="16"
                   max="65"
                   required
+                  value={ageInput}
+                  onChange={(e) => {
+                    setAgeInput(e.target.value);
+                    if (errors.age) setErrors((prev: any) => ({ ...prev, age: undefined }));
+                  }}
                   placeholder={isArabic ? 'مثال: 20' : 'e.g. 20'}
                   className="h-11 rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#0f172a] dark:text-white focus:border-[#2563eb] focus:ring-[#2563eb] text-sm"
                 />
@@ -808,7 +1070,10 @@ export default function StudentSignupPage() {
                   <MapPin className="w-3.5 h-3.5 text-[#2563eb]" />
                   <span>{isArabic ? 'المحافظة *' : 'Governorate *'}</span>
                 </Label>
-                <Select value={governorate} onValueChange={setGovernorate}>
+                <Select value={governorate} onValueChange={(val) => {
+                  setGovernorate(val);
+                  if (errors.governorate) setErrors((prev: any) => ({ ...prev, governorate: undefined }));
+                }}>
                   <SelectTrigger className="h-11 rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#0f172a] dark:text-white text-sm">
                     <SelectValue placeholder={isArabic ? 'اختر المحافظة' : 'Select'} />
                   </SelectTrigger>
@@ -1020,14 +1285,33 @@ export default function StudentSignupPage() {
                     <a
                       href={`https://wa.me/${botPhone.replace(/[^\d]/g, '')}?text=${encodeURIComponent(`VERIFY-${verificationCode}`)}`}
                       onClick={() => {
-                        // Auto-lock the student's entered number when clicking WhatsApp
-                        if (!isPhoneLocked && phoneInput) {
-                          handleLockPhone(phoneInput);
+                        // 1. Auto-lock student's entered phone
+                        const curPhone = (phoneInput || '').trim();
+                        if (curPhone) {
+                          handleLockPhone(curPhone);
                         }
+                        // 2. Explicitly persist entire form state to local and session storage
+                        saveFormDraft({
+                          name: nameInput,
+                          age: ageInput,
+                          password: passwordInput,
+                          phone: curPhone,
+                          lockedPhone: curPhone,
+                          isPhoneLocked: true,
+                          verificationCode: verificationCode,
+                          governorate,
+                          university,
+                          customUniversity,
+                          isCustomUniversityMode,
+                          facultyCategory,
+                          academicYear,
+                          professorCode: professorCodeInput,
+                          agreed
+                        });
                       }}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#25d366] hover:bg-[#20ba5a] active:scale-[0.99] text-white font-extrabold text-xs sm:text-sm shadow-md shadow-emerald-600/25 transition-all text-center"
+                      className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#25d366] hover:bg-[#20ba5a] active:scale-[0.99] text-white font-extrabold text-xs sm:text-sm shadow-md shadow-emerald-600/25 transition-all text-center cursor-pointer"
                     >
                       <MessageCircle className="w-4 h-4 fill-white" />
                       <span>{isArabic ? '📱 إرسال كود التفعيل عبر واتساب بنقرة واحدة' : '📱 Send Code via WhatsApp (1-Click)'}</span>
@@ -1114,22 +1398,105 @@ export default function StudentSignupPage() {
 
             {/* University Selection */}
             <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-[#2563eb]" />
-                <span>{isArabic ? 'الجامعة التابع لها في مصر *' : 'University in Egypt *'}</span>
-              </Label>
-              <Select value={university} onValueChange={setUniversity}>
-                <SelectTrigger className="h-11 rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#0f172a] dark:text-white text-sm">
-                  <SelectValue placeholder={isArabic ? 'اختر جامعتك (القاهرة، عين شمس، المنصورة، بدر، مصر...)' : 'Select your university in Egypt'} />
-                </SelectTrigger>
-                <SelectContent className="max-h-64 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                  {EGYPTIAN_UNIVERSITIES.map(u => (
-                    <SelectItem key={u} value={u}>
-                      {u}
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-[#2563eb]" />
+                  <span>{isArabic ? 'الجامعة أو المعهد المقيد به في مصر *' : 'University or Institute in Egypt *'}</span>
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextMode = !(isCustomUniversityMode || university === '__custom__');
+                    setIsCustomUniversityMode(nextMode);
+                    if (nextMode) {
+                      setUniversity('__custom__');
+                    } else {
+                      setUniversity('');
+                      setCustomUniversity('');
+                    }
+                    if (errors.university) {
+                      setErrors((prev: any) => ({ ...prev, university: undefined }));
+                    }
+                  }}
+                  className="text-[11px] text-[#2563eb] dark:text-blue-400 hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                >
+                  <Edit2 className="w-3 h-3" />
+                  <span>
+                    {isCustomUniversityMode || university === '__custom__'
+                      ? (isArabic ? 'العودة للاختيار من القائمة' : 'Pick from list')
+                      : (isArabic ? '✏️ غير مدرجة؟ اكتبها يدوياً' : '✏️ Not listed? Type name')}
+                  </span>
+                </button>
+              </div>
+
+              {!(isCustomUniversityMode || university === '__custom__') ? (
+                <Select
+                  value={university}
+                  onValueChange={(val) => {
+                    setUniversity(val);
+                    if (val === '__custom__') {
+                      setIsCustomUniversityMode(true);
+                    }
+                    if (errors.university) {
+                      setErrors((prev: any) => ({ ...prev, university: undefined }));
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-11 rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#0f172a] dark:text-white text-sm">
+                    <SelectValue placeholder={isArabic ? 'اختر جامعتك (القاهرة، عين شمس، المنصورة، بدر، أو اكتب يدوياً...)' : 'Select your university in Egypt'} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                    <SelectItem value="__custom__" className="font-extrabold text-[#2563eb] dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/40 border-b border-blue-100 dark:border-blue-900/50 mb-1 py-2 cursor-pointer">
+                      {isArabic ? '✏️ أخرى - كتابة اسم الجامعة أو المعهد يدوياً (اكتب اسم جامعتك)' : '✏️ Other - Type Your Custom University Name'}
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {EGYPTIAN_UNIVERSITIES.map(u => (
+                      <SelectItem key={u} value={u}>
+                        {u}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="space-y-2 p-3.5 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 animate-in fade-in slide-in-from-top-1">
+                  <div className="flex items-center justify-between text-xs font-bold text-blue-900 dark:text-blue-200">
+                    <span className="flex items-center gap-1.5">
+                      <Edit2 className="w-3.5 h-3.5 text-[#2563eb]" />
+                      <span>{isArabic ? 'اسم الجامعة أو المعهد العالي (كتابة يدوية):' : 'Custom University or Institute Name:'}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomUniversityMode(false);
+                        setUniversity('');
+                        setCustomUniversity('');
+                      }}
+                      className="text-[10px] text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 underline cursor-pointer"
+                    >
+                      {isArabic ? 'إلغاء والعودة للقائمة' : 'Back to list'}
+                    </button>
+                  </div>
+
+                  <Input
+                    type="text"
+                    required
+                    value={customUniversity}
+                    onChange={(e) => {
+                      setCustomUniversity(e.target.value);
+                      if (errors.university) {
+                        setErrors((prev: any) => ({ ...prev, university: undefined }));
+                      }
+                    }}
+                    placeholder={isArabic ? 'مثال: أكاديمية الشروق، معهد العبور العالي، الجامعة الفرنسية...' : 'e.g. El Shorouk Academy, Obour Institute, etc.'}
+                    className="h-11 rounded-xl border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-900 text-sm font-medium focus:border-blue-500 text-[#0f172a] dark:text-white"
+                    autoFocus
+                  />
+                  <p className="text-[11px] text-blue-700 dark:text-blue-300">
+                    {isArabic
+                      ? '💡 سيتم اعتماد هذا الاسم في حسابك وكارنيه الطالب الجامعي وفي العلامة المائية للمحاضرات.'
+                      : '💡 This custom name will appear on your student pass and lecture watermarks.'}
+                  </p>
+                </div>
+              )}
               {errors.university && <p className="text-xs text-red-500">{errors.university[0]}</p>}
             </div>
 
@@ -1139,7 +1506,10 @@ export default function StudentSignupPage() {
                 <BookOpen className="w-3.5 h-3.5 text-[#2563eb]" />
                 <span>{isArabic ? 'الكلية / التخصص الأكاديمي *' : 'Faculty / Discipline *'}</span>
               </Label>
-              <Select value={facultyCategory} onValueChange={setFacultyCategory}>
+              <Select value={facultyCategory} onValueChange={(val) => {
+                setFacultyCategory(val);
+                if (errors.facultyCategory) setErrors((prev: any) => ({ ...prev, facultyCategory: undefined }));
+              }}>
                 <SelectTrigger className="h-11 rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#0f172a] dark:text-white text-sm">
                   <SelectValue placeholder={isArabic ? 'اختر كليتك (طب، أسنان، صيدلة، هندسة، حاسبات، تجارة...)' : 'Select your faculty discipline'} />
                 </SelectTrigger>
@@ -1160,7 +1530,10 @@ export default function StudentSignupPage() {
                 <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   {isArabic ? 'الفرقة الدراسية *' : 'Academic Year *'}
                 </Label>
-                <Select value={academicYear} onValueChange={setAcademicYear}>
+                <Select value={academicYear} onValueChange={(val) => {
+                  setAcademicYear(val);
+                  if (errors.academicYear) setErrors((prev: any) => ({ ...prev, academicYear: undefined }));
+                }}>
                   <SelectTrigger className="h-11 rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#0f172a] dark:text-white text-sm">
                     <SelectValue placeholder={isArabic ? 'اختر فرقتك الدراسية' : 'Select Year'} />
                   </SelectTrigger>
@@ -1245,6 +1618,11 @@ export default function StudentSignupPage() {
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   required
+                  value={passwordInput}
+                  onChange={(e) => {
+                    setPasswordInput(e.target.value);
+                    if (errors.password) setErrors((prev: any) => ({ ...prev, password: undefined }));
+                  }}
                   placeholder="••••••••"
                   className="h-11 rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#0f172a] dark:text-white focus:border-[#2563eb] focus:ring-[#2563eb] text-sm pr-10 rtl:pl-10 rtl:pr-3"
                 />
