@@ -269,6 +269,8 @@ export default function StudentSignupPage() {
 
   // WhatsApp Real-Time Verification State
   const [phoneInput, setPhoneInput] = useState<string>('');
+  const [isPhoneLocked, setIsPhoneLocked] = useState<boolean>(false);
+  const [lockedPhone, setLockedPhone] = useState<string>('');
   const [verificationCode, setVerificationCode] = useState<string>('');
   const [isPhoneVerified, setIsPhoneVerified] = useState<boolean>(false);
   const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useState<string>('');
@@ -281,6 +283,41 @@ export default function StudentSignupPage() {
   useEffect(() => {
     setHasMounted(true);
   }, []);
+
+  const handleLockPhone = (overrideVal?: string) => {
+    const candidate = (overrideVal || phoneInput || '').trim();
+    const clean = candidate.replace(/[^\d+]/g, '');
+    if (clean.length < 10) {
+      toast({
+        variant: 'destructive',
+        title: isArabic ? 'رقم الهاتف غير مكتمل' : 'Incomplete Phone Number',
+        description: isArabic ? 'يرجى كتابة رقم الهاتف المكون من 11 رقماً أولاً (مثل 01012345678).' : 'Please enter an 11-digit phone number first.'
+      });
+      return false;
+    }
+    setIsPhoneLocked(true);
+    setLockedPhone(candidate);
+    setVerifiedPhoneNumber(candidate);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('student_phone', candidate);
+      localStorage.setItem('last_entered_phone', candidate);
+      localStorage.setItem('verified_student_phone', candidate);
+    }
+    toast({
+      title: isArabic ? '🔒 تم قفل وتثبيت رقم هاتفك' : '🔒 Phone Number Confirmed & Locked',
+      description: isArabic ? `تم اعتماد وتثبيت الرقم [ ${candidate} ] لحسابك وللعلامة المائية.` : `Number [ ${candidate} ] locked for your account and watermark.`,
+      duration: 5000
+    });
+    return true;
+  };
+
+  const handleUnlockPhone = () => {
+    setIsPhoneLocked(false);
+    toast({
+      title: isArabic ? 'تم إلغاء قفل الرقم' : 'Phone Unlocked',
+      description: isArabic ? 'يمكنك الآن تعديل رقم هاتفك.' : 'You can now edit your phone number.'
+    });
+  };
 
   // Initialize bot phone and code from storage/generator
   useEffect(() => {
@@ -307,26 +344,30 @@ export default function StudentSignupPage() {
           const data = snapshot.data();
           if (data && data.verified) {
             setIsPhoneVerified(true);
-            const rawPhone = data.phoneNumber || '';
-            setVerifiedPhoneNumber(rawPhone);
-
-            // Normalize Egyptian phone format for the field display
-            const clean = rawPhone.replace(/[^\d+]/g, '');
-            let localNum = clean;
-            if (clean.startsWith('+20')) {
-              localNum = '0' + clean.slice(3);
-            } else if (clean.startsWith('20') && clean.length === 12) {
-              localNum = '0' + clean.slice(2);
-            }
             
-            // Set the phone field directly to the verified number
-            setPhoneInput(localNum);
+            // CRITICAL FIX: The student's own typed/confirmed number is the single source of truth.
+            // Never overwrite with arbitrary bot numbers or mock data from Firestore!
+            const studentOwnNumber = (lockedPhone || phoneInput || '').trim();
+            const authoritativePhone = studentOwnNumber.length >= 10 
+              ? studentOwnNumber 
+              : (data.phoneNumber || '');
+
+            setVerifiedPhoneNumber(authoritativePhone);
+            setPhoneInput(authoritativePhone);
+            setIsPhoneLocked(true);
+            setLockedPhone(authoritativePhone);
+
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('student_phone', authoritativePhone);
+              localStorage.setItem('last_entered_phone', authoritativePhone);
+              localStorage.setItem('verified_student_phone', authoritativePhone);
+            }
 
             toast({
               title: isArabic ? '✅ تم تأكيد رقم هاتفك بنجاح!' : '✅ Phone Verified Successfully!',
               description: isArabic
-                ? `تم استلام رسالة التفعيل وتأكيد الرقم [ ${rawPhone} ] بنجاح.`
-                : `Verification received! Phone [ ${rawPhone} ] is verified.`,
+                ? `تم استلام رسالة التفعيل وتثبيت رقمك الشخصي [ ${authoritativePhone} ] لحسابك وللعلامة المائية.`
+                : `Verification received! Your true phone [ ${authoritativePhone} ] is locked for your account and watermark.`,
               duration: 8000,
             });
           }
@@ -339,7 +380,7 @@ export default function StudentSignupPage() {
     } catch (err) {
       console.warn("Snapshot setup notice:", err);
     }
-  }, [verificationCode, firestore, isPhoneVerified, isArabic, phoneInput, toast]);
+  }, [verificationCode, firestore, isPhoneVerified, isArabic, phoneInput, lockedPhone, toast]);
 
   const handleRegenerateCode = () => {
     const newCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -416,7 +457,7 @@ export default function StudentSignupPage() {
     const formData = new FormData(event.currentTarget);
     const name = (formData.get('name') as string || '').trim();
     const age = (formData.get('age') as string || '').trim();
-    const phone = (phoneInput || (formData.get('phone') as string) || '').trim();
+    const phone = (lockedPhone || verifiedPhoneNumber || phoneInput || (formData.get('phone') as string) || '').trim();
     const professorCode = (formData.get('professorCode') as string || professorCodeInput || '').trim().toUpperCase();
     const password = formData.get('password') as string;
 
@@ -489,6 +530,7 @@ export default function StudentSignupPage() {
     const governorateName = governorateObj ? (isArabic ? governorateObj.nameAr : governorateObj.nameEn) : governorate;
     const academicYearLabel = ACADEMIC_YEARS.find(y => y.id === academicYear)?.nameAr || academicYear;
     const facultyLabel = FACULTY_DISCIPLINES.find(f => f.id === facultyCategory)?.nameAr || facultyCategory;
+    const finalVerifiedPhone = (lockedPhone || verifiedPhoneNumber || phone || phoneInput).trim();
 
     // Offline registration fallback if network is down
     if (!navigator.onLine || !firestore || !auth) {
@@ -501,7 +543,9 @@ export default function StudentSignupPage() {
           barcodeId,
           name,
           age: Number(age),
-          phoneNumber: phone,
+          phoneNumber: finalVerifiedPhone,
+          verifiedPhoneNumber: finalVerifiedPhone,
+          isPhoneVerified: true,
           governorate: governorateName,
           university,
           facultyCategory,
@@ -523,6 +567,9 @@ export default function StudentSignupPage() {
         localStorage.setItem('student_profile_offline_' + studentId, JSON.stringify(studentData));
         localStorage.setItem('viewingStudentId', studentId);
         localStorage.setItem('studentBarcode', barcodeId);
+        localStorage.setItem('student_phone', finalVerifiedPhone);
+        localStorage.setItem('student_phone_' + studentId, finalVerifiedPhone);
+        localStorage.setItem('verified_student_phone', finalVerifiedPhone);
 
         if (matchedProfessor) {
           addProfessorCodeToStudent(studentId, professorCode);
@@ -583,7 +630,6 @@ export default function StudentSignupPage() {
       }
 
       // 2. Persist student profile document in Firestore
-      const finalVerifiedPhone = (verifiedPhoneNumber || phone).trim();
       const studentData = {
         id: studentId,
         barcodeId,
@@ -803,32 +849,95 @@ export default function StudentSignupPage() {
                 )}
               </div>
 
-              {/* Phone Input */}
-              <div className="space-y-1">
-                <div className="relative">
-                  <Input
-                    id="phone"
-                    name="phone"
-                    type="tel"
-                    required
-                    readOnly={isPhoneVerified}
-                    value={phoneInput}
-                    onChange={(e) => setPhoneInput(e.target.value)}
-                    placeholder="01xxxxxxxxx"
-                    className={`h-11 rounded-xl text-sm font-mono tracking-wider transition-all ${
-                      isPhoneVerified
-                        ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 font-bold'
-                        : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#0f172a] dark:text-white'
-                    }`}
-                    dir="ltr"
-                  />
-                  {isPhoneVerified && (
-                    <div className="absolute inset-y-0 right-0 rtl:left-0 rtl:right-auto px-3 flex items-center text-emerald-600">
-                      <CheckCircle className="w-5 h-5" />
-                    </div>
+              {/* Phone Input with Interactive Lock & Confirm Button */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                  <div className="flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-[#2563eb]" />
+                    <span>{isArabic ? 'رقم الهاتف الخاص بك (11 رقماً) *' : 'Your Personal Phone Number *'}</span>
+                  </div>
+                  {isPhoneLocked ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                      <Lock className="w-3 h-3" />
+                      <span>{isArabic ? 'الرقم مؤكد ومغلق' : 'Number Locked'}</span>
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 font-normal">
+                      {isArabic ? 'اكتب رقمك ثم اضغط قفل وتأكيد' : 'Type number then lock'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      required
+                      readOnly={isPhoneLocked || isPhoneVerified}
+                      value={phoneInput}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPhoneInput(val);
+                        if (val.replace(/[^\d+]/g, '').length === 11 && !isPhoneLocked) {
+                          // Auto-lock when 11 digits are reached
+                          handleLockPhone(val);
+                        }
+                      }}
+                      placeholder="01xxxxxxxxx"
+                      className={`h-11 rounded-xl text-sm font-mono tracking-wider transition-all ${
+                        isPhoneLocked || isPhoneVerified
+                          ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 font-bold'
+                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[#0f172a] dark:text-white'
+                      }`}
+                      dir="ltr"
+                    />
+                    {(isPhoneLocked || isPhoneVerified) && (
+                      <div className="absolute inset-y-0 right-0 rtl:left-0 rtl:right-auto px-3 flex items-center text-emerald-600">
+                        <CheckCircle className="w-5 h-5" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Lock / Unlock Confirmation Button */}
+                  {!isPhoneVerified && (
+                    isPhoneLocked ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleUnlockPhone}
+                        className="h-11 px-3 text-xs font-bold rounded-xl border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 shrink-0"
+                        title={isArabic ? 'تعديل الرقم' : 'Edit Number'}
+                      >
+                        {isArabic ? 'تعديل الرقم' : 'Edit'}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => handleLockPhone()}
+                        className="h-11 px-3.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shrink-0 flex items-center gap-1.5"
+                      >
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>{isArabic ? 'قفل وتأكيد' : 'Lock & Confirm'}</span>
+                      </Button>
+                    )
                   )}
                 </div>
                 {errors.phone && <p className="text-xs text-red-500 font-semibold">{errors.phone[0]}</p>}
+
+                {isPhoneLocked && (
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium flex items-center gap-1.5">
+                    <CheckCircle className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                    <span>
+                      {isArabic
+                        ? `تم اعتماد رقمك الشخصي [ ${lockedPhone || phoneInput} ] للعرض على المحاضرات والعلامة المائية.`
+                        : `Your number [ ${lockedPhone || phoneInput} ] is confirmed for your account and video watermark.`}
+                    </span>
+                  </p>
+                )}
               </div>
 
               {/* Verified Badge / Details */}
@@ -838,14 +947,15 @@ export default function StudentSignupPage() {
                     <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     <span>
                       {isArabic 
-                        ? `تم توثيق الرقم [ ${verifiedPhoneNumber || phoneInput} ] وتأكيده بنجاح.` 
-                        : `Number [ ${verifiedPhoneNumber || phoneInput} ] verified via WhatsApp.`}
+                        ? `تم توثيق وتأكيد رقمك الشخصي [ ${lockedPhone || verifiedPhoneNumber || phoneInput} ] بنجاح.` 
+                        : `Personal number [ ${lockedPhone || verifiedPhoneNumber || phoneInput} ] verified via WhatsApp.`}
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => {
                       setIsPhoneVerified(false);
+                      setIsPhoneLocked(false);
                       setVerifiedPhoneNumber('');
                       handleRegenerateCode();
                     }}
@@ -909,6 +1019,12 @@ export default function StudentSignupPage() {
                   <div className="space-y-2">
                     <a
                       href={`https://wa.me/${botPhone.replace(/[^\d]/g, '')}?text=${encodeURIComponent(`VERIFY-${verificationCode}`)}`}
+                      onClick={() => {
+                        // Auto-lock the student's entered number when clicking WhatsApp
+                        if (!isPhoneLocked && phoneInput) {
+                          handleLockPhone(phoneInput);
+                        }
+                      }}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#25d366] hover:bg-[#20ba5a] active:scale-[0.99] text-white font-extrabold text-xs sm:text-sm shadow-md shadow-emerald-600/25 transition-all text-center"

@@ -131,6 +131,14 @@ export function DynamicWatermark({
 
   const studentPhone = useMemo(() => {
     if (previewStudent?.phone) return previewStudent.phone;
+    if (typeof window !== 'undefined') {
+      const verifiedDirect = localStorage.getItem('verified_student_phone');
+      if (verifiedDirect) return verifiedDirect;
+      if (effectiveStudentId) {
+        const studentSpecific = localStorage.getItem('student_phone_' + effectiveStudentId);
+        if (studentSpecific) return studentSpecific;
+      }
+    }
     if (student?.phoneNumber) return student.phoneNumber;
     if ((student as any)?.phone) return (student as any).phone;
     if (localCachedStudent?.phoneNumber) return localCachedStudent.phoneNumber;
@@ -150,7 +158,7 @@ export function DynamicWatermark({
       if (directPhone) return directPhone;
     }
     return '';
-  }, [previewStudent, student, localCachedStudent]);
+  }, [previewStudent, student, localCachedStudent, effectiveStudentId]);
 
   const studentCode = previewStudent?.barcode || 
                       student?.barcodeId || 

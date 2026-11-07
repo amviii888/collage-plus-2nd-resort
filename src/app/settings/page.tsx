@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LogOut, Users, FileText, Shield, Info, LifeBuoy, Globe, ChevronRight, ChevronLeft, Bell, Lock, Scale, Copyright, User as UserIcon, RotateCcw, AlertTriangle, Database, Upload, Check, Download, AlertCircle, Trash2, ShieldAlert } from 'lucide-react';
+import { LogOut, Users, FileText, Shield, Info, LifeBuoy, Globe, ChevronRight, ChevronLeft, Bell, Lock, Scale, Copyright, User as UserIcon, RotateCcw, AlertTriangle, Database, Upload, Check, Download, AlertCircle, Trash2, ShieldAlert, Fingerprint } from 'lucide-react';
 import { doc, collection, setDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { Label } from '@/components/ui/label';
@@ -675,6 +675,32 @@ export default function SettingsPage() {
         localStorage.setItem('notifications_enabled', String(notificationsEnabled));
     }, [notificationsEnabled]);
 
+    const [biometricEnabled, setBiometricEnabled] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const stored = localStorage.getItem('mol5saty_biometric_enabled');
+            return stored !== 'false';
+        }
+        return true;
+    });
+
+    const handleToggleBiometric = (enabled: boolean) => {
+        setBiometricEnabled(enabled);
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('mol5saty_biometric_enabled', String(enabled));
+            if (!enabled) {
+                sessionStorage.setItem('mol5saty_app_unlocked', 'true');
+            }
+        }
+        toast({
+            title: isArabic 
+                ? (enabled ? 'تم تفعيل قفل البصمة' : 'تم تعطيل قفل البصمة') 
+                : (enabled ? 'Biometric Lock Enabled' : 'Biometric Lock Disabled'),
+            description: isArabic
+                ? (enabled ? 'سيطلب التطبيق Face ID أو البصمة عند الفتح' : 'لن يطلب التطبيق البصمة عند الفتح')
+                : (enabled ? 'The app will require Face ID or fingerprint upon launch' : 'Biometric authorization on launch disabled')
+        });
+    };
+
     useEffect(() => {
         const storedStudentId = localStorage.getItem('viewingStudentId');
         const resolvedStudentId = storedStudentId || (user && isStudentEmail(user.email) ? user.uid : null);
@@ -848,6 +874,7 @@ export default function SettingsPage() {
             title: isArabic ? 'الحساب والتفضيلات' : 'Account & Preferences',
             items: [
                 { id: 'lang', icon: Globe, title: isArabic ? 'اللغة' : 'Language', description: i18n.language === 'ar' ? 'العربية' : 'English', action: toggleLanguage },
+                { id: 'biometric', icon: Fingerprint, title: isArabic ? 'قفل التطبيق بالبصمة (Face ID / Fingerprint)' : 'Biometric App Lock (Face ID / Touch ID)', description: isArabic ? 'طلب البصمة عند فتح التطبيق لحماية الخصوصية' : 'Require biometrics upon launching or resuming app', isToggle: true, state: biometricEnabled, setState: handleToggleBiometric },
                 { id: 'notif', icon: Bell, title: isArabic ? 'الإشعارات' : 'Notifications', description: isArabic ? 'تشغيل الإشعارات المباشرة' : 'Push notifications', isToggle: true, state: notificationsEnabled, setState: setNotificationsEnabled },
                 { id: 'privacy', href: '/privacy', icon: Shield, title: isArabic ? 'سياسة الخصوصية' : 'Privacy Policy', description: isArabic ? 'التعامل مع البيانات والخصوصية المضمونة' : 'Data handling & security' },
             ]
