@@ -71,6 +71,7 @@
 		"PrivacyScreenPlugin",
 		"PushNotificationsPlugin",
 		"SplashScreenPlugin",
-		"StatusBarPlugin"
+		"StatusBarPlugin",
+		"NativeBiometricPlugin"
 	]
 }

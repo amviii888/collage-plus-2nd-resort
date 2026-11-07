@@ -168,6 +168,8 @@ export function TeacherSignupForm() {
 
       localStorage.setItem('teacher_session', 'true');
       localStorage.setItem('teacherId', teacherId);
+      localStorage.setItem('mol5saty_last_valid_password', data.password);
+      sessionStorage.setItem('mol5saty_app_unlocked', 'true');
       if (data.profilePictureUrl) {
         localStorage.setItem(`custom_teacher_avatar_${teacherId}`, data.profilePictureUrl);
       }

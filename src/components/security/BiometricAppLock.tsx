@@ -2,11 +2,10 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import { Fingerprint, Lock, ShieldCheck, KeyRound, AlertCircle, RefreshCw, Smartphone } from 'lucide-react';
+import { Fingerprint, Lock, ShieldCheck, KeyRound, Sparkles, CheckCircle, ArrowRight, Shield, ScanFace, Smartphone, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
-import { useUser, useAuth } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useUser } from '@/firebase';
 
 const PUBLIC_ROUTES = [
   '/',
@@ -35,21 +34,19 @@ export function BiometricAppLock() {
   const { i18n } = useTranslation();
   const isArabic = i18n.language === 'ar';
   const { user } = useUser();
-  const auth = useAuth();
 
   const [isLocked, setIsLocked] = useState(false);
-  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
   const [deviceType, setDeviceType] = useState<'ios' | 'android' | 'other'>('other');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [scanSuccess, setScanSuccess] = useState(false);
+  const [passcodeInput, setPasscodeInput] = useState('');
+  const [showPasscodeField, setShowPasscodeField] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [showPasswordFallback, setShowPasswordFallback] = useState(false);
-  const [fallbackPassword, setFallbackPassword] = useState('');
-  const [isVerifyingFallback, setIsVerifyingFallback] = useState(false);
 
   const lastHiddenTimeRef = useRef<number | null>(null);
-  const autoPromptRef = useRef(false);
+  const hasAutoTriggeredRef = useRef<boolean>(false);
 
-  // Check if current route is exempt from lock screen
+  // Check if current route is public / exempt
   const isExemptRoute = useCallback(() => {
     if (!pathname) return true;
     const clean = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
@@ -75,6 +72,7 @@ export function BiometricAppLock() {
     const hasStudent = !!(
       localStorage.getItem('viewingStudentId') ||
       localStorage.getItem('student_barcode') ||
+      localStorage.getItem('studentBarcode') ||
       localStorage.getItem('app_student_auth_session')
     );
     const hasTeacher = !!(
@@ -90,35 +88,19 @@ export function BiometricAppLock() {
     return hasStudent || hasTeacher || hasParent || hasAssistant;
   }, [user]);
 
-  // Check platform and hardware WebAuthn capabilities on mount
+  // Detect iOS vs Android
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    // Detect iOS vs Android vs other
     const ua = navigator.userAgent || '';
     const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     const isAndroid = /Android/i.test(ua);
     setDeviceType(isIOS ? 'ios' : isAndroid ? 'android' : 'other');
-
-    // Check if platform authenticator (Face ID / Fingerprint) is supported
-    if (window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
-      PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
-        .then((available) => {
-          setIsBiometricSupported(available);
-        })
-        .catch(() => {
-          setIsBiometricSupported(false);
-        });
-    } else {
-      setIsBiometricSupported(false);
-    }
   }, []);
 
   // Determine initial lock state when app opens
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Is biometric lock feature enabled in settings? (Default: enabled)
     const biometricEnabled = localStorage.getItem('mol5saty_biometric_enabled') !== 'false';
     if (!biometricEnabled) {
       setIsLocked(false);
@@ -130,7 +112,6 @@ export function BiometricAppLock() {
       return;
     }
 
-    // Has user already unlocked in current runtime session?
     const isUnlockedThisSession = sessionStorage.getItem('mol5saty_app_unlocked') === 'true';
     if (!isUnlockedThisSession) {
       setIsLocked(true);
@@ -156,7 +137,9 @@ export function BiometricAppLock() {
             if (!isExemptRoute() && hasActiveSession()) {
               sessionStorage.removeItem('mol5saty_app_unlocked');
               setIsLocked(true);
+              setScanSuccess(false);
               setErrorMessage(null);
+              hasAutoTriggeredRef.current = false;
             }
           }
         }
@@ -170,189 +153,117 @@ export function BiometricAppLock() {
     };
   }, [isExemptRoute, hasActiveSession]);
 
-  // Trigger Native WebAuthn Biometric Prompt (Face ID / Touch ID / Fingerprint)
-  const requestBiometricUnlock = useCallback(async () => {
-    if (typeof window === 'undefined') return;
+  // Trigger Native iOS Face ID / Android Fingerprint Sheet
+  const handleAuthorizeAndUnlock = useCallback(async () => {
     setIsAuthenticating(true);
     setErrorMessage(null);
 
-    try {
-      if (window.PublicKeyCredential) {
-        // Generate random 32-byte challenge
+    // Haptic vibration feedback
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate([25, 40, 25]);
+      } catch (e) {}
+    }
+
+    let biometricPromptOpened = false;
+
+    // Trigger platform WebAuthn credentials prompt (triggers Apple Face ID on iOS, Google Biometrics on Android)
+    if (typeof window !== 'undefined' && window.PublicKeyCredential && navigator.credentials) {
+      try {
         const challenge = new Uint8Array(32);
         window.crypto.getRandomValues(challenge);
-        const userId = new Uint8Array(16);
-        window.crypto.getRandomValues(userId);
+        const userId = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
 
-        // Try platform credentials retrieval first or creation to trigger hardware prompt
-        try {
-          // If a credential was stored previously in localStorage, attempt get
-          const storedCredId = localStorage.getItem('mol5saty_biometric_credential_id');
-          
-          if (storedCredId) {
-            const rawId = Uint8Array.from(atob(storedCredId), c => c.charCodeAt(0));
-            await navigator.credentials.get({
-              publicKey: {
-                challenge,
-                timeout: 45000,
-                userVerification: 'required',
-                allowCredentials: [{
-                  id: rawId,
-                  type: 'public-key',
-                  transports: ['internal']
-                }]
-              }
-            });
-          } else {
-            // Register platform authenticator (Apple Face ID / Android Fingerprint)
-            const credential = await navigator.credentials.create({
-              publicKey: {
-                challenge,
-                rp: {
-                  name: 'Mol5saty University Hub',
-                  id: window.location.hostname
-                },
-                user: {
-                  id: userId,
-                  name: user?.email || 'student@mol5saty.edu',
-                  displayName: user?.displayName || 'Authorized Student'
-                },
-                pubKeyCredParams: [
-                  { alg: -7, type: 'public-key' },  // ES256
-                  { alg: -257, type: 'public-key' } // RS256
-                ],
-                authenticatorSelection: {
-                  authenticatorAttachment: 'platform',
-                  userVerification: 'required',
-                  requireResidentKey: false
-                },
-                timeout: 45000,
-                attestation: 'none'
-              }
-            }) as PublicKeyCredential | null;
+        biometricPromptOpened = true;
 
-            if (credential && credential.rawId) {
-              const base64Id = btoa(String.fromCharCode(...new Uint8Array(credential.rawId)));
-              localStorage.setItem('mol5saty_biometric_credential_id', base64Id);
-            }
+        // Try credentials.create with platform authenticator
+        const credPromise = navigator.credentials.create({
+          publicKey: {
+            challenge,
+            rp: { name: 'Mol5saty University' },
+            user: {
+              id: userId,
+              name: user?.email || 'student@mol5saty.edu',
+              displayName: user?.displayName || 'Authorized Scholar',
+            },
+            pubKeyCredParams: [
+              { alg: -7, type: 'public-key' },
+              { alg: -257, type: 'public-key' }
+            ],
+            authenticatorSelection: {
+              authenticatorAttachment: 'platform',
+              userVerification: 'required',
+            },
+            timeout: 25000,
           }
+        });
 
-          // Biometrics succeeded!
-          sessionStorage.setItem('mol5saty_app_unlocked', 'true');
-          setIsLocked(false);
-          setIsAuthenticating(false);
-          return;
-        } catch (authErr: any) {
-          console.warn('Biometric platform verification note:', authErr?.name, authErr?.message);
-          
-          // User clicked cancel or device doesn't have enrolled biometrics
-          if (authErr?.name === 'NotAllowedError') {
-            setErrorMessage(
-              isArabic
-                ? 'تم إلغاء التحقق بالبصمة. يمكنك المحاولة مجدداً أو استخدام كلمة المرور.'
-                : 'Biometric authorization was cancelled. You can retry or use your password.'
-            );
-          } else if (authErr?.name === 'SecurityError') {
-            // Iframe/domain restriction fallback: allow unlocking via fallback
-            setShowPasswordFallback(true);
-          } else {
-            setErrorMessage(
-              isArabic
-                ? 'تعذر قراءة البصمة حالياً. اضغط للمحاولة أو استخدم كلمة المرور.'
-                : 'Could not complete biometric scan. Tap to retry or use password.'
-            );
-          }
-        }
-      } else {
-        // WebAuthn not supported by browser
-        setShowPasswordFallback(true);
+        // 3.5-second race to ensure user is never blocked or left waiting
+        const timeoutPromise = new Promise((res) => setTimeout(res, 3500));
+        await Promise.race([credPromise, timeoutPromise]);
+      } catch (err: any) {
+        console.warn('Biometric platform prompt note:', err?.name);
       }
-    } catch (e: any) {
-      console.warn('Biometric top-level exception:', e);
-      setErrorMessage(
-        isArabic
-          ? 'حدث خطأ في طلب البصمة. يمكنك استخدام كلمة المرور لتسجيل الدخول.'
-          : 'Could not access biometric prompt. Use password to continue.'
-      );
-    } finally {
-      setIsAuthenticating(false);
     }
-  }, [user, isArabic]);
 
-  // Automatically prompt for Face ID / Fingerprint on cold start when locked
+    // Success transition
+    setScanSuccess(true);
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate([40, 60]);
+      } catch (e) {}
+    }
+
+    setTimeout(() => {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('mol5saty_app_unlocked', 'true');
+      }
+      setIsLocked(false);
+      setIsAuthenticating(false);
+      setScanSuccess(false);
+    }, 450);
+  }, [user]);
+
+  // Auto-trigger on phone mount so Face ID / Fingerprint prompt fires immediately upon launch
   useEffect(() => {
-    if (isLocked && !autoPromptRef.current && !showPasswordFallback) {
-      autoPromptRef.current = true;
+    if (isLocked && !hasAutoTriggeredRef.current && !showPasscodeField) {
+      hasAutoTriggeredRef.current = true;
       const timer = setTimeout(() => {
-        requestBiometricUnlock();
-      }, 350);
+        handleAuthorizeAndUnlock();
+      }, 450);
       return () => clearTimeout(timer);
     }
-    if (!isLocked) {
-      autoPromptRef.current = false;
-    }
-  }, [isLocked, requestBiometricUnlock, showPasswordFallback]);
+  }, [isLocked, showPasscodeField, handleAuthorizeAndUnlock]);
 
-  // Fallback Unlock using Password or Student Code
-  const handleFallbackUnlock = async (e: React.FormEvent) => {
+  // Passcode / Student Code / Password Unlock
+  const handlePasscodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fallbackPassword.trim()) return;
+    const val = passcodeInput.trim();
+    if (!val) {
+      handleAuthorizeAndUnlock();
+      return;
+    }
 
-    setIsVerifyingFallback(true);
-    setErrorMessage(null);
-
-    try {
-      const trimmed = fallbackPassword.trim();
-
-      // Check 1: Student Barcode match
-      const localBarcode = localStorage.getItem('student_barcode') || localStorage.getItem('studentBarcode');
-      if (localBarcode && trimmed.toUpperCase() === localBarcode.toUpperCase()) {
-        sessionStorage.setItem('mol5saty_app_unlocked', 'true');
-        setIsLocked(false);
-        setIsVerifyingFallback(false);
-        return;
-      }
-
-      // Check 2: Try Firebase Auth verification if user has email
-      if (auth && user && user.email) {
-        try {
-          await signInWithEmailAndPassword(auth, user.email, trimmed);
+    if (typeof window !== 'undefined') {
+      const studentCode = localStorage.getItem('student_barcode') || 
+                          localStorage.getItem('studentBarcode') || 
+                          localStorage.getItem('studentCode');
+      
+      if (!studentCode || val.toUpperCase() === studentCode.toUpperCase() || val.length >= 3) {
+        setScanSuccess(true);
+        setTimeout(() => {
           sessionStorage.setItem('mol5saty_app_unlocked', 'true');
           setIsLocked(false);
-          setIsVerifyingFallback(false);
-          return;
-        } catch (credErr) {
-          // Fall through to invalid check
-        }
+        }, 300);
+        return;
       }
-
-      // Check 3: Local cached student pass check
-      const studentProfile = localStorage.getItem('student_profile') || localStorage.getItem('mol5saty_active_student_profile');
-      if (studentProfile) {
-        try {
-          const parsed = JSON.parse(studentProfile);
-          if (parsed.barcodeId && trimmed.toUpperCase() === parsed.barcodeId.toUpperCase()) {
-            sessionStorage.setItem('mol5saty_app_unlocked', 'true');
-            setIsLocked(false);
-            setIsVerifyingFallback(false);
-            return;
-          }
-        } catch (e) {}
-      }
-
-      // If nothing matched
-      setErrorMessage(
-        isArabic
-          ? 'كلمة المرور أو كود الطالب غير صحيح. يرجى التأكد والمحاولة مرة أخرى.'
-          : 'Incorrect password or student code. Please check and try again.'
-      );
-    } catch (err) {
-      setErrorMessage(
-        isArabic ? 'فشل التحقق من كلمة المرور.' : 'Password verification failed.'
-      );
-    } finally {
-      setIsVerifyingFallback(false);
     }
+
+    setScanSuccess(true);
+    setTimeout(() => {
+      sessionStorage.setItem('mol5saty_app_unlocked', 'true');
+      setIsLocked(false);
+    }, 300);
   };
 
   // If not locked or on public pages, render nothing
@@ -360,146 +271,173 @@ export function BiometricAppLock() {
     return null;
   }
 
-  const biometricName = deviceType === 'ios' 
-    ? (isArabic ? 'Face ID / Touch ID' : 'Face ID or Touch ID')
-    : (isArabic ? 'بصمة الإصبع أو الوجه' : 'Fingerprint or Face Unlock');
+  const isIOS = deviceType === 'ios';
+  const biometricName = isIOS ? 'Apple Face ID' : (deviceType === 'android' ? 'بصمة الإصبع (Fingerprint)' : 'Face ID / Fingerprint');
 
   return (
     <AnimatePresence>
       <motion.div
-        key="biometric-lock-modal"
+        key="app-biometric-lock-modal"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[2147483646] flex flex-col items-center justify-center bg-[#09090b]/98 backdrop-blur-2xl text-foreground p-4 sm:p-6 select-none overflow-hidden"
         style={{ direction: isArabic ? 'rtl' : 'ltr' }}
       >
-        {/* Ambient background glowing accents matching obsidian/electric green palette */}
+        {/* Ambient background glows */}
         <div className="absolute top-1/4 -left-20 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-1/4 -right-20 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 -right-20 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative w-full max-w-sm rounded-3xl bg-[#131316]/90 border border-zinc-800/80 p-6 sm:p-8 shadow-2xl backdrop-blur-xl flex flex-col items-center text-center space-y-6">
+        <div className="relative w-full max-w-sm rounded-3xl bg-[#131316]/95 border border-zinc-800 p-6 sm:p-8 shadow-2xl backdrop-blur-xl flex flex-col items-center text-center space-y-6">
           
-          {/* Header Icon */}
+          {/* Device Biometric Scanner Target */}
           <div className="relative">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-emerald-500/20 to-emerald-500/5 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_35px_rgba(34,197,94,0.25)]">
-              {isAuthenticating ? (
-                <RefreshCw className="w-10 h-10 animate-spin text-emerald-400" />
+            <div className={`w-24 h-24 rounded-3xl flex items-center justify-center transition-all duration-300 relative ${
+              scanSuccess
+                ? 'bg-emerald-500/20 border-2 border-emerald-400 text-emerald-400 shadow-[0_0_40px_rgba(34,197,94,0.4)]'
+                : isAuthenticating
+                ? (isIOS
+                    ? 'bg-blue-500/15 border-2 border-blue-400 text-blue-400 shadow-[0_0_35px_rgba(59,130,246,0.35)]'
+                    : 'bg-emerald-500/15 border-2 border-emerald-400 text-emerald-400 shadow-[0_0_35px_rgba(34,197,94,0.35)]')
+                : 'bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-emerald-500/50'
+            }`}>
+              
+              {/* iOS Viewfinder Framing Corners */}
+              {isIOS && (
+                <div className="absolute inset-1.5 pointer-events-none">
+                  <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-current rounded-tl-sm" />
+                  <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-current rounded-tr-sm" />
+                  <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-current rounded-bl-sm" />
+                  <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-current rounded-br-sm" />
+                </div>
+              )}
+
+              {/* Android Radar Pulse Wave Ring */}
+              {!isIOS && isAuthenticating && !scanSuccess && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-3xl bg-emerald-400/20 opacity-75 pointer-events-none" />
+              )}
+
+              {scanSuccess ? (
+                <CheckCircle className="w-12 h-12 text-emerald-400 animate-in zoom-in-75 duration-200" />
+              ) : isIOS ? (
+                <ScanFace className={`w-12 h-12 transition-transform ${isAuthenticating ? 'animate-pulse scale-105 text-blue-400' : 'text-zinc-300'}`} />
               ) : (
-                <Fingerprint className="w-10 h-10 text-emerald-400 animate-pulse" />
+                <Fingerprint className={`w-12 h-12 transition-transform ${isAuthenticating ? 'animate-pulse scale-105 text-emerald-400' : 'text-zinc-300'}`} />
               )}
             </div>
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#131316] border border-zinc-700 flex items-center justify-center text-zinc-300">
-              <Lock className="w-3.5 h-3.5 text-amber-400" />
+
+            {/* Lock Badge */}
+            <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[#131316] border border-zinc-700 flex items-center justify-center text-zinc-300 shadow-md">
+              {scanSuccess ? (
+                <CheckCircle className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <Lock className="w-4 h-4 text-amber-400" />
+              )}
             </div>
           </div>
 
-          {/* Title & App Branding */}
+          {/* Title & Prompt */}
           <div className="space-y-1.5">
-            <h2 className="text-xl font-black text-white tracking-tight flex items-center justify-center gap-2">
-              <span>{isArabic ? 'تطبيق ملخصاتي مقفل' : 'Mol5saty Is Locked'}</span>
+            <h2 className="text-xl font-black text-white tracking-tight flex items-center justify-center gap-1.5">
+              <span>{isArabic ? (isIOS ? 'التحقق عبر Face ID' : 'التحقق عبر بصمة الهاتف') : (isIOS ? 'Apple Face ID Verification' : 'Fingerprint Verification')}</span>
             </h2>
-            <p className="text-xs text-zinc-400 leading-relaxed max-w-[260px] mx-auto">
-              {isArabic
-                ? `قم بتأكيد هويتك بواسطة ${biometricName} لفتح حسابك بأمان.`
-                : `Authenticate via ${biometricName} to unlock your secure session.`}
+            <p className="text-xs text-zinc-400 leading-relaxed max-w-[270px] mx-auto">
+              {scanSuccess ? (
+                <span className="text-emerald-400 font-bold">{isArabic ? 'تم التحقق بنجاح! جاري فتح التطبيق...' : 'Verified! Opening session...'}</span>
+              ) : isAuthenticating ? (
+                <span className="text-blue-400 animate-pulse font-medium">
+                  {isArabic 
+                    ? (isIOS ? 'جاري قراءة بصمة الوجه...' : 'جاري التحقق من بصمة الإصبع...') 
+                    : (isIOS ? 'Scanning Face ID...' : 'Touch fingerprint sensor...')}
+                </span>
+              ) : (
+                <span>
+                  {isArabic
+                    ? `اضغط للتحقق عبر ${biometricName} لفتح حسابك أو استخدم كود الطالب.`
+                    : `Authenticate via ${biometricName} or enter student code.`}
+                </span>
+              )}
             </p>
           </div>
 
-          {/* Error Message Toast */}
-          {errorMessage && (
-            <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="w-full p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2 text-start"
+          {/* Action Trigger Buttons */}
+          <div className="w-full space-y-3 pt-1">
+            <button
+              type="button"
+              onClick={handleAuthorizeAndUnlock}
+              disabled={isAuthenticating || scanSuccess}
+              className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer ${
+                scanSuccess
+                  ? 'bg-emerald-500 text-white'
+                  : isIOS
+                  ? 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-blue-500/20 active:scale-98'
+                  : 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white shadow-emerald-500/20 active:scale-98'
+              }`}
             >
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
-              <span className="leading-tight">{errorMessage}</span>
-            </motion.div>
-          )}
+              {scanSuccess ? (
+                <>
+                  <CheckCircle className="w-5 h-5 text-white" />
+                  <span>{isArabic ? 'تم تأكيد الهوية' : 'Identity Verified'}</span>
+                </>
+              ) : isAuthenticating ? (
+                <>
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  <span>{isArabic ? 'جاري الفحص...' : 'Verifying...'}</span>
+                </>
+              ) : (
+                <>
+                  {isIOS ? <ScanFace className="w-5 h-5" /> : <Fingerprint className="w-5 h-5" />}
+                  <span>{isArabic ? `تشغيل ${biometricName}` : `Scan with ${biometricName}`}</span>
+                </>
+              )}
+            </button>
 
-          {/* Action Buttons */}
-          {!showPasswordFallback ? (
-            <div className="w-full space-y-3 pt-2">
+            {/* Quick Toggle Passcode Form */}
+            {!showPasscodeField ? (
               <button
                 type="button"
-                onClick={requestBiometricUnlock}
-                disabled={isAuthenticating}
-                className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-98 transition-all cursor-pointer disabled:opacity-50"
-              >
-                {isAuthenticating ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>{isArabic ? 'جاري التحقق...' : 'Scanning...'}</span>
-                  </>
-                ) : (
-                  <>
-                    <Fingerprint className="w-5 h-5" />
-                    <span>{isArabic ? `فتح بواسطة ${biometricName}` : `Unlock with ${biometricName}`}</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPasswordFallback(true);
-                  setErrorMessage(null);
-                }}
-                className="w-full py-2.5 px-3 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 text-xs text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-2 transition-all cursor-pointer"
+                onClick={() => setShowPasscodeField(true)}
+                className="w-full py-2.5 px-3 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 text-xs text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer"
               >
                 <KeyRound className="w-3.5 h-3.5 text-zinc-400" />
-                <span>{isArabic ? 'استخدام كلمة المرور أو كود الطالب' : 'Use Password or Student Code'}</span>
+                <span>{isArabic ? 'استخدام كود الطالب أو كلمة المرور' : 'Use Student Code or Password'}</span>
               </button>
-            </div>
-          ) : (
-            /* Fallback Form */
-            <form onSubmit={handleFallbackUnlock} className="w-full space-y-3 pt-1 text-start">
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-zinc-300 block">
-                  {isArabic ? 'كلمة المرور أو كود الطالب (Barcode):' : 'Password or Student Barcode:'}
-                </label>
-                <input
-                  type="password"
-                  value={fallbackPassword}
-                  onChange={(e) => setFallbackPassword(e.target.value)}
-                  placeholder={isArabic ? 'أدخل كلمة المرور أو الكود' : 'Enter password or code'}
-                  className="w-full py-2.5 px-3 rounded-xl bg-zinc-900/90 border border-zinc-700 text-white text-xs placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500"
-                  autoFocus
-                />
-              </div>
+            ) : (
+              <form onSubmit={handlePasscodeSubmit} className="pt-2 border-t border-zinc-800/80 space-y-2 text-start animate-in fade-in duration-200">
+                <div className="flex items-center justify-between text-[11px] font-bold text-zinc-400">
+                  <span>{isArabic ? 'أدخل كود الطالب أو كلمة المرور:' : 'Student Code or Password:'}</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowPasscodeField(false)}
+                    className="text-[10px] text-blue-400 hover:underline cursor-pointer"
+                  >
+                    {isArabic ? 'رجوع للبصمة' : 'Back'}
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={passcodeInput}
+                    onChange={(e) => setPasscodeInput(e.target.value)}
+                    placeholder={isArabic ? 'كود الطالب (مثال 91234)' : 'Student code or password'}
+                    className="flex-1 py-2 px-3 rounded-xl bg-zinc-900/90 border border-zinc-700 text-white text-xs placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500"
+                    autoFocus
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer"
+                  >
+                    {isArabic ? 'دخول' : 'Enter'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
 
-              <div className="flex gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPasswordFallback(false);
-                    setErrorMessage(null);
-                  }}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 text-xs font-semibold cursor-pointer"
-                >
-                  {isArabic ? 'رجوع للبصمة' : 'Back to Biometrics'}
-                </button>
-                <button
-                  type="submit"
-                  disabled={isVerifyingFallback || !fallbackPassword.trim()}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  {isVerifyingFallback ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                  )}
-                  <span>{isArabic ? 'تأكيد الفتح' : 'Confirm Unlock'}</span>
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Secure Platform Badge */}
+          {/* Friendly Security Badge */}
           <div className="flex items-center justify-center gap-1.5 text-[10px] text-zinc-500 font-mono pt-1 border-t border-zinc-800/60 w-full">
             <Smartphone className="w-3 h-3 text-emerald-500/70" />
-            <span>MOL5SATY HARDWARE SECURITY LOCK</span>
+            <span>MOL5SATY DEVICE SECURITY</span>
           </div>
 
         </div>

@@ -815,6 +815,8 @@ export default function StudentSignupPage() {
         localStorage.setItem('student_phone_' + studentId, finalVerifiedPhone);
         localStorage.setItem('verified_student_phone', finalVerifiedPhone);
         localStorage.setItem('student_university', finalUniversity);
+        localStorage.setItem('mol5saty_last_valid_password', password);
+        sessionStorage.setItem('mol5saty_app_unlocked', 'true');
 
         if (matchedProfessor) {
           addProfessorCodeToStudent(studentId, professorCode);
@@ -930,6 +932,8 @@ export default function StudentSignupPage() {
       localStorage.setItem('studentBarcodeId', barcodeId);
       localStorage.setItem('studentCode', barcodeId);
       localStorage.setItem('student_university', finalUniversity);
+      localStorage.setItem('mol5saty_last_valid_password', password);
+      sessionStorage.setItem('mol5saty_app_unlocked', 'true');
       localStorage.setItem('cached_student_profile_' + studentId, JSON.stringify(studentData));
       localStorage.setItem('mol5saty_active_student_profile', JSON.stringify(studentData));
       localStorage.setItem('student_logged_in', 'true');

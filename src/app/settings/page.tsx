@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LogOut, Users, FileText, Shield, Info, LifeBuoy, Globe, ChevronRight, ChevronLeft, Bell, Lock, Scale, Copyright, User as UserIcon, RotateCcw, AlertTriangle, Database, Upload, Check, Download, AlertCircle, Trash2, ShieldAlert, Fingerprint } from 'lucide-react';
+import { LogOut, Users, FileText, Shield, Info, LifeBuoy, Globe, ChevronRight, ChevronLeft, Bell, Lock, Scale, Copyright, User as UserIcon, RotateCcw, AlertTriangle, Database, Upload, Check, Download, AlertCircle, Trash2, ShieldAlert, Fingerprint, ScanFace } from 'lucide-react';
 import { doc, collection, setDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { Label } from '@/components/ui/label';
@@ -875,6 +875,7 @@ export default function SettingsPage() {
             items: [
                 { id: 'lang', icon: Globe, title: isArabic ? 'اللغة' : 'Language', description: i18n.language === 'ar' ? 'العربية' : 'English', action: toggleLanguage },
                 { id: 'biometric', icon: Fingerprint, title: isArabic ? 'قفل التطبيق بالبصمة (Face ID / Fingerprint)' : 'Biometric App Lock (Face ID / Touch ID)', description: isArabic ? 'طلب البصمة عند فتح التطبيق لحماية الخصوصية' : 'Require biometrics upon launching or resuming app', isToggle: true, state: biometricEnabled, setState: handleToggleBiometric },
+                { id: 'test-biometric', icon: ScanFace, title: isArabic ? 'تجربة فحص البصمة الآن (Face ID / Fingerprint)' : 'Test Biometric Prompt Now', description: isArabic ? 'اضغط لتشغيل فحص البصمة أو Face ID فوراً والتأكد من استجابة الجهاز' : 'Tap to test native Face ID or fingerprint scanner immediately', action: () => { window.dispatchEvent(new Event('trigger_biometric_lock_prompt')); } },
                 { id: 'notif', icon: Bell, title: isArabic ? 'الإشعارات' : 'Notifications', description: isArabic ? 'تشغيل الإشعارات المباشرة' : 'Push notifications', isToggle: true, state: notificationsEnabled, setState: setNotificationsEnabled },
                 { id: 'privacy', href: '/privacy', icon: Shield, title: isArabic ? 'سياسة الخصوصية' : 'Privacy Policy', description: isArabic ? 'التعامل مع البيانات والخصوصية المضمونة' : 'Data handling & security' },
             ]

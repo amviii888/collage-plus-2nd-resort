@@ -26,7 +26,9 @@ import {
   User,
   KeyRound,
   Sun,
-  Moon
+  Moon,
+  ScanFace,
+  Fingerprint
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { isStudentEmail, clearAllStudentAuthSessions, isDeviceLockedOutForStudent, unlockDeviceForStudent } from '@/lib/auth-helpers';
@@ -594,6 +596,17 @@ function LoginFormContent() {
                       ? (isArabic ? 'جاري التحقق...' : 'Authenticating...')
                       : (isArabic ? 'تسجيل الدخول' : 'Sign In')}
                 </Button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new Event('trigger_biometric_lock_prompt'));
+                  }}
+                  className="w-full h-11 rounded-2xl font-bold text-xs transition-all bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center gap-2 cursor-pointer active:scale-95 shadow-xs"
+                >
+                  <ScanFace className="w-4 h-4" />
+                  <span>{isArabic ? 'فتح سريع بواسطة Face ID / بصمة الإصبع' : 'Fast Unlock with Face ID / Fingerprint'}</span>
+                </button>
 
                 {/* Account Type Options Switcher */}
                 <div className="text-center pt-3 border-t border-slate-100 dark:border-slate-800/80">

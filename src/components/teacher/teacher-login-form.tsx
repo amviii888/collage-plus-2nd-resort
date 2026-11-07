@@ -115,6 +115,8 @@ export function TeacherLoginForm() {
 
       localStorage.setItem('teacher_session', 'true');
       localStorage.setItem('teacherId', userCredential.user.uid);
+      localStorage.setItem('mol5saty_last_valid_password', password);
+      sessionStorage.setItem('mol5saty_app_unlocked', 'true');
       
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('connected_professors_updated'));
