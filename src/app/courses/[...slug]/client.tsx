@@ -472,6 +472,19 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
+    const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
+
+    const handleSpeedChange = (speed: number) => {
+        setPlaybackSpeed(speed);
+        sendPlayerCommand('setPlaybackRate', speed);
+        if (iframeRef.current?.contentWindow) {
+            try {
+                iframeRef.current.contentWindow.postMessage(JSON.stringify({ context: 'player.js', method: 'setPlaybackRate', value: speed }), '*');
+                iframeRef.current.contentWindow.postMessage(JSON.stringify({ method: 'playbackRate', value: speed }), '*');
+                iframeRef.current.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setPlaybackRate', args: [speed] }), '*');
+            } catch (e) {}
+        }
+    };
 
     useEffect(() => {
         setIsPlaying(false);

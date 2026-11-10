@@ -111,6 +111,68 @@ export default function AdminTeacherManagementPage() {
     const [copiedCode, setCopiedCode] = useState<string | null>(null);
     const [searchFilter, setSearchFilter] = useState('');
 
+    const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
+    const [selectedTeacherForExtend, setSelectedTeacherForExtend] = useState<any | null>(null);
+    const [extendAmount, setExtendAmount] = useState<number>(100);
+    const [extendNotes, setExtendNotes] = useState<string>('');
+    const [isExtending, setIsExtending] = useState(false);
+
+    const handleOpenExtendModal = (teacher: any) => {
+        setSelectedTeacherForExtend(teacher);
+        setExtendAmount(100);
+        setExtendNotes('');
+        setIsExtendModalOpen(true);
+    };
+
+    const handleSaveCodeExtension = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedTeacherForExtend || !firestore) return;
+        setIsExtending(true);
+
+        try {
+            const tRef = doc(firestore, 'teachers', selectedTeacherForExtend.id);
+            const currentUsage = selectedTeacherForExtend.codeUsage || { date: new Date().toISOString().split('T')[0], count: 0, limit: 300, extraRemaining: 0 };
+            const currentExtra = currentUsage.extraRemaining || 0;
+            const newExtraTotal = currentExtra + Number(extendAmount);
+            const newLimit = 300 + newExtraTotal;
+
+            const newExtensionRecord = {
+                id: 'ext_' + Date.now(),
+                amount: Number(extendAmount),
+                grantedAt: new Date().toISOString(),
+                adminEmail: user?.email || 'admin@mol5saty.com',
+                notes: extendNotes.trim() || 'مدد من لوحة تحكم الأدمن'
+            };
+
+            const existingHistory = selectedTeacherForExtend.extensionHistory || [];
+
+            await setDoc(tRef, {
+                codeUsage: {
+                    ...currentUsage,
+                    limit: newLimit,
+                    extraRemaining: newExtraTotal,
+                    extraRequested: false
+                },
+                extensionHistory: [newExtensionRecord, ...existingHistory]
+            }, { merge: true });
+
+            toast({
+                title: '🎉 تم إضافة الأكواد وتوسيع الحد بنجاح!',
+                description: `تم منح الأستاذ ${selectedTeacherForExtend.name} +${extendAmount} كود إضافي. الحد الإجمالي الحالي: ${newLimit}.`
+            });
+
+            setIsExtendModalOpen(false);
+        } catch (err: any) {
+            toast({
+                title: 'خطأ أثناء توسيع الحد',
+                description: err.message || 'فشل تحديث حدود الأكواد.',
+                variant: 'destructive'
+            });
+        } finally {
+            setIsExtending(false);
+        }
+    };
+
     const [libraryThemes, setLibraryThemes] = useState<any[]>([]);
     const [mappingAssignedThemeId, setMappingAssignedThemeId] = useState('default');
 
@@ -601,6 +663,13 @@ export default function AdminTeacherManagementPage() {
                                                             <Info className="w-4 h-4 text-emerald-400" />
                                                             <span>Info (عدد وحسابات الطلاب المربوطة)</span>
                                                         </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            onClick={() => handleOpenExtendModal({ ...prof, code })}
+                                                            className="gap-2 cursor-pointer text-xs font-bold text-amber-400 focus:text-amber-300 focus:bg-amber-950/50 p-2 rounded-lg mt-1"
+                                                        >
+                                                            <Sparkles className="w-4 h-4 text-amber-400" />
+                                                            <span>Extend Code Limit (توسيع حد الأكواد)</span>
+                                                        </DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
 
@@ -712,6 +781,13 @@ export default function AdminTeacherManagementPage() {
                                                         >
                                                             <Info className="w-4 h-4 text-emerald-400" />
                                                             <span>Info (عدد وحسابات الطلاب المربوطة)</span>
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            onClick={() => handleOpenExtendModal({ ...tItem, code: linkedCode })}
+                                                            className="gap-2 cursor-pointer text-xs font-bold text-amber-400 focus:text-amber-300 focus:bg-amber-950/50 p-2 rounded-lg mt-1"
+                                                        >
+                                                            <Sparkles className="w-4 h-4 text-amber-400" />
+                                                            <span>Extend Code Limit (توسيع حد الأكواد)</span>
                                                         </DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
@@ -996,6 +1072,63 @@ export default function AdminTeacherManagementPage() {
                     </form>
                 </DialogContent>
             </Dialog>
+            {/* CODE EXTENSION MODAL */}
+            <Dialog open={isExtendModalOpen} onOpenChange={setIsExtendModalOpen}>
+                <DialogContent className="bg-zinc-950 border-zinc-800 text-white rounded-3xl p-6 max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-white text-lg font-bold flex items-center gap-2">
+                            <Sparkles className="w-5 h-5 text-emerald-400" />
+                            <span>توسيع حد الأكواد اليومي للأستاذ</span>
+                        </DialogTitle>
+                        <DialogDescription className="text-zinc-400 text-xs">
+                            منح حصص إضافية من الأكواد للأستاذ {selectedTeacherForExtend?.name}. سيتم ترحيل الفائض غير المستخدم لليوم التالي.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form onSubmit={handleSaveCodeExtension} className="space-y-4 pt-2">
+                        <div className="space-y-1.5">
+                            <Label className="text-xs font-bold text-zinc-200">العدد الإضافي المطلوب (مثل +100 أو +500)</Label>
+                            <Input
+                                type="number"
+                                min="1"
+                                max="5000"
+                                value={extendAmount}
+                                onChange={(e) => setExtendAmount(Number(e.target.value))}
+                                className="bg-zinc-900 border-zinc-800 text-white text-sm rounded-xl h-11 font-mono font-bold"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label className="text-xs font-bold text-zinc-200">ملاحظات أو سبب التوسيع (اختياري)</Label>
+                            <Textarea
+                                value={extendNotes}
+                                onChange={(e) => setExtendNotes(e.target.value)}
+                                placeholder="مثال: بناءً على طلب الأستاذ لموسم المراجعات النهائية..."
+                                className="bg-zinc-900 border-zinc-800 text-white text-xs rounded-xl"
+                            />
+                        </div>
+
+                        <DialogFooter className="pt-3">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsExtendModalOpen(false)}
+                                className="border-zinc-800 bg-zinc-900 text-zinc-300 text-xs rounded-xl h-11 cursor-pointer"
+                            >
+                                إلغاء
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={isExtending}
+                                className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs rounded-xl h-11 px-5 shadow-lg shadow-emerald-500/20 cursor-pointer"
+                            >
+                                {isExtending ? 'جاري الحفظ...' : 'تأكيد منح الأكواد'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
             {/* Teacher Info Modal */}
             <TeacherInfoModal
                 isOpen={isInfoModalOpen}

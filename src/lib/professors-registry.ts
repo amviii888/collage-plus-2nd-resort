@@ -158,52 +158,7 @@ export const BUILTIN_APP_ICONS: BuiltinAppIcon[] = [
 /**
  * Base registered professors
  */
-export const REGISTERED_PROFESSORS: ProfessorItem[] = [
-  {
-    id: 'teacher_vv_demo',
-    code: 'VV',
-    name: 'د. وليد فاروق',
-    titleAr: 'أستاذ الفيزياء الحيوية والطبية',
-    titleEn: 'Professor of Biophysics & Medical Physics',
-    subjectAr: 'الفيزياء والعلوم الحيوية',
-    subjectEn: 'Biophysics & Applied Physics',
-    facultyAr: 'كلية الطب البشري والعلوم',
-    facultyEn: 'Faculty of Medicine & Science',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400',
-    heroImageUrl: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=1200',
-    appIconPath: '/icons/professors/vv.svg',
-    appIconEmoji: '⚡',
-    appNameAr: 'منصة د. وليد فاروق [VV]',
-    appNameEn: 'Dr. Waleed Farouk Portal [VV]',
-    themeColor: '#2563eb',
-    coursesCount: 3,
-    studentsCount: 342,
-    descriptionAr: 'البوابة الأكاديمية الرسمية لمحاضرات الفيزياء الطبية الحيوية، بنوك الأسئلة، والامتحانات الدورية.',
-    descriptionEn: 'Official academic portal for medical physics lectures, question banks, and scheduled tests.'
-  },
-  {
-    id: 'teacher_vx_demo',
-    code: 'VX',
-    name: 'د. ياسر خليل',
-    titleAr: 'أستاذ الرياضيات والتحليل العددي',
-    titleEn: 'Professor of Applied Mathematics & Calculus',
-    subjectAr: 'الرياضيات والتحليل المتقدم',
-    subjectEn: 'Calculus & Advanced Analysis',
-    facultyAr: 'كلية الهندسة والحاسبات',
-    facultyEn: 'Faculty of Engineering & Computing',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400',
-    heroImageUrl: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?q=80&w=1200',
-    appIconPath: '/icons/professors/vx.svg',
-    appIconEmoji: '📐',
-    appNameAr: 'منصة د. ياسر خليل [VX]',
-    appNameEn: 'Dr. Yasser Khalil Portal [VX]',
-    themeColor: '#059669',
-    coursesCount: 4,
-    studentsCount: 289,
-    descriptionAr: 'البوابة الأكاديمية التفاعلية لشرح التفاضل والتكامل، الجبر الخطي، ومراجعات الامتحانات النهائية.',
-    descriptionEn: 'Interactive academic portal for calculus, linear algebra, and final exam preparations.'
-  }
-];
+export const REGISTERED_PROFESSORS: ProfessorItem[] = [];
 
 /**
  * Retrieves dynamic admin-assigned teacher code mappings

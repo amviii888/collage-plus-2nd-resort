@@ -78,11 +78,31 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
-  // Search & Filter state for generated codes grid
+  // Search & Filter state for generated codes grid & analytics timeframe
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'used' | 'unused'>('all');
   const [scopeFilter, setScopeFilter] = useState<'all' | 'course' | 'unit' | 'collection'>('all');
   const [timeframeFilter, setTimeframeFilter] = useState<'all' | 'month' | 'week'>('all');
+  const [financialTimeframe, setFinancialTimeframe] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  const [selectedHistoryMonth, setSelectedHistoryMonth] = useState<string>('all');
+  const [historyFilterMode, setHistoryFilterMode] = useState<'all' | 'past10months' | 'custom'>('all');
+  const [historyStartDate, setHistoryStartDate] = useState<string>('');
+  const [historyEndDate, setHistoryEndDate] = useState<string>('');
+  const [selectedPast10Month, setSelectedPast10Month] = useState<string>('all');
+
+  const past10MonthsList = useMemo(() => {
+    const list: Array<{ value: string; label: string }> = [];
+    const now = new Date();
+    for (let i = 0; i < 10; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const value = `${year}-${month}`;
+      const label = d.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' });
+      list.push({ value, label });
+    }
+    return list;
+  }, []);
   
   const teacherId = teacher.id;
 
@@ -155,12 +175,32 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
   }, [selectedCourse]);
 
   // --------------------------------------------------------------------------
-  // Financial Metrics & Analytics Computations
-  // --------------------------------------------------------------------------
+  // Financial Metrics & Analytics Computations (with Timeframe Filter)
   const analytics = useMemo(() => {
     if (!rawShareCodes || !Array.isArray(rawShareCodes)) {
       return { totalCodes: 0, activatedCount: 0, unusedCount: 0, activatedEarnings: 0, pendingRevenue: 0, totalPotential: 0 };
     }
+
+    const now = new Date();
+    const codesToAnalyze = rawShareCodes.filter(Boolean).filter(item => {
+      try {
+        const created = item.createdAt?.toDate ? item.createdAt.toDate() : (item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000) : null);
+        if (!created) return true;
+        if (financialTimeframe === 'today') {
+          return created.toISOString().split('T')[0] === todayStr;
+        }
+        if (financialTimeframe === 'week') {
+          const diffDays = (now.getTime() - created.getTime()) / (1000 * 3600 * 24);
+          return diffDays <= 7;
+        }
+        if (financialTimeframe === 'month') {
+          return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear();
+        }
+      } catch (e) {
+        return true;
+      }
+      return true;
+    });
 
     let totalCodes = 0;
     let activatedCount = 0;
@@ -168,8 +208,7 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
     let activatedEarnings = 0;
     let pendingRevenue = 0;
 
-    rawShareCodes.filter(Boolean).forEach(item => {
-      if (!item) return;
+    codesToAnalyze.forEach(item => {
       totalCodes++;
       const itemPrice = typeof item.price === 'number' ? item.price : 0;
 
@@ -190,7 +229,65 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
       pendingRevenue,
       totalPotential: activatedEarnings + pendingRevenue
     };
-  }, [rawShareCodes]);
+  }, [rawShareCodes, financialTimeframe, todayStr]);
+
+  // Code Generation History Audit Trail Batches (with Custom Date Range & Past 10 Months Filter)
+  const generationBatches = useMemo(() => {
+    if (!rawShareCodes || !Array.isArray(rawShareCodes)) return [];
+    
+    const map = new Map<string, { date: string; month: string; title: string; type: string; count: number; price: number; codes: string[]; timestamp: any }>();
+
+    rawShareCodes.filter(Boolean).forEach(c => {
+      try {
+        const created = c.createdAt?.toDate ? c.createdAt.toDate() : (c.createdAt?.seconds ? new Date(c.createdAt.seconds * 1000) : new Date());
+        const dateStr = created.toISOString().split('T')[0];
+        const monthStr = dateStr.substring(0, 7);
+        const title = c.unitTitle || c.courseTitle || c.collectionTitle || 'مقرر عام';
+        const key = `${dateStr}_${title}_${c.price || 0}`;
+
+        if (!map.has(key)) {
+          map.set(key, {
+            date: dateStr,
+            month: monthStr,
+            title,
+            type: c.type || 'course',
+            count: 0,
+            price: c.price || 0,
+            codes: [],
+            timestamp: created
+          });
+        }
+        const entry = map.get(key)!;
+        entry.count++;
+        entry.codes.push(c.code);
+      } catch (e) {}
+    });
+
+    let batches = Array.from(map.values());
+    const now = new Date();
+
+    if (historyFilterMode === 'past10months') {
+      if (selectedPast10Month !== 'all') {
+        batches = batches.filter(b => b.month === selectedPast10Month);
+      } else {
+        const tenMonthsAgo = new Date();
+        tenMonthsAgo.setMonth(now.getMonth() - 10);
+        batches = batches.filter(b => b.timestamp >= tenMonthsAgo);
+      }
+    } else if (historyFilterMode === 'custom') {
+      if (historyStartDate) {
+        batches = batches.filter(b => b.date >= historyStartDate);
+      }
+      if (historyEndDate) {
+        batches = batches.filter(b => b.date <= historyEndDate);
+      }
+    } else if (selectedHistoryMonth !== 'all') {
+      batches = batches.filter(b => b.month === selectedHistoryMonth);
+    }
+
+    batches.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    return batches;
+  }, [rawShareCodes, historyFilterMode, historyStartDate, historyEndDate, selectedHistoryMonth, selectedPast10Month]);
 
   // Filtered Codes List for 2-Column Grid
   const filteredCodes = useMemo(() => {
@@ -550,84 +647,244 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
         </Button>
       </div>
 
-      {/* 1. FINANCIAL ANALYTICS TOP CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Activated Realized Earnings */}
-        <Card className="bg-gradient-to-br from-emerald-950/60 to-zinc-950 border-emerald-500/30 p-5 rounded-3xl shadow-xl relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-400 tracking-wide uppercase">الأرباح المحققة (Activated)</span>
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-              <Coins className="w-5 h-5" />
-            </div>
+      {/* 1. FINANCIAL ANALYTICS TOP CARDS & TIMEFRAME FILTER */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3 bg-zinc-950 p-4 rounded-2xl border border-zinc-800">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-emerald-400" />
+            <span className="text-xs font-bold text-white">فلترة المؤشرات والأرباح حسب الفترة الزمنية:</span>
           </div>
-          <div className="mt-4">
-            <div className="text-2xl sm:text-3xl font-mono font-black text-white flex items-baseline gap-1.5">
-              <span>{analytics.activatedEarnings.toLocaleString()}</span>
-              <span className="text-xs font-sans text-emerald-400 font-bold">EGP</span>
-            </div>
-            <p className="text-[11px] text-zinc-400 mt-1.5">
-              عائد {analytics.activatedCount} كود تم تفعيله بواسطة الطلاب.
-            </p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {[
+              { id: 'all', label: 'كل الأوقات' },
+              { id: 'today', label: 'اليوم' },
+              { id: 'week', label: 'هذا الأسبوع' },
+              { id: 'month', label: 'هذا الشهر' },
+            ].map(tf => (
+              <Button
+                key={tf.id}
+                type="button"
+                variant={financialTimeframe === tf.id ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFinancialTimeframe(tf.id as any)}
+                className={cn(
+                  "text-xs rounded-xl h-8 px-3 font-bold cursor-pointer",
+                  financialTimeframe === tf.id 
+                    ? "bg-emerald-500 text-black hover:bg-emerald-600" 
+                    : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800"
+                )}
+              >
+                {tf.label}
+              </Button>
+            ))}
           </div>
-        </Card>
+        </div>
 
-        {/* Card 2: Pending Revenue */}
-        <Card className="bg-gradient-to-br from-amber-950/40 to-zinc-950 border-amber-500/20 p-5 rounded-3xl shadow-xl relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-amber-300 tracking-wide uppercase">أرباح متوقعة (Pending)</span>
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
-              <DollarSign className="w-5 h-5" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Activated Realized Earnings */}
+          <Card className="bg-gradient-to-br from-emerald-950/60 to-zinc-950 border-emerald-500/30 p-5 rounded-3xl shadow-xl relative overflow-hidden">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-400 tracking-wide uppercase">الأرباح المحققة (Activated)</span>
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <Coins className="w-5 h-5" />
+              </div>
             </div>
-          </div>
-          <div className="mt-4">
-            <div className="text-2xl sm:text-3xl font-mono font-black text-amber-300 flex items-baseline gap-1.5">
-              <span>{analytics.pendingRevenue.toLocaleString()}</span>
-              <span className="text-xs font-sans text-amber-400 font-bold">EGP</span>
+            <div className="mt-4">
+              <div className="text-2xl sm:text-3xl font-mono font-black text-white flex items-baseline gap-1.5">
+                <span>{analytics.activatedEarnings.toLocaleString()}</span>
+                <span className="text-xs font-sans text-emerald-400 font-bold">EGP</span>
+              </div>
+              <p className="text-[11px] text-zinc-400 mt-1.5">
+                عائد {analytics.activatedCount} كود تم تفعيله بواسطة الطلاب.
+              </p>
             </div>
-            <p className="text-[11px] text-zinc-400 mt-1.5">
-              قيمة {analytics.unusedCount} كود صادر متداول لم يُفعل بعد.
-            </p>
-          </div>
-        </Card>
+          </Card>
 
-        {/* Card 3: Total Potential Catalog Value */}
-        <Card className="bg-zinc-950 border-zinc-800 p-5 rounded-3xl shadow-xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-zinc-400 tracking-wide uppercase">إجمالي القيمة الصادرة</span>
-            <div className="w-10 h-10 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300">
-              <TrendingUp className="w-5 h-5 text-teal-400" />
+          {/* Card 2: Pending Revenue */}
+          <Card className="bg-gradient-to-br from-amber-950/40 to-zinc-950 border-amber-500/20 p-5 rounded-3xl shadow-xl relative overflow-hidden">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-300 tracking-wide uppercase">أرباح متوقعة (Pending)</span>
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <DollarSign className="w-5 h-5" />
+              </div>
             </div>
-          </div>
-          <div className="mt-4">
-            <div className="text-2xl sm:text-3xl font-mono font-black text-white flex items-baseline gap-1.5">
-              <span>{analytics.totalPotential.toLocaleString()}</span>
-              <span className="text-xs font-sans text-zinc-400 font-bold">EGP</span>
+            <div className="mt-4">
+              <div className="text-2xl sm:text-3xl font-mono font-black text-amber-300 flex items-baseline gap-1.5">
+                <span>{analytics.pendingRevenue.toLocaleString()}</span>
+                <span className="text-xs font-sans text-amber-400 font-bold">EGP</span>
+              </div>
+              <p className="text-[11px] text-zinc-400 mt-1.5">
+                قيمة {analytics.unusedCount} كود صادر متداول لم يُفعل بعد.
+              </p>
             </div>
-            <p className="text-[11px] text-zinc-400 mt-1.5">
-              إجمالي القيمة المالية لجميع الأكواد ({analytics.totalCodes} كود).
-            </p>
-          </div>
-        </Card>
+          </Card>
 
-        {/* Card 4: Daily Limit & Usage */}
-        <Card className="bg-zinc-950 border-zinc-800 p-5 rounded-3xl shadow-xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-zinc-400 tracking-wide uppercase">الحد اليومي لإنشاء الأكواد</span>
-            <div className="w-10 h-10 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-emerald-400">
-              <Sparkles className="w-5 h-5" />
+          {/* Card 3: Total Potential Catalog Value */}
+          <Card className="bg-zinc-950 border-zinc-800 p-5 rounded-3xl shadow-xl">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-zinc-400 tracking-wide uppercase">إجمالي القيمة الصادرة</span>
+              <div className="w-10 h-10 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300">
+                <TrendingUp className="w-5 h-5 text-teal-400" />
+              </div>
             </div>
-          </div>
-          <div className="mt-4">
-            <div className="text-2xl sm:text-3xl font-mono font-black text-white flex items-baseline gap-1">
-              <span>{usage?.date === todayStr ? usage.count : 0}</span>
-              <span className="text-sm text-zinc-500 font-mono">/ {usage?.limit || 300}</span>
+            <div className="mt-4">
+              <div className="text-2xl sm:text-3xl font-mono font-black text-white flex items-baseline gap-1.5">
+                <span>{analytics.totalPotential.toLocaleString()}</span>
+                <span className="text-xs font-sans text-zinc-400 font-bold">EGP</span>
+              </div>
+              <p className="text-[11px] text-zinc-400 mt-1.5">
+                إجمالي القيمة المالية لجميع الأكواد ({analytics.totalCodes} كود).
+              </p>
             </div>
-            <p className="text-[11px] text-zinc-400 mt-1.5">
-              المتبقي لك اليوم: {Math.max(0, (usage?.limit || 300) - (usage?.date === todayStr ? usage.count : 0))} كود.
-            </p>
-          </div>
-        </Card>
+          </Card>
+
+          {/* Card 4: Daily Limit & Usage */}
+          <Card className="bg-zinc-950 border-zinc-800 p-5 rounded-3xl shadow-xl">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-zinc-400 tracking-wide uppercase">الحد اليومي لإنشاء الأكواد</span>
+              <div className="w-10 h-10 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-emerald-400">
+                <Sparkles className="w-5 h-5" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="text-2xl sm:text-3xl font-mono font-black text-white flex items-baseline gap-1">
+                <span>{usage?.date === todayStr ? usage.count : 0}</span>
+                <span className="text-sm text-zinc-500 font-mono">/ {usage?.limit || 300}</span>
+              </div>
+              <p className="text-[11px] text-zinc-400 mt-1.5">
+                المتبقي لك اليوم: {Math.max(0, (usage?.limit || 300) - (usage?.date === todayStr ? usage.count : 0))} كود.
+              </p>
+            </div>
+          </Card>
+        </div>
       </div>
+
+      {/* CODE GENERATION HISTORY & AUDIT TRAIL */}
+      <Card className="bg-zinc-950 border-zinc-800 rounded-3xl shadow-2xl overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-zinc-900 to-zinc-950 border-b border-zinc-800/80 p-6 flex flex-row items-center justify-between flex-wrap gap-4">
+          <div>
+            <CardTitle className="text-white text-lg sm:text-xl font-bold flex items-center gap-2">
+              <Clock className="w-5 h-5 text-amber-400" />
+              <span>سجل وتاريخ عمليات إنشاء الأكواد (Generation History Audit)</span>
+            </CardTitle>
+            <CardDescription className="text-zinc-400 text-xs mt-1">
+              تتبع جميع دفعات توليد الأكواد السابقة، عدد الأكواد، التاريخ، والمحتوى المرتبط عبر أي شهر أو فترة.
+            </CardDescription>
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
+              <Button
+                type="button"
+                variant={historyFilterMode === 'all' && selectedHistoryMonth === 'all' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => { setHistoryFilterMode('all'); setSelectedHistoryMonth('all'); }}
+                className={cn("text-xs h-8 px-3 font-bold cursor-pointer", (historyFilterMode === 'all' && selectedHistoryMonth === 'all') ? "bg-emerald-500 text-black hover:bg-emerald-600" : "text-zinc-300")}
+              >
+                كل الأوقات
+              </Button>
+              <Button
+                type="button"
+                variant={historyFilterMode === 'past10months' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => { setHistoryFilterMode('past10months'); setSelectedHistoryMonth('all'); }}
+                className={cn("text-xs h-8 px-3 font-bold cursor-pointer", historyFilterMode === 'past10months' ? "bg-emerald-500 text-black hover:bg-emerald-600" : "text-zinc-300")}
+              >
+                آخر 10 شهور
+              </Button>
+              <Button
+                type="button"
+                variant={historyFilterMode === 'custom' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setHistoryFilterMode('custom')}
+                className={cn("text-xs h-8 px-3 font-bold cursor-pointer", historyFilterMode === 'custom' ? "bg-emerald-500 text-black hover:bg-emerald-600" : "text-zinc-300")}
+              >
+                تاريخ مخصص
+              </Button>
+            </div>
+
+            {historyFilterMode === 'custom' ? (
+              <div className="flex items-center gap-2 bg-zinc-900 p-2 rounded-xl border border-zinc-800">
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] text-zinc-400 font-bold">من:</span>
+                  <input
+                    type="date"
+                    value={historyStartDate}
+                    onChange={(e) => setHistoryStartDate(e.target.value)}
+                    className="bg-black border border-zinc-800 text-white text-xs rounded-lg px-2.5 py-1 font-mono cursor-pointer"
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] text-zinc-400 font-bold">إلى:</span>
+                  <input
+                    type="date"
+                    value={historyEndDate}
+                    onChange={(e) => setHistoryEndDate(e.target.value)}
+                    className="bg-black border border-zinc-800 text-white text-xs rounded-lg px-2.5 py-1 font-mono cursor-pointer"
+                  />
+                </div>
+              </div>
+            ) : historyFilterMode === 'past10months' ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-400 font-bold">اختر الشهر:</span>
+                <Select value={selectedPast10Month} onValueChange={setSelectedPast10Month}>
+                  <SelectTrigger className="bg-zinc-900 border-zinc-800 text-white text-xs rounded-xl h-9 w-[170px]">
+                    <SelectValue placeholder="اختر شهراً" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-950 border-zinc-800 text-white text-xs">
+                    <SelectItem value="all">جميع الشهور (آخر 10)</SelectItem>
+                    {past10MonthsList.map(m => (
+                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-400 font-bold">شهر محدد:</span>
+                <input
+                  type="month"
+                  value={selectedHistoryMonth === 'all' ? '' : selectedHistoryMonth}
+                  onChange={(e) => {
+                    setSelectedHistoryMonth(e.target.value || 'all');
+                    if (e.target.value) setHistoryFilterMode('all');
+                  }}
+                  className="bg-zinc-900 border border-zinc-800 text-white text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono cursor-pointer"
+                  title="اختر أي شهر في السنة"
+                />
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          {generationBatches.length === 0 ? (
+            <div className="text-center py-10 text-zinc-500 text-xs">
+              لا توجد سجلات لعمليات توليد سابقة في هذه الفترة.
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+              {generationBatches.map((batch, idx) => (
+                <div key={idx} className="flex items-center justify-between bg-zinc-900/80 border border-zinc-800/80 p-4 rounded-2xl hover:border-zinc-700 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-mono font-bold text-xs">
+                      {batch.count}
+                    </div>
+                    <div>
+                      <p className="font-bold text-white text-xs sm:text-sm">{batch.title}</p>
+                      <p className="text-[11px] text-zinc-400 mt-0.5">
+                        تم إنشاء <span className="font-bold text-emerald-400">{batch.count} كود</span> بتاريخ {batch.date} بقيمة {batch.price} EGP للكود.
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[11px] font-mono">
+                    دفعة ناجحة
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* 2. CODE GENERATION STUDIO PANEL */}
       <Card className="bg-zinc-950 border-zinc-800 rounded-3xl shadow-2xl overflow-hidden">
