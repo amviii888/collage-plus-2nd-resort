@@ -239,7 +239,7 @@ export function BunnyVideoUploader({
 
     toast({
       title: '🎉 تم رفع الفيديو بنجاح!',
-      description: 'تم ربط الفيديو وتعيين كود Bunny تلقائياً في الدرس.',
+      description: 'تم ربط وتأمين الفيديو بنجاح كفيديو سحابي محمي ومتاح للطلاب.',
     });
 
     // Check status after a couple seconds to confirm transcoding
@@ -298,7 +298,7 @@ export function BunnyVideoUploader({
           </div>
           <div>
             <h4 className="text-sm font-bold flex items-center gap-2">
-              <span>رفع فيديو مباشر إلى Bunny Stream</span>
+              <span>رفع فيديو سحابي مشفر (Cloud Stream)</span>
               <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] py-0 px-1.5 flex items-center gap-1 font-mono">
                 <ShieldCheck className="w-3 h-3" /> DRM Protection
               </Badge>
@@ -379,7 +379,7 @@ export function BunnyVideoUploader({
               className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm h-11 rounded-xl shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2"
             >
               <Upload className="w-4 h-4" />
-              بدء الرفع المباشر إلى Bunny ({formatBytes(selectedFile.size)})
+              بدء رفع الفيديو السحابي ({formatBytes(selectedFile.size)})
             </Button>
             {onCancel && (
               <Button
@@ -447,12 +447,13 @@ export function BunnyVideoUploader({
               <div>
                 <h5 className="text-sm font-bold text-white flex items-center gap-2">
                   <span>تم رفع وربط الفيديو بنجاح!</span>
-                  <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-[10px] py-0 px-1 font-mono">
-                    ID: {uploadedVideo.videoId.slice(0, 8)}...
+                  <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-[10px] py-0.5 px-2 flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                    مشفر ومحمي (DRM)
                   </Badge>
                 </h5>
                 <p className="text-xs text-zinc-300 mt-0.5">
-                  تم وضع كود الفيديو تلقائياً في خانة الرابط. الفيديو محمي ومتاح للطلاب.
+                  تم حفظ وتأمين الفيديو بنجاح. الفيديو مشفر ومتاح للطلاب بأمان.
                 </p>
               </div>
             </div>
@@ -476,22 +477,25 @@ export function BunnyVideoUploader({
                   src={uploadedVideo.embedUrl}
                   className="w-full h-full border-0"
                   referrerPolicy="strict-origin-when-cross-origin"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
                   allowFullScreen
+                  disablepictureinpicture="true"
+                  data-disable-pip="true"
                 />
               </div>
               <p className="text-[11px] text-zinc-400 bg-zinc-900/70 p-2.5 rounded-lg border border-zinc-800 flex items-start gap-1.5">
                 <Info className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                 <span>
-                  <strong>تنبيه إعدادات الحماية في Bunny:</strong> إذا ظهرت لك شاشة 403 داخل المشغل، تأكد من الدخول إلى لوحة Bunny.net &gt; Stream &gt; Security وإضافة رابط الموقع إلى قائمة <strong>Allowed Domains</strong> (أو وضع <code>*</code> للسماح بجميع النطاقات أثناء التجربة).
+                  <strong>معاينة المحاضرة:</strong> الفيديو متاح الآن للتشغيل بأعلى جودة مع دعم التشفير ومنع التحميل المباشر.
                 </span>
               </p>
             </div>
           )}
 
           <div className="flex items-center justify-between pt-2 border-t border-emerald-500/20">
-            <span className="text-[11px] text-zinc-400 font-mono">
-              Bunny ID: {uploadedVideo.videoId}
+            <span className="text-[11px] text-emerald-400/90 flex items-center gap-1.5 font-medium">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              فيديو سحابي مؤمن ومشفر ضد التحميل
             </span>
             <Button
               type="button"

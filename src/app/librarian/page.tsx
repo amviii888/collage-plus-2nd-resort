@@ -1187,34 +1187,43 @@ export default function LibrarianPortalPage() {
               </div>
             </div>
 
-            {/* Cover image URL and file upload */}
+            {/* Cover image upload */}
             <div className="space-y-2 text-right">
-              <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200">صورة غلاف الكتاب (رابط أو رفع من جهازك)</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={bookCoverUrl}
-                  onChange={(e) => setBookCoverUrl(e.target.value)}
-                  placeholder="https://... رابط صورة الغلاف أو ارفع من جهازك"
-                  className="h-10 bg-slate-50 dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs font-mono text-left rounded-xl flex-1"
-                />
-                <label className="h-10 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer flex items-center gap-1.5 shrink-0 shadow-xs">
-                  <UploadCloud className="w-4 h-4" />
-                  <span>رفع غلاف</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleCloudinaryUpload(e, 'cover')}
-                  />
-                </label>
-              </div>
-              {bookCoverUrl && (
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={bookCoverUrl} alt="Cover" className="w-10 h-10 object-cover rounded-lg" />
-                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold truncate">تم تعيين صورة الغلاف بنجاح</span>
+              <Label className="text-xs font-bold text-slate-800 dark:text-zinc-200">صورة غلاف الكتاب</Label>
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-800">
+                <div className="flex items-center gap-2">
+                  {bookCoverUrl ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={bookCoverUrl} alt="Cover" className="w-9 h-9 object-cover rounded-lg shadow-xs" />
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">تم تعيين صورة الغلاف بنجاح</span>
+                    </>
+                  ) : (
+                    <span className="text-xs text-slate-500">لم يتم اختيار غلاف بعد</span>
+                  )}
                 </div>
-              )}
+                <div className="flex items-center gap-2">
+                  {bookCoverUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setBookCoverUrl('')}
+                      className="text-xs text-rose-500 hover:underline font-bold"
+                    >
+                      إزالة
+                    </button>
+                  )}
+                  <label className="h-9 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer flex items-center gap-1.5 shrink-0 shadow-xs">
+                    <UploadCloud className="w-4 h-4" />
+                    <span>{bookCoverUrl ? 'تغيير الغلاف' : 'رفع غلاف'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleCloudinaryUpload(e, 'cover')}
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
 
             {/* PDF document URL and file upload */}

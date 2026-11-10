@@ -72,5 +72,20 @@ The application logo should reinforce the theme of structured, natural, and mode
   - Active teacher attendance and student check-ins are handled via the modern teacher portal (`/src/components/teacher/TeacherAttendance.tsx`).
   - Do not modify, re-scaffold, or perform unrequested maintenance on `CheckInPage.tsx`. Keep it safely untouched.
 
+---
+
+## 🧠 Explanatory Transferrable Prompts (Feature Porting Prompts)
+
+When the user requests an **Explanatory Transferrable Prompt** for any feature:
+1. **Purpose**: Generate a comprehensive, self-contained prompt describing a specific feature from the ground up so the user can copy-paste it directly into another AI Studio project or agent to replicate that feature accurately.
+2. **Standard Prompt Structure to Generate**:
+   - **System Identity & Feature Overview**: Clear executive explanation of what the feature does, its UX purpose, and user story.
+   - **Ground-Up Architecture & Logistics**: Data models, state management, collections/schemas, and API contracts.
+   - **What to Do (Best Practices)**: Detailed implementation steps, core algorithms, sync/cache triggers, and UI interactions.
+   - **What NOT to Do (Pitfalls & Traps)**: Explicit anti-patterns, edge cases, quota issues, infinite re-render risks, and common failure points.
+   - **Component & File Layout**: The exact expected file structure and component responsibilities in the target app.
+   - **Integration Checklist**: Step-by-step verification points for the receiving AI to ensure end-to-end functionality.
+
+
 
 

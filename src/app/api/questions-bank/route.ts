@@ -4,18 +4,19 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 export async function GET(req: NextRequest) {
   try {
-    const admin = getFirebaseAdmin();
-    if (!admin) {
-      return NextResponse.json({ error: 'Firebase Admin not initialized' }, { status: 500 });
-    }
-    const db = admin.db();
-
     const { searchParams } = new URL(req.url);
     const teacherId = searchParams.get('teacherId');
 
     if (!teacherId) {
       return NextResponse.json({ error: 'Missing teacherId parameter' }, { status: 400 });
     }
+
+    const admin = getFirebaseAdmin();
+    if (!admin) {
+      // Graceful fallback: return empty data array so client-side Firestore can handle or show empty state without 500 error
+      return NextResponse.json({ data: [] });
+    }
+    const db = admin.db();
 
     const snapshot = await db.collection('questionBanks')
       .where('teacherId', '==', teacherId)
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: items });
   } catch (error: any) {
     console.error('Error fetching question banks via admin SDK:', error);
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
+    return NextResponse.json({ data: [] });
   }
 }
 

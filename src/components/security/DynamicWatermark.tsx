@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useStudent, useUser } from '@/firebase';
+import { useStudent, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
 import type { DynamicWatermarkConfig } from '@/lib/watermark-types';
 import { DEFAULT_WATERMARK_CONFIG } from '@/lib/watermark-types';
 import { ShieldAlert, Lock, AlertTriangle, EyeOff, QrCode } from 'lucide-react';
@@ -14,6 +15,9 @@ interface DynamicWatermarkProps {
   teacherId?: string;
   config?: Partial<DynamicWatermarkConfig>;
   forceCanvasStamp?: boolean;
+  enableQrStamp?: boolean;
+  enableAudioTts?: boolean;
+  enableVisualWatermark?: boolean;
   // Mock data for preview mode in teacher settings
   previewStudent?: {
     name?: string;
@@ -28,6 +32,9 @@ export function DynamicWatermark({
   teacherId,
   config: overrideConfig,
   forceCanvasStamp,
+  enableQrStamp,
+  enableAudioTts,
+  enableVisualWatermark,
   previewStudent,
 }: DynamicWatermarkProps) {
   const pathname = usePathname();
@@ -70,12 +77,29 @@ export function DynamicWatermark({
     };
   }, []);
 
-  // Load teacher's saved config from localStorage / teacher profile
+  const firestore = useFirestore();
+  const teacherDocRef = useMemoFirebase(() => {
+    if (!firestore || !teacherId) return null;
+    return doc(firestore, 'teachers', teacherId);
+  }, [firestore, teacherId]);
+  const { data: cloudTeacher } = useDoc<any>(teacherDocRef);
+
+  // Load teacher's saved config from props, Firestore, or localStorage
   const [teacherConfig, setTeacherConfig] = useState<DynamicWatermarkConfig>(DEFAULT_WATERMARK_CONFIG);
 
   useEffect(() => {
-    if (overrideConfig) {
+    if (overrideConfig && Object.keys(overrideConfig).length > 0) {
       setTeacherConfig({ ...DEFAULT_WATERMARK_CONFIG, ...overrideConfig });
+      return;
+    }
+
+    if (cloudTeacher?.watermarkConfig) {
+      setTeacherConfig({ ...DEFAULT_WATERMARK_CONFIG, ...cloudTeacher.watermarkConfig });
+      if (typeof window !== 'undefined' && teacherId) {
+        try {
+          localStorage.setItem(`prof_watermark_${teacherId}`, JSON.stringify(cloudTeacher.watermarkConfig));
+        } catch (e) {}
+      }
       return;
     }
 
@@ -93,13 +117,26 @@ export function DynamicWatermark({
         } catch (e) {}
       }
     }
-  }, [teacherId, overrideConfig]);
+  }, [teacherId, overrideConfig, cloudTeacher]);
 
-  const cfg = useMemo(() => ({
-    ...DEFAULT_WATERMARK_CONFIG,
-    ...teacherConfig,
-    ...overrideConfig,
-  }), [teacherConfig, overrideConfig]);
+  const cfg = useMemo(() => {
+    const base = {
+      ...DEFAULT_WATERMARK_CONFIG,
+      ...teacherConfig,
+      ...(cloudTeacher?.watermarkConfig || {}),
+      ...(overrideConfig || {}),
+    };
+    if (enableQrStamp === false) {
+      base.showQrStamp = false;
+    }
+    if (enableAudioTts === false) {
+      base.ttsEnabled = false;
+    }
+    if (enableVisualWatermark === false) {
+      base.enabled = false;
+    }
+    return base;
+  }, [teacherConfig, cloudTeacher, overrideConfig, enableQrStamp, enableAudioTts, enableVisualWatermark]);
 
   // Cached student profile fallback (for instant zero-latency rendering & offline support)
   const localCachedStudent = useMemo(() => {
@@ -274,15 +311,37 @@ export function DynamicWatermark({
   // ----------------------------------------------------
   // 4. Text-To-Speech (Audio Watermark - 100% Free Web Speech API)
   // ----------------------------------------------------
+  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const hasSpokenAutoStartRef = useRef(false);
+  const audioUnlockedRef = useRef(false);
+
+  const isTtsAllowed = useMemo(() => {
+    return cfg.ttsEnabled !== false && enableAudioTts !== false;
+  }, [cfg.ttsEnabled, enableAudioTts]);
+
   const speakWatermarkAudio = useCallback(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
+    if (!isTtsAllowed) {
+      try {
+        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+          window.speechSynthesis.cancel();
+        }
+      } catch (e) {}
+      activeUtteranceRef.current = null;
+      return;
+    }
+
     try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
       window.speechSynthesis.cancel();
 
       const uniPhrase = cfg.showUniversity && studentUniversity ? `، ${studentUniversity}` : '';
       const arabicPhrase = `تنبيه أمني. محتوى مرخص للطالب ${studentName}، كود الطالب ${studentCode}، هاتف ${studentPhone}${uniPhrase}.`;
       const utterance = new SpeechSynthesisUtterance(arabicPhrase);
+      activeUtteranceRef.current = utterance; // Prevent WebKit garbage collection cutoff
       
       // Select voice personality: female, male, or child
       const voiceStyle = cfg.ttsVoice || 'female';
@@ -303,13 +362,32 @@ export function DynamicWatermark({
 
       utterance.pitch = pitch;
       utterance.rate = rate;
-      utterance.volume = 0.95;
+      utterance.volume = 1.0;
       utterance.lang = 'ar-SA';
+
+      utterance.onend = () => {
+        activeUtteranceRef.current = null;
+      };
+      utterance.onerror = (e) => {
+        console.warn('SpeechSynthesis notice:', e);
+        activeUtteranceRef.current = null;
+      };
 
       const applyVoiceAndSpeak = () => {
         try {
-          const voices = window.speechSynthesis.getVoices();
-          const arVoices = voices.filter(v => v.lang.startsWith('ar') || v.name.toLowerCase().includes('arabic') || v.lang.includes('ar-EG') || v.lang.includes('ar-SA'));
+          if (!isTtsAllowed) {
+            window.speechSynthesis.cancel();
+            activeUtteranceRef.current = null;
+            return;
+          }
+          const voices = window.speechSynthesis.getVoices() || [];
+          const arVoices = voices.filter(v => 
+            v.lang?.toLowerCase().startsWith('ar') || 
+            v.name?.toLowerCase().includes('arabic') || 
+            v.lang?.includes('ar-EG') || 
+            v.lang?.includes('ar-SA') ||
+            v.lang?.includes('ar')
+          );
           
           if (arVoices.length > 0) {
             if (voiceStyle === 'male') {
@@ -333,12 +411,23 @@ export function DynamicWatermark({
             }
           }
 
+          if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+          }
           window.speechSynthesis.speak(utterance);
-        } catch (err) {}
+          // iOS Safari bugfix: ensure resume is kicked after speak call
+          setTimeout(() => {
+            if (window.speechSynthesis.paused) {
+              window.speechSynthesis.resume();
+            }
+          }, 100);
+        } catch (err) {
+          console.warn('Error during speak dispatch:', err);
+        }
       };
 
       const initialVoices = window.speechSynthesis.getVoices();
-      if (initialVoices.length === 0) {
+      if (!initialVoices || initialVoices.length === 0) {
         window.speechSynthesis.onvoiceschanged = () => {
           applyVoiceAndSpeak();
           window.speechSynthesis.onvoiceschanged = null;
@@ -347,14 +436,14 @@ export function DynamicWatermark({
           if (!window.speechSynthesis.speaking) {
             applyVoiceAndSpeak();
           }
-        }, 300);
+        }, 250);
       } else {
         applyVoiceAndSpeak();
       }
     } catch (e) {
       console.warn('TTS watermark speak notice:', e);
     }
-  }, [studentName, studentCode, studentPhone, studentUniversity, cfg.showUniversity, cfg.ttsVoice]);
+  }, [studentName, studentCode, studentPhone, studentUniversity, cfg.showUniversity, cfg.ttsVoice, isTtsAllowed]);
 
   // Event listener for manual / test trigger from UI
   useEffect(() => {
@@ -367,33 +456,101 @@ export function DynamicWatermark({
     };
   }, [speakWatermarkAudio]);
 
-  // Automatic TTS execution (initial test delay + recurring interval)
+  // Reset spoken state & cancel speech when enableAudioTts or cfg.ttsEnabled becomes false or video changes
   useEffect(() => {
-    if (!cfg.ttsEnabled || !cfg.ttsIntervalMinutes || cfg.ttsIntervalMinutes <= 0) return;
+    hasSpokenAutoStartRef.current = false;
+    if (!isTtsAllowed && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {}
+      activeUtteranceRef.current = null;
+    }
+  }, [isTtsAllowed]);
+
+  // Unlock audio context on mobile user gesture (touchstart, pointerdown, click)
+  useEffect(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
-    // Initial automatic test playback (15 seconds after opening video)
-    const initialDelaySec = cfg.ttsInitialTestDelaySeconds !== undefined ? cfg.ttsInitialTestDelaySeconds : 15;
-    let initialTimer: NodeJS.Timeout | null = null;
-    
-    if (initialDelaySec > 0) {
-      initialTimer = setTimeout(() => {
-        speakWatermarkAudio();
-      }, initialDelaySec * 1000);
-    }
+    const handleUserInteraction = () => {
+      if (!audioUnlockedRef.current) {
+        audioUnlockedRef.current = true;
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+        // If TTS is enabled and auto-start hasn't fired yet, trigger it now!
+        if (isTtsAllowed && !hasSpokenAutoStartRef.current) {
+          hasSpokenAutoStartRef.current = true;
+          setTimeout(() => {
+            speakWatermarkAudio();
+          }, 400);
+        }
+      }
+    };
 
-    // Recurring interval (Every 5 min, 15 min, 30 min, or 60 min)
-    const intervalMs = cfg.ttsIntervalMinutes * 60 * 1000;
-    const interval = setInterval(speakWatermarkAudio, intervalMs);
+    window.addEventListener('click', handleUserInteraction, { passive: true });
+    window.addEventListener('touchstart', handleUserInteraction, { passive: true });
+    window.addEventListener('pointerdown', handleUserInteraction, { passive: true });
 
     return () => {
-      if (initialTimer) clearTimeout(initialTimer);
+      window.removeEventListener('click', handleUserInteraction);
+      window.removeEventListener('touchstart', handleUserInteraction);
+      window.removeEventListener('pointerdown', handleUserInteraction);
+    };
+  }, [isTtsAllowed, speakWatermarkAudio]);
+
+  // A. Auto-Start: Speaks shortly after starting the course video
+  useEffect(() => {
+    if (!isTtsAllowed) {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        try { window.speechSynthesis.cancel(); } catch {}
+      }
+      return;
+    }
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+    const delayMs = Math.max(1, (cfg.ttsInitialTestDelaySeconds ?? 3)) * 1000;
+    const autoStartTimer = setTimeout(() => {
+      if (!hasSpokenAutoStartRef.current) {
+        hasSpokenAutoStartRef.current = true;
+        speakWatermarkAudio();
+      }
+    }, delayMs);
+
+    return () => clearTimeout(autoStartTimer);
+  }, [isTtsAllowed, cfg.ttsInitialTestDelaySeconds, speakWatermarkAudio]);
+
+  // B. Recurring Interval: Repeats based on the dropdown choice (5, 10, 15, 30, 60 minutes)
+  useEffect(() => {
+    if (!isTtsAllowed) return;
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+    const intervalMinutes = Number(cfg.ttsIntervalMinutes) > 0 ? Number(cfg.ttsIntervalMinutes) : 15;
+    const intervalMs = intervalMinutes * 60 * 1000;
+
+    const interval = setInterval(() => {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+      speakWatermarkAudio();
+    }, intervalMs);
+
+    return () => {
       clearInterval(interval);
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
     };
-  }, [cfg.ttsEnabled, cfg.ttsIntervalMinutes, cfg.ttsInitialTestDelaySeconds, speakWatermarkAudio]);
+  }, [isTtsAllowed, cfg.ttsIntervalMinutes, speakWatermarkAudio]);
+
+  // C. Immediate Cancel: stops any ongoing TTS audio speech instantly when TTS is disabled
+  useEffect(() => {
+    if (!isTtsAllowed && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {}
+      activeUtteranceRef.current = null;
+    }
+  }, [isTtsAllowed]);
 
   // ----------------------------------------------------
   // 5. Anti-Inspect & DevTools Lock (Block F12, Shortcuts, ContextMenu)
@@ -586,16 +743,19 @@ export function DynamicWatermark({
       ctx.scale(dpr, dpr);
       ctx.clearRect(0, 0, width, height);
 
-      // Setup font and style for watermark stamp: crisp, clean typography with zero blurring
-      ctx.font = 'bold 12px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.shadowColor = 'transparent';
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+      // Setup font and style for watermark stamp: crisp, clean typography with high visibility
+      ctx.font = 'bold 13px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 1;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
 
+      const studentDisplayName = studentName || 'طالب مصرح (Verified Student)';
+      const studentDisplayCode = studentCode || 'ID-SECURED';
+      const studentDisplayPhone = studentPhone || '01XXXXXXXXX';
       const uniStamp = cfg.showUniversity && studentUniversity ? ` • ${studentUniversity}` : '';
-      const stampText = `[SECURED] ${studentName} • ${studentCode} • ${studentPhone}${uniStamp}`;
+      const stampText = `[SECURED] ${studentDisplayName} • ${studentDisplayCode} • ${studentDisplayPhone}${uniStamp}`;
 
       // Dynamically measure exact text width so words NEVER overlap or collide
       const textMetrics = ctx.measureText(stampText);
@@ -641,7 +801,13 @@ export function DynamicWatermark({
     document.addEventListener('fullscreenchange', handleWindowResize);
     document.addEventListener('webkitfullscreenchange', handleWindowResize);
 
+    // Continuously keep canvas stamp updated so it never fades or clears out
+    const renderInterval = setInterval(() => {
+      renderCanvasStamp();
+    }, 1200);
+
     return () => {
+      clearInterval(renderInterval);
       window.removeEventListener('resize', handleWindowResize);
       document.removeEventListener('fullscreenchange', handleWindowResize);
       document.removeEventListener('webkitfullscreenchange', handleWindowResize);
@@ -651,14 +817,15 @@ export function DynamicWatermark({
 
   const isVideoOrCourseView = Boolean(
     previewStudent ||
-    pathname?.includes('/courses/') ||
+    forceCanvasStamp ||
+    pathname?.includes('/courses') ||
     pathname?.includes('/watch') ||
     pathname?.includes('/lesson') ||
     fullscreenEl
   );
 
-  // Strictly block rendering only if watermark disabled or on public landing/auth pages
-  if (!cfg.enabled || isPublicRoute) return null;
+  // Strictly block rendering ONLY on public landing/auth pages, BUT NEVER during video/course playback!
+  if (!isVideoOrCourseView && (!cfg.enabled || isPublicRoute)) return null;
 
   // Compute Coordinates / Classes based on movement type
   let positionStyle: React.CSSProperties = {};
@@ -716,35 +883,116 @@ export function DynamicWatermark({
     }
   }
 
-  // Border styling
+  // Moving Dynamic Badge Frame & Border styling
+  const activeFrameShape = cfg.frameShape || cfg.borderStyle || 'thin';
+  const activeFrameColor = cfg.frameColor || cfg.borderColor || cfg.textColor || '#22c55e';
+
   let borderCss = 'none';
   let boxShadowCss = 'none';
-  if (cfg.borderStyle === 'thin') {
-    borderCss = `1px solid ${cfg.borderColor || 'rgba(34, 197, 94, 0.4)'}`;
-  } else if (cfg.borderStyle === 'glow') {
-    borderCss = `1.5px solid ${cfg.textColor || '#22c55e'}`;
-    boxShadowCss = `0 0 15px ${cfg.textColor || '#22c55e'}55`;
+  let borderRadiusCss = '1rem';
+
+  if (activeFrameShape === 'none') {
+    borderCss = 'none';
+    boxShadowCss = 'none';
+  } else if (activeFrameShape === 'thin') {
+    borderCss = `1.5px solid ${activeFrameColor}`;
+    boxShadowCss = `0 4px 15px rgba(0, 0, 0, 0.6)`;
+  } else if (activeFrameShape === 'glow') {
+    borderCss = `1.5px solid ${activeFrameColor}`;
+    boxShadowCss = `0 0 20px ${activeFrameColor}77, 0 8px 30px rgba(0, 0, 0, 0.8)`;
+  } else if (activeFrameShape === 'rounded_card') {
+    borderCss = `2px solid ${activeFrameColor}`;
+    borderRadiusCss = '1.25rem';
+    boxShadowCss = `0 10px 30px rgba(0, 0, 0, 0.9), 0 0 15px ${activeFrameColor}44`;
+  } else if (activeFrameShape === 'thick') {
+    borderCss = `3px solid ${activeFrameColor}`;
+    boxShadowCss = `0 0 16px rgba(0,0,0,0.9)`;
   }
 
-  // Active opacity (handles flicker)
-  const currentOpacity = isFlickering ? 0.95 : cfg.opacity;
+  // Active opacity for moving badge (minimum 0.75 in course view so it is never invisible)
+  const currentOpacity = isFlickering ? 0.98 : Math.max(0.75, cfg.opacity || 0.75);
+
+  // Diagonal Parallel Text Watermark Customization
+  const textStampOpacity = cfg.textStampOpacity ?? 0.40;
+  const stampPhone = cfg.stampShowPhone ?? true; // Mandatory default: phone number
+  const stampName = cfg.stampShowName ?? true;
+  const stampCode = cfg.stampShowStudentCode ?? true;
+  const stampUni = cfg.stampShowUniversity ?? false;
+
+  const isVisualEnabled = cfg.enabled !== false && enableVisualWatermark !== false;
+  const isQrEnabled = cfg.showQrStamp !== false && enableQrStamp !== false;
+
+  const stampContentParts: string[] = [];
+  if (stampName) stampContentParts.push(studentName || 'طالب مصرح');
+  if (stampCode) stampContentParts.push(`ID: ${studentCode || 'ID-VERIFIED'}`);
+  if (stampPhone) stampContentParts.push(studentPhone || '01XXXXXXXXX');
+  if (stampUni && studentUniversity) stampContentParts.push(studentUniversity);
+
+  const formattedStampText = `[SECURED] ${stampContentParts.length > 0 ? stampContentParts.join(' • ') : (studentPhone || '01XXXXXXXXX')}`;
 
   const watermarkNodes = (
     <>
-      {/* 1. HTML5 Canvas Security Stamp (Raster layer rendered directly on screen) - Only in video/course view */}
-      {isVideoOrCourseView && (
+      {/* 1. Permanent HTML/SVG Parallel Lines Security Stamp Overlay (Only if Visual Watermark is enabled) */}
+      {isVideoOrCourseView && isVisualEnabled && (
+        <div 
+          className="absolute inset-0 pointer-events-none select-none z-30 w-full h-full overflow-hidden"
+          style={{ userSelect: 'none', WebkitUserSelect: 'none', pointerEvents: 'none', opacity: textStampOpacity }}
+        >
+          <svg className="w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern
+                id="parallel-text-watermark-pattern"
+                width="480"
+                height="190"
+                patternUnits="userSpaceOnUse"
+                patternTransform="rotate(-20)"
+              >
+                <text
+                  x="20"
+                  y="60"
+                  fill="#ffffff"
+                  fontSize="13"
+                  fontWeight="bold"
+                  fontFamily="monospace"
+                  opacity="0.9"
+                  style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.9), -1px -1px 3px rgba(0,0,0,0.9)' }}
+                >
+                  {formattedStampText}
+                </text>
+                <text
+                  x="260"
+                  y="155"
+                  fill={activeFrameColor}
+                  fontSize="13"
+                  fontWeight="bold"
+                  fontFamily="monospace"
+                  opacity="0.9"
+                  style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.9), -1px -1px 3px rgba(0,0,0,0.9)' }}
+                >
+                  {formattedStampText}
+                </text>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#parallel-text-watermark-pattern)" />
+          </svg>
+        </div>
+      )}
+
+      {/* 2. HTML5 Canvas Security Stamp (Raster layer rendered directly on screen) - Only if Visual Watermark is enabled */}
+      {isVideoOrCourseView && isVisualEnabled && (
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 pointer-events-none select-none z-20 w-full h-full"
+          className="absolute inset-0 pointer-events-none select-none z-35 w-full h-full"
           style={{ pointerEvents: 'none', userSelect: 'none' }}
         />
       )}
 
-      {/* 2. Primary Dynamic Watermark Badge */}
-      <div
-        ref={containerRef}
+      {/* 3. Primary Dynamic Watermark Badge (Only if Visual Watermark is enabled) */}
+      {isVisualEnabled && (
+        <div
+          ref={containerRef}
           id="dynamic-watermark-protected-badge"
-          className="pointer-events-none select-none z-40 transition-opacity duration-300"
+          className="pointer-events-none select-none z-50 transition-opacity duration-300"
           onContextMenu={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -758,68 +1006,71 @@ export function DynamicWatermark({
             WebkitUserSelect: 'none',
           }}
         >
-        <div
-          className="px-3.5 py-2 rounded-2xl backdrop-blur-xs font-mono font-bold uppercase tracking-wider text-right shadow-2xl flex flex-col gap-1"
-          style={{
-            backgroundColor: cfg.bgColor || 'rgba(0, 0, 0, 0.65)',
-            color: cfg.textColor || '#22c55e',
-            fontSize: `${cfg.size || 14}px`,
-            border: borderCss,
-            boxShadow: boxShadowCss,
-            textShadow: '0 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8)',
-            minWidth: '160px',
-          }}
-        >
-          {cfg.showName && (
-            <div className="font-extrabold flex items-center justify-between gap-2">
-              <span className="opacity-95 text-white">{studentName}</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-sans border border-emerald-500/30">
-                Verified
-              </span>
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-2 text-[0.85em] opacity-90">
-            {cfg.showStudentCode && (
-              <span className="text-amber-400/90 font-mono font-bold">
-                ID: {studentCode}
-              </span>
+          <div
+            className="px-3.5 py-2 backdrop-blur-md font-mono font-bold uppercase tracking-wider text-right shadow-2xl flex flex-col gap-1 transition-all"
+            style={{
+              backgroundColor: cfg.bgColor || 'rgba(10, 15, 20, 0.88)',
+              color: cfg.textColor || '#22c55e',
+              fontSize: `${Math.max(12, cfg.size || 14)}px`,
+              border: borderCss,
+              borderRadius: borderRadiusCss,
+              boxShadow: boxShadowCss,
+              textShadow: '0 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8)',
+              minWidth: '160px',
+            }}
+          >
+            {cfg.showName && (
+              <div className="font-extrabold flex items-center justify-between gap-2 border-b border-white/10 pb-1">
+                <span className="opacity-95 text-white">{studentName || 'Student'}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-sans border border-emerald-500/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Verified
+                </span>
+              </div>
             )}
-            {cfg.showPhone && (
-              <>
-                <span className="text-white/30">•</span>
-                <span className="text-zinc-200/90 font-mono">{studentPhone}</span>
-              </>
+
+            <div className="flex flex-wrap items-center gap-2 text-[0.85em] opacity-90">
+              {cfg.showStudentCode && (
+                <span className="text-amber-400/90 font-mono font-bold">
+                  ID: {studentCode}
+                </span>
+              )}
+              {cfg.showPhone && (
+                <>
+                  <span className="text-white/30">•</span>
+                  <span className="text-zinc-200/90 font-mono">{studentPhone}</span>
+                </>
+              )}
+            </div>
+
+            {cfg.showUniversity && studentUniversity && (
+              <div className="text-[0.75em] text-zinc-300/80 font-sans truncate">
+                {studentUniversity}
+              </div>
+            )}
+
+            {cfg.customText && (
+              <div className="text-[0.75em] text-blue-400 font-sans truncate">
+                {cfg.customText}
+              </div>
             )}
           </div>
 
-          {cfg.showUniversity && studentUniversity && (
-            <div className="text-[0.75em] text-zinc-300/80 font-sans truncate">
-              {studentUniversity}
-            </div>
-          )}
-
-          {cfg.customText && (
-            <div className="text-[0.75em] text-blue-400 font-sans truncate">
-              {cfg.customText}
-            </div>
-          )}
+          <style dangerouslySetInnerHTML={{ __html: `
+            @keyframes dynamicWatermarkFloat {
+              0%, 100% {
+                transform: translateY(0px) scale(0.96);
+              }
+              50% {
+                transform: translateY(-20px) scale(1.06);
+              }
+            }
+          `}} />
         </div>
+      )}
 
-        <style dangerouslySetInnerHTML={{ __html: `
-          @keyframes dynamicWatermarkFloat {
-            0%, 100% {
-              transform: translateY(0px) scale(0.96);
-            }
-            50% {
-              transform: translateY(-20px) scale(1.06);
-            }
-          }
-        `}} />
-      </div>
-
-      {/* High-Res QR Code Pass Stamp Overlay (Baked into Media Overlay) */}
-      {(cfg.showQrStamp ?? true) && studentCode && (
+      {/* High-Res QR Code Pass Stamp Overlay (Only if QR Stamp is enabled) */}
+      {isQrEnabled && studentCode && (
         <div 
           className={`absolute z-30 pointer-events-none select-none p-2.5 rounded-2xl bg-black/85 border border-emerald-500/40 backdrop-blur-md shadow-2xl flex items-center gap-3 animate-in fade-in duration-300 ${
             cfg.qrPosition === 'top-right' ? 'top-4 right-4' :

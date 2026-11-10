@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-const LIBRARY_ID = process.env.BUNNY_STREAM_LIBRARY_ID || process.env.NEXT_PUBLIC_BUNNY_STREAM_LIBRARY_ID || '775464';
-const TOKEN_KEY = process.env.BUNNY_STREAM_TOKEN_KEY || '70922179-a4eb-42eb-bddb-edb8a492e053';
-const CDN_HOSTNAME = process.env.BUNNY_STREAM_CDN_HOSTNAME || process.env.NEXT_PUBLIC_BUNNY_CDN_HOSTNAME || 'vz-c109ef36-52a.b-cdn.net';
+// Active Bunny Stream Credentials (Library 804078)
+const isOldOrStale = (val?: string) => !val || val === '775464' || val.startsWith('70922179') || val.includes('vz-c109ef36');
+
+const LIBRARY_ID = isOldOrStale(process.env.BUNNY_STREAM_LIBRARY_ID) ? '804078' : process.env.BUNNY_STREAM_LIBRARY_ID!;
+const TOKEN_KEY = isOldOrStale(process.env.BUNNY_STREAM_TOKEN_KEY) ? '14dc9ec7-b4cf-404b-b39a-afd33f122a55' : process.env.BUNNY_STREAM_TOKEN_KEY!;
+const CDN_HOSTNAME = isOldOrStale(process.env.BUNNY_STREAM_CDN_HOSTNAME) ? 'vz-7dc30faa-b42.b-cdn.net' : process.env.BUNNY_STREAM_CDN_HOSTNAME!;
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,8 +31,8 @@ export async function GET(req: NextRequest) {
     }
 
     const tokenQuery = token ? `&token=${token}&expires=${expires}` : '';
-    const legacyEmbedUrl = `https://iframe.mediadelivery.net/embed/${LIBRARY_ID}/${cleanVideoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true${tokenQuery}`;
-    const modernEmbedUrl = `https://player.mediadelivery.net/embed/${LIBRARY_ID}/${cleanVideoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true${tokenQuery}`;
+    const legacyEmbedUrl = `https://iframe.mediadelivery.net/embed/${LIBRARY_ID}/${cleanVideoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true&disablePictureInPicture=true&disablePip=true${tokenQuery}`;
+    const modernEmbedUrl = `https://player.mediadelivery.net/embed/${LIBRARY_ID}/${cleanVideoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true&disablePictureInPicture=true&disablePip=true${tokenQuery}`;
 
     return NextResponse.json({
       success: true,

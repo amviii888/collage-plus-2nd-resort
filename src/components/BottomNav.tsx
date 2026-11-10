@@ -77,6 +77,7 @@ export function BottomNav() {
 
     if (isTeacher) {
        return [
+          { href: '/discover', icon: Compass, label: 'الأساتذة' },
           { href: '/profile', icon: GraduationCap, label: 'الملف الأكاديمي' },
       ];
     }

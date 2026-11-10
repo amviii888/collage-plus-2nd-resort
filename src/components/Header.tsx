@@ -402,15 +402,13 @@ export function Header() {
                         </Link>
                     )}
 
-                    {!isTeacher && (
-                        <Link
-                            href="/discover"
-                            className="hidden md:inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-500/50 transition-all shadow-xs"
-                        >
-                            <Compass className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                            <span>الأساتذة والمحاضرون</span>
-                        </Link>
-                    )}
+                    <Link
+                        href="/discover"
+                        className="hidden md:inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-500/50 transition-all shadow-xs"
+                    >
+                        <Compass className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        <span>استكشاف المنصة</span>
+                    </Link>
 
                     {/* Dark / Light Mode Toggle Button */}
                     <button

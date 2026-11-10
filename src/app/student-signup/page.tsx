@@ -926,6 +926,14 @@ export default function StudentSignupPage() {
         createdAt: serverTimestamp()
       }, { merge: true });
 
+      // Purge any residual teacher session keys
+      localStorage.removeItem('teacher_session');
+      localStorage.removeItem('teacherId');
+      localStorage.removeItem('teacher_accounts');
+      localStorage.removeItem('current_teacher_id');
+      localStorage.removeItem('active_role');
+      localStorage.removeItem('last_login_role');
+
       // Cache locally
       localStorage.setItem('viewingStudentId', studentId);
       localStorage.setItem('studentBarcode', barcodeId);
@@ -996,24 +1004,24 @@ export default function StudentSignupPage() {
 
       <AuthHeader />
 
-      <main className="px-4 sm:px-6 py-10 max-w-2xl mx-auto w-full my-auto">
+      <main className="px-3 sm:px-6 py-6 sm:py-10 max-w-2xl mx-auto w-full my-auto">
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="bg-white dark:bg-[#0b1329] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-900/5 dark:shadow-black/60 p-6 sm:p-10"
+          className="bg-white dark:bg-[#0b1329] rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-900/5 dark:shadow-black/60 p-4 sm:p-8 md:p-10"
         >
           {/* Form Header */}
-          <div className="text-center mb-8">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 text-[#1d4ed8] dark:text-blue-400 text-xs font-bold mb-3">
-              <GraduationCap className="w-4 h-4" />
+          <div className="text-center mb-6 sm:mb-8">
+            <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 text-[#1d4ed8] dark:text-blue-400 text-[11px] sm:text-xs font-bold mb-2.5 sm:mb-3">
+              <GraduationCap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>{isArabic ? 'بوابة تسجيل طلاب الجامعات' : 'COLLEGE STUDENT REGISTRATION'}</span>
             </span>
 
-            <h1 className="text-2xl sm:text-3xl font-black text-[#0f172a] dark:text-white tracking-tight">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-[#0f172a] dark:text-white tracking-tight">
               {isArabic ? 'إنشاء حساب طالب جامعي' : 'Register College Student Account'}
             </h1>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-2 font-medium">
+            <p className="text-[11px] sm:text-xs md:text-sm text-slate-600 dark:text-slate-400 mt-1.5 sm:mt-2 font-medium">
               {isArabic 
                 ? 'أدخل بياناتك الجامعية للحصول على كود الطالب والوصول لملخصات ومقررات كليتك.' 
                 : 'Enter your university details to generate your Student Code and access your courses.'}

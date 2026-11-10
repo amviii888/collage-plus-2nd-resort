@@ -12,12 +12,23 @@ export interface BunnyConfig {
   tokenSecurityKey?: string;
 }
 
+// Active Bunny Stream Credentials (Library 804078)
+const isOldOrStale = (val?: string) => !val || val === '775464' || val.startsWith('f51c7eeb') || val.includes('vz-c109ef36') || val.startsWith('70922179');
+
 // Active Bunny configuration with fallbacks
 export const BUNNY_CONFIG: BunnyConfig = {
-  libraryId: process.env.NEXT_PUBLIC_BUNNY_STREAM_LIBRARY_ID || process.env.BUNNY_STREAM_LIBRARY_ID || '775464',
-  cdnHostname: process.env.NEXT_PUBLIC_BUNNY_CDN_HOSTNAME || process.env.BUNNY_STREAM_CDN_HOSTNAME || 'vz-c109ef36-52a.b-cdn.net',
-  apiKey: process.env.BUNNY_STREAM_API_KEY || 'f51c7eeb-a556-4f0c-b89eb28b965c-38f1-4b98',
-  tokenSecurityKey: process.env.BUNNY_STREAM_TOKEN_KEY || '70922179-a4eb-42eb-bddb-edb8a492e053',
+  libraryId: isOldOrStale(process.env.NEXT_PUBLIC_BUNNY_STREAM_LIBRARY_ID || process.env.BUNNY_STREAM_LIBRARY_ID)
+    ? '804078'
+    : (process.env.NEXT_PUBLIC_BUNNY_STREAM_LIBRARY_ID || process.env.BUNNY_STREAM_LIBRARY_ID)!,
+  cdnHostname: isOldOrStale(process.env.NEXT_PUBLIC_BUNNY_CDN_HOSTNAME || process.env.BUNNY_STREAM_CDN_HOSTNAME)
+    ? 'vz-7dc30faa-b42.b-cdn.net'
+    : (process.env.NEXT_PUBLIC_BUNNY_CDN_HOSTNAME || process.env.BUNNY_STREAM_CDN_HOSTNAME)!,
+  apiKey: isOldOrStale(process.env.BUNNY_STREAM_API_KEY)
+    ? 'c30837fc-ac31-4c78-bd13ea7e8d85-177d-4dbd'
+    : process.env.BUNNY_STREAM_API_KEY!,
+  tokenSecurityKey: isOldOrStale(process.env.BUNNY_STREAM_TOKEN_KEY)
+    ? '14dc9ec7-b4cf-404b-b39a-afd33f122a55'
+    : process.env.BUNNY_STREAM_TOKEN_KEY!,
 };
 
 export type VideoProviderType = 'bunny' | 'youtube' | 'drive' | 'direct';
@@ -54,7 +65,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 export function parseVideoSource(rawUrl: string, customLibraryId?: string): ParsedVideoSource | null {
   if (!rawUrl || typeof rawUrl !== 'string') return null;
   const trimmed = rawUrl.trim();
-  const defaultLibId = customLibraryId || BUNNY_CONFIG.libraryId || '775464';
+  const defaultLibId = customLibraryId || BUNNY_CONFIG.libraryId || '804078';
 
   // 1. Check for Bunny Video UUID or "bunny:VIDEO_ID"
   const isBunnyUuid = UUID_REGEX.test(trimmed);
@@ -63,7 +74,7 @@ export function parseVideoSource(rawUrl: string, customLibraryId?: string): Pars
   if (isBunnyUuid || isBunnyPrefix) {
     const videoId = isBunnyPrefix ? trimmed.replace('bunny:', '').trim() : trimmed;
     const libId = defaultLibId;
-    const embedUrl = `https://iframe.mediadelivery.net/embed/${libId}/${videoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true&showFullscreen=false`;
+    const embedUrl = `https://iframe.mediadelivery.net/embed/${libId}/${videoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true&showFullscreen=false&disablePictureInPicture=true&disablePip=true`;
     return {
       provider: 'bunny',
       videoId,
@@ -102,8 +113,8 @@ export function parseVideoSource(rawUrl: string, customLibraryId?: string): Pars
           }
         }
       } else if (urlObj.hostname.includes('b-cdn.net') || urlObj.hostname.includes('bunnycdn.com')) {
-        // Format: https://vz-c109ef36-52a.b-cdn.net/{videoId}/playlist.m3u8
-        // Format: https://vz-c109ef36-52a.b-cdn.net/{videoId}/thumbnail.jpg
+        // Format: https://vz-7dc30faa-b42.b-cdn.net/{videoId}/playlist.m3u8
+        // Format: https://vz-7dc30faa-b42.b-cdn.net/{videoId}/thumbnail.jpg
         for (const part of pathParts) {
           const cleanPart = part.replace(/\.(m3u8|jpg|png|mp4)$/i, '');
           if (UUID_REGEX.test(cleanPart)) {
@@ -127,9 +138,13 @@ export function parseVideoSource(rawUrl: string, customLibraryId?: string): Pars
         libraryId = defaultLibId;
       }
 
-      const embedUrl = videoId
-        ? `https://iframe.mediadelivery.net/embed/${libraryId}/${videoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`
+      let embedUrl = videoId
+        ? `https://iframe.mediadelivery.net/embed/${libraryId}/${videoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true&disablePictureInPicture=true&disablePip=true`
         : trimmed;
+
+      if (!embedUrl.includes('disablePictureInPicture=true')) {
+        embedUrl += embedUrl.includes('?') ? '&disablePictureInPicture=true&disablePip=true' : '?disablePictureInPicture=true&disablePip=true';
+      }
 
       return {
         provider: 'bunny',

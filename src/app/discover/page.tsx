@@ -37,12 +37,13 @@ import {
   DialogDescription, 
   DialogFooter 
 } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
+import { isStudentEmail } from '@/lib/auth-helpers';
 import { 
   getStudentConnectedProfessors, 
   addProfessorCodeToStudent, 
   findProfessorByCode, 
   setActiveProfessorBranding, 
+  getTeacherCustomAvatar,
   ProfessorItem,
   REGISTERED_PROFESSORS,
   normalizeImagePath,
@@ -170,11 +171,73 @@ function TeacherLiveMetrics({ professorId, professorCode }: { professorId?: stri
 export default function MyDoctorsPage() {
   const router = useRouter();
   const { user } = useUser();
+  const firestore = useFirestore();
   const { toast } = useToast();
   const [activeStudentId, setActiveStudentId] = useState<string>('');
   const [connectedProfessors, setConnectedProfessors] = useState<ProfessorItem[]>([]);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   
+  // Teacher role check (both Firebase user and local teacher session)
+  const isTeacher = useMemo(() => {
+    const isFirebaseTeacher = !!(user && !user.isAnonymous && (!user.email || !isStudentEmail(user.email)));
+    const hasLocalTeacherSession = typeof window !== 'undefined' && (
+      localStorage.getItem('userRole') === 'teacher' ||
+      !!localStorage.getItem('teacherId')
+    );
+    return isFirebaseTeacher || hasLocalTeacherSession;
+  }, [user]);
+
+  const effectiveTeacherId = useMemo(() => {
+    if (user && !user.isAnonymous) return user.uid;
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('teacherId') || null;
+    }
+    return null;
+  }, [user]);
+
+  // Fetch teacher document if logged in as teacher
+  const teacherDocRef = useMemoFirebase(() => {
+    if (!firestore || !effectiveTeacherId || !isTeacher) return null;
+    return doc(firestore, 'teachers', effectiveTeacherId);
+  }, [firestore, effectiveTeacherId, isTeacher]);
+  const { data: teacherDoc } = useDoc<any>(teacherDocRef);
+
+  // Construct self teacher profile item
+  const selfTeacherItem: ProfessorItem | null = useMemo(() => {
+    if (!isTeacher) return null;
+    const code = teacherDoc?.code || teacherDoc?.assistantCode || teacherDoc?.teacherCode || 'DOC';
+    const profId = effectiveTeacherId || user?.uid || 'default_teacher';
+    return {
+      id: profId,
+      code: code,
+      name: teacherDoc?.name || user?.displayName || 'الأستاذ',
+      titleAr: teacherDoc?.subjects?.[0] ? `أستاذ ${teacherDoc.subjects[0]}` : (teacherDoc?.titleAr || 'أستاذ المادة والتخصص'),
+      titleEn: teacherDoc?.titleEn || 'Professor',
+      subjectAr: teacherDoc?.subjects?.[0] || 'المادة الأكاديمية',
+      subjectEn: 'Subject',
+      facultyAr: teacherDoc?.facultyAr || 'الجامعة والكلية',
+      facultyEn: 'Faculty',
+      avatarUrl: teacherDoc?.profilePictureUrl || teacherDoc?.avatarUrl || getTeacherCustomAvatar(profId) || DEFAULT_CUSTOM_PROFESSOR_IMAGE,
+      heroImageUrl: teacherDoc?.heroImageUrl || 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=1200',
+      appIconPath: teacherDoc?.appIconPath || '/icons/professors/vv.svg',
+      appIconEmoji: teacherDoc?.appIconEmoji || '⚡',
+      appNameAr: teacherDoc?.appNameAr || `منصة ${teacherDoc?.name || 'الأستاذ'}`,
+      appNameEn: `Professor Portal`,
+      themeColor: teacherDoc?.themeColor || '#2563eb',
+      coursesCount: teacherDoc?.coursesCount || 0,
+      studentsCount: teacherDoc?.studentsCount || 0,
+      descriptionAr: teacherDoc?.bio || teacherDoc?.descriptionAr || 'البوابة الأكاديمية الرسمية للأسئلة والمحاضرات.',
+      descriptionEn: 'Official Academic Portal.'
+    };
+  }, [isTeacher, teacherDoc, user, effectiveTeacherId]);
+
+  const displayProfessors = useMemo(() => {
+    if (isTeacher) {
+      return selfTeacherItem ? [selfTeacherItem] : [];
+    }
+    return connectedProfessors;
+  }, [isTeacher, selfTeacherItem, connectedProfessors]);
+
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [professorCodeInput, setProfessorCodeInput] = useState('');
@@ -285,47 +348,51 @@ export default function MyDoctorsPage() {
           <div className="space-y-2 flex-1 z-10">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 text-[#1e40af] dark:text-blue-400">
               <Lock className="w-3.5 h-3.5" />
-              <span>منظومة الكلية الخاصة • Private Academic Portal</span>
+              <span>{isTeacher ? 'معاينة العرض كأستاذ مادة • Teacher Self Preview' : 'منظومة الكلية الخاصة • Private Academic Portal'}</span>
             </div>
             
             <h1 className="text-2xl sm:text-3xl font-black text-[#0f172a] dark:text-white tracking-tight flex items-center gap-3">
-              <span>الأساتذة والمحاضرون</span>
+              <span>{isTeacher ? 'بطاقتك في دليل الأساتذة' : 'الأساتذة والمحاضرون'}</span>
               <span className="text-xs font-bold font-mono px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/90 border border-blue-200 dark:border-blue-800 text-[#1e40af] dark:text-blue-300">
-                {connectedProfessors.length} دكتور مربوط
+                {isTeacher ? '1 أستاذ مسجل' : `${connectedProfessors.length} دكتور مربوط`}
               </span>
             </h1>
             
             <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-400 max-w-2xl leading-relaxed font-medium">
-              بوابتك الخاصة بالدكاترة والأساتذة المعتمدين. أدخل كود أستاذ المادة (2 إلى 4 أحرف كبيرة) للوصول إلى محاضراته، بنوك الأسئلة، ومذكراته.
+              {isTeacher 
+                ? 'معاينة حية لبطاقتك وشعارك المعروض للطلاب في دليل الكلية واكتشاف الأساتذة. الضغط على البطاقة ينقلك لمعاينة بوابتك الأكاديمية تماماً كما يراها الطالب.'
+                : 'بوابتك الخاصة بالدكاترة والأساتذة المعتمدين. أدخل كود أستاذ المادة (2 إلى 4 أحرف كبيرة) للوصول إلى محاضراته، بنوك الأسئلة، ومذكراته.'}
             </p>
           </div>
 
-          <div className="z-10 shrink-0 w-full sm:w-auto">
-            <Button
-              onClick={() => { setInputError(''); setIsAddModalOpen(true); }}
-              className="w-full sm:w-auto h-12 px-6 rounded-2xl bg-[#2563eb] hover:bg-blue-700 text-white font-bold text-sm gap-2 shadow-md shadow-blue-600/25 transition-all hover:scale-105 active:scale-95 cursor-pointer ring-1 ring-blue-400/30"
-            >
-              <Plus className="w-4 h-4" />
-              <span>إضافة دكتور بكود المادة</span>
-            </Button>
-          </div>
+          {!isTeacher && (
+            <div className="z-10 shrink-0 w-full sm:w-auto">
+              <Button
+                onClick={() => { setInputError(''); setIsAddModalOpen(true); }}
+                className="w-full sm:w-auto h-12 px-6 rounded-2xl bg-[#2563eb] hover:bg-blue-700 text-white font-bold text-sm gap-2 shadow-md shadow-blue-600/25 transition-all hover:scale-105 active:scale-95 cursor-pointer ring-1 ring-blue-400/30"
+              >
+                <Plus className="w-4 h-4" />
+                <span>إضافة دكتور بكود المادة</span>
+              </Button>
+            </div>
+          )}
         </motion.div>
 
         {/* 2. Connected Professors List / Empty State */}
-        {connectedProfessors && connectedProfessors.length > 0 ? (
+        {displayProfessors && displayProfessors.length > 0 ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-sm font-bold text-[#0f172a] dark:text-slate-200 flex items-center gap-2">
                 <GraduationCap className="w-4 h-4 text-[#2563eb] dark:text-blue-400" />
-                <span>دكاترتك المعتمدون حالياً في حسابك:</span>
+                <span>{isTeacher ? 'بطاقتك المعلنة للطلاب وحسابك المعتمد:' : 'دكاترتك المعتمدون حالياً في حسابك:'}</span>
               </h2>
               <span className="text-xs text-slate-500 font-mono font-bold">
-                {connectedProfessors.length} دكتور متاح
+                {displayProfessors.length} {isTeacher ? 'أستاذ مادة' : 'دكتور متاح'}
               </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {connectedProfessors.filter(Boolean).map((professor, index) => (
+              {displayProfessors.filter(Boolean).map((professor, index) => (
                 <motion.div
                   key={professor?.code || `prof_${index}`}
                   initial={{ opacity: 0, y: 12 }}

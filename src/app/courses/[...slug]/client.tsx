@@ -3,9 +3,9 @@
 import { useUser, useFirestore, useDoc, useMemoFirebase, useStudent, useCollection } from '@/firebase';
 import { doc, runTransaction, serverTimestamp, setDoc, arrayUnion, Timestamp, increment, updateDoc, collection, query, where } from 'firebase/firestore';
 import type { Course, CourseRating, Teacher, WatchHistory, Video, CourseAccess, Unit, CourseRequest } from '@/lib/types';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useMemo, useEffect, lazy, Suspense, useRef } from 'react';
-import { Star, Download, FileText, Info, User, BookOpen, Clock, CheckCircle, ArrowLeft, Lock, ClipboardList, ShoppingCart, KeyRound, Play, Layers, Maximize2, Minimize2 } from 'lucide-react';
+import { Star, Download, FileText, Info, User, BookOpen, Clock, CheckCircle, ArrowLeft, Lock, ClipboardList, ShoppingCart, KeyRound, Play, Pause, ShieldCheck, Layers, Maximize2, Minimize2, RotateCcw, RotateCw, Volume2, VolumeX } from 'lucide-react';
 import { cn, toJsDate } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -25,9 +25,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { parseVideoSource, isBunnyStreamUrl, type ParsedVideoSource } from '@/lib/bunnyStream';
 import { DynamicWatermark } from '@/components/security/DynamicWatermark';
 import { ProtectedBookReader } from '@/components/library/ProtectedBookReader';
-
-
-const CourseComments = lazy(() => import('@/components/CourseComments').then(module => ({ default: module.CourseComments })));
+import { CourseComments } from '@/components/CourseComments';
 
 function CourseRatingSection({ courseId, teacherId }: { courseId: string, teacherId: string }) {
     const { user, isUserLoading } = useUser();
@@ -467,7 +465,110 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
 
     // Fullscreen state & container ref for forcing watermark on top in video fullscreen mode
     const playerContainerRef = useRef<HTMLDivElement>(null);
+    const iframeRef = useRef<HTMLIFrameElement>(null);
     const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [hasStarted, setHasStarted] = useState(false);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [isMuted, setIsMuted] = useState(false);
+
+    useEffect(() => {
+        setIsPlaying(false);
+        setHasStarted(false);
+        setCurrentTime(0);
+        setDuration(0);
+    }, [currentVideoId]);
+
+    const sendPlayerCommand = useCallback((method: string, value: any = null) => {
+        if (!iframeRef.current?.contentWindow) return;
+        try {
+            const cw = iframeRef.current.contentWindow;
+            // 1. Standard Player.js spec (value must be number/primitive, e.g. 45 for seek)
+            cw.postMessage(JSON.stringify({
+                context: 'player.js',
+                method: method,
+                value: value
+            }), '*');
+
+            // 2. Multi-protocol fallbacks for Bunny Stream, Plyr, and HTML5 video containers
+            if (method === 'setCurrentTime' || method === 'seek') {
+                const targetSec = typeof value === 'number' ? value : (Array.isArray(value) ? value[0] : 0);
+                cw.postMessage(JSON.stringify({ context: 'player.js', method: 'setCurrentTime', value: targetSec }), '*');
+                cw.postMessage(JSON.stringify({ context: 'player.js', method: 'seek', value: targetSec }), '*');
+                cw.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [targetSec, true] }), '*');
+                cw.postMessage(JSON.stringify({ method: 'setCurrentTime', value: targetSec }), '*');
+                cw.postMessage(JSON.stringify({ method: 'seek', value: targetSec }), '*');
+            } else if (method === 'play' || method === 'pause') {
+                cw.postMessage(JSON.stringify({ event: 'command', func: method }), '*');
+                cw.postMessage(JSON.stringify({ method: method }), '*');
+            } else if (method === 'mute' || method === 'unmute') {
+                cw.postMessage(JSON.stringify({ method: method }), '*');
+            }
+        } catch (err) {}
+    }, []);
+
+    const togglePlayPause = () => {
+        const next = !isPlaying;
+        setIsPlaying(next);
+        setHasStarted(true);
+        sendPlayerCommand(next ? 'play' : 'pause');
+    };
+
+    const handleSkipBackward = () => {
+        const target = Math.max(0, currentTime - 10);
+        setCurrentTime(target);
+        sendPlayerCommand('setCurrentTime', target);
+        sendPlayerCommand('seek', target);
+    };
+
+    const handleSkipForward = () => {
+        const target = duration > 0 ? Math.min(duration, currentTime + 10) : currentTime + 10;
+        setCurrentTime(target);
+        sendPlayerCommand('setCurrentTime', target);
+        sendPlayerCommand('seek', target);
+    };
+
+    const toggleMute = () => {
+        const next = !isMuted;
+        setIsMuted(next);
+        sendPlayerCommand(next ? 'mute' : 'unmute');
+    };
+
+    useEffect(() => {
+        const handlePlayerMessage = (e: MessageEvent) => {
+            try {
+                let data = e.data;
+                if (typeof data === 'string') {
+                    try { data = JSON.parse(data); } catch { return; }
+                }
+                if (!data || typeof data !== 'object') return;
+
+                if (data.context === 'player.js' || data.event) {
+                    const evtName = data.event || data.method;
+                    if (evtName === 'ready') {
+                        sendPlayerCommand('addEventListener', 'play');
+                        sendPlayerCommand('addEventListener', 'pause');
+                        sendPlayerCommand('addEventListener', 'timeupdate');
+                        sendPlayerCommand('addEventListener', 'ended');
+                    } else if (evtName === 'play') {
+                        setIsPlaying(true);
+                        setHasStarted(true);
+                    } else if (evtName === 'pause') {
+                        setIsPlaying(false);
+                    } else if (evtName === 'timeupdate') {
+                        const sec = typeof data.value?.seconds === 'number' ? data.value.seconds : (typeof data.value === 'number' ? data.value : 0);
+                        const dur = typeof data.value?.duration === 'number' ? data.value.duration : (typeof data.duration === 'number' ? data.duration : 0);
+                        if (sec) setCurrentTime(sec);
+                        if (dur) setDuration(dur);
+                    }
+                }
+            } catch {}
+        };
+
+        window.addEventListener('message', handlePlayerMessage);
+        return () => window.removeEventListener('message', handlePlayerMessage);
+    }, [sendPlayerCommand]);
 
     useEffect(() => {
         const handleFsChange = () => {
@@ -487,10 +588,23 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
         };
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey) {
-                const target = e.target as HTMLElement;
-                if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
-                togglePlayerFullscreen();
+            const target = e.target as HTMLElement;
+            if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+
+            if (e.key === 'f' || e.key === 'F') {
+                if (!e.ctrlKey && !e.metaKey) togglePlayerFullscreen();
+            } else if (e.key === ' ' || e.key === 'k' || e.key === 'K') {
+                e.preventDefault();
+                togglePlayPause();
+            } else if (e.key === 'ArrowLeft' || e.key === 'j' || e.key === 'J') {
+                e.preventDefault();
+                handleSkipBackward();
+            } else if (e.key === 'ArrowRight' || e.key === 'l' || e.key === 'L') {
+                e.preventDefault();
+                handleSkipForward();
+            } else if (e.key === 'm' || e.key === 'M') {
+                e.preventDefault();
+                toggleMute();
             }
         };
 
@@ -503,7 +617,7 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
             document.removeEventListener('webkitfullscreenchange', handleFsChange);
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, []);
+    }, [togglePlayPause, handleSkipBackward, handleSkipForward, toggleMute]);
 
     const togglePlayerFullscreen = () => {
         if (typeof document === 'undefined') return;
@@ -873,16 +987,16 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                 <div className="lg:col-span-2 flex flex-col">
                     {displayCourse.locked && !hasAccess ? (
                         <div className="w-full aspect-video bg-black flex flex-col items-center justify-center text-center p-4">
-                            <Lock className="w-16 h-16 text-emerald-400 mb-4" />
+                            <Lock className="w-16 h-16 text-emerald-400 mb-4 animate-pulse" />
                             <h2 className="text-2xl font-bold text-white">
                                 {isViewsExhausted 
-                                    ? 'انتهت عدد المشاهدات المتاحة لك لهذا الكورس' 
-                                    : activeVideoUnit ? `Unit: ${activeVideoUnit.title} is Locked` : 'This Course is Locked'}
+                                    ? 'انتهت عدد المشاهدات المتاحة لك لهذا المحتوى' 
+                                    : activeVideoUnit ? `الوحدة مغلقة: ${activeVideoUnit.title}` : 'هذا الكورس مغلق برمز وصول'}
                             </h2>
-                            <p className="text-muted-foreground mt-2 max-w-md">
+                            <p className="text-muted-foreground mt-2 max-w-md text-xs sm:text-sm">
                                 {isViewsExhausted 
-                                    ? 'لقد استنفدت جميع المشاهدات المسموح بها لهذا المحتوى. يمكنك طلب الوصول مرة أخرى من أستاذ المادة أو إدخال كود جديد.' 
-                                    : 'Request access to this specific unit or the whole course directly from your professor, or redeem a share code.'}
+                                    ? 'لقد استنفدت جميع المشاهدات المسموح بها كود الوصول الخاص بك. يرجى الحصول على كود وصول جديد من الأستاذ لتجديد المشاهدة.' 
+                                    : 'يتطلب فتح هذا المحتوى إدخال كود وصول (Share Code) المكون من أرقام وحروف الصادر من الأستاذ.'}
                             </p>
                              <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
                                 {unlockedUnitIdsSet.size > 0 && (
@@ -894,49 +1008,12 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                         <span>مشاهدة الوحدات المفتوحة لك (View Unlocked Units)</span>
                                     </Button>
                                 )}
-                                {activeVideoUnit && (
-                                    <Button 
-                                        onClick={() => { setSelectedUnitForUnlock(activeVideoUnit.id); setUnlockOpen(true); }}
-                                        disabled={isUnitPending(activeVideoUnit.id) || isFullCoursePending}
-                                        className={cn(
-                                            "font-bold text-xs sm:text-sm h-11 px-5 rounded-xl shadow-lg",
-                                            isUnitPending(activeVideoUnit.id)
-                                                ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 cursor-not-allowed"
-                                                : "bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700"
-                                        )}
-                                    >
-                                        <Lock className="w-4 h-4 mr-1.5" />
-                                        {isUnitPending(activeVideoUnit.id) ? (
-                                            'طلب الوحدة قيد المراجعة'
-                                        ) : (
-                                            `طلب فتح هذه الوحدة: ${activeVideoUnit.title}`
-                                        )}
-                                    </Button>
-                                )}
-                                <Button 
-                                    onClick={() => { setSelectedUnitForUnlock(undefined); setUnlockOpen(true); }} 
-                                    disabled={isFullCoursePending}
-                                    className={cn(
-                                        "font-bold text-xs sm:text-sm h-11 px-6 rounded-xl shadow-lg flex items-center gap-2",
-                                        isFullCoursePending 
-                                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 cursor-not-allowed" 
-                                            : "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-black shadow-emerald-500/20"
-                                    )}
-                                >
-                                    <ShoppingCart className="w-4 h-4" />
-                                    {isFullCoursePending ? (
-                                        'طلب الكورس قيد المراجعة (Pending)'
-                                    ) : (
-                                        displayCourse.price ? `شراء / طلب فتح الكورس كاملاً (${displayCourse.price} EGP)` : 'شراء / فتح الكورس كاملاً'
-                                    )}
-                                </Button>
                                 <Button 
                                     onClick={() => { setSelectedUnitForUnlock(undefined); setUnlockOpen(true); }}
-                                    variant="outline"
-                                    className="font-bold text-xs sm:text-sm h-11 px-5 rounded-xl border-zinc-700 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200 flex items-center gap-2"
+                                    className="font-bold text-xs sm:text-sm h-12 px-7 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-black shadow-xl shadow-emerald-500/20 flex items-center gap-2.5 active:scale-95 transition-all"
                                 >
-                                    <KeyRound className="w-4 h-4 text-amber-400" />
-                                    <span>إدخال كود الوصول (Redeem Code)</span>
+                                    <KeyRound className="w-5 h-5 text-black" />
+                                    <span>إدخال كود الوصول لتفعيل الكورس (Redeem Code)</span>
                                 </Button>
                              </div>
                         </div>
@@ -976,44 +1053,162 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                             >
                                 {embedUrl ? (
                                     <>
+                                        {/* Native Video Player - Interactive with direct playback & controls */}
                                         <iframe
-                                            className="relative z-0 w-full h-full"
+                                            ref={iframeRef}
+                                            className="relative z-10 w-full h-full pointer-events-auto"
                                             width="100%"
                                             height="100%"
                                             src={embedUrl}
                                             title={title}
                                             frameBorder="0"
                                             referrerPolicy="strict-origin-when-cross-origin"
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; fullscreen"
+                                            allowFullScreen
+                                            disablepictureinpicture="true"
+                                            data-disable-pip="true"
+                                            tabIndex={0}
                                         ></iframe>
 
-                                        {/* High-Visibility Protected Fullscreen Toggle Button */}
-                                        <button
-                                            type="button"
-                                            onClick={togglePlayerFullscreen}
-                                            className="absolute top-3 right-3 z-30 bg-black/80 hover:bg-black text-emerald-400 hover:text-emerald-300 border border-emerald-500/50 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xl transition-all active:scale-95 cursor-pointer"
-                                            title="تفعيل العرض بالشاشة الكاملة مع العلامة المائية للحماية"
-                                        >
-                                            {isPlayerFullscreen ? (
-                                                <>
-                                                    <Minimize2 className="w-3.5 h-3.5 text-emerald-400" />
-                                                    <span>خروج من الشاشة الكاملة</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
-                                                    <span>شاشة كاملة محمية (Fullscreen)</span>
-                                                </>
-                                            )}
-                                        </button>
+                                        {/* Anti-PiP Mouse Shield: Prevents browser hover detection from spawning floating PiP buttons */}
+                                        <div 
+                                            className="absolute inset-0 z-20 pointer-events-auto cursor-pointer"
+                                            onClick={togglePlayPause}
+                                            onDoubleClick={togglePlayerFullscreen}
+                                            onContextMenu={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                return false;
+                                            }}
+                                        />
 
-                                        {/* Dynamic Ultra Watermark automatically applied to every video */}
-                                        {(activeStudentId || user?.uid) && (
-                                            <DynamicWatermark 
-                                                studentId={activeStudentId || user?.uid} 
-                                                teacherId={teacherId}
-                                            />
-                                        )}
+                                        {/* Quick-Action Controls Bar: Play/Pause, -10s, +10s, Volume, Fullscreen (z-40) */}
+                                        <div 
+                                            className="absolute bottom-3 left-3 right-3 z-40 flex items-center justify-between pointer-events-auto select-none gap-2 opacity-95 transition-opacity"
+                                            onContextMenu={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                return false;
+                                            }}
+                                        >
+                                            <div className="flex items-center gap-1 sm:gap-2 bg-black/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-zinc-800 text-xs text-zinc-300 shadow-2xl">
+                                                {/* Play / Pause button */}
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        togglePlayPause();
+                                                    }}
+                                                    className="flex items-center gap-1 font-bold text-white hover:text-emerald-400 transition-colors cursor-pointer px-1.5 py-1 rounded-lg hover:bg-white/5"
+                                                    title={isPlaying ? "إيقاف مؤقت" : "تشغيل"}
+                                                >
+                                                    {isPlaying ? (
+                                                        <Pause className="w-4 h-4 text-emerald-400" />
+                                                    ) : (
+                                                        <Play className="w-4 h-4 text-emerald-400 fill-emerald-400" />
+                                                    )}
+                                                    <span className="hidden sm:inline text-xs">{isPlaying ? "إيقاف" : "تشغيل"}</span>
+                                                </button>
+
+                                                <span className="text-zinc-700">|</span>
+
+                                                {/* -10s Skip Backward */}
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleSkipBackward();
+                                                    }}
+                                                    className="flex items-center gap-1 font-medium hover:text-white transition-colors cursor-pointer px-1.5 py-1 rounded-lg hover:bg-white/5 text-zinc-300"
+                                                    title="رجوع 10 ثواني للخلف"
+                                                >
+                                                    <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                                                    <span className="text-[11px] font-mono font-bold">-10s</span>
+                                                </button>
+
+                                                {/* +10s Skip Forward */}
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleSkipForward();
+                                                    }}
+                                                    className="flex items-center gap-1 font-medium hover:text-white transition-colors cursor-pointer px-1.5 py-1 rounded-lg hover:bg-white/5 text-zinc-300"
+                                                    title="تقديم 10 ثواني للأمام"
+                                                >
+                                                    <RotateCw className="w-3.5 h-3.5 text-emerald-400" />
+                                                    <span className="text-[11px] font-mono font-bold">+10s</span>
+                                                </button>
+
+                                                <span className="text-zinc-700">|</span>
+
+                                                {/* Volume Mute Toggle */}
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        toggleMute();
+                                                    }}
+                                                    className="flex items-center gap-1 font-medium hover:text-white transition-colors cursor-pointer px-1.5 py-1 rounded-lg hover:bg-white/5 text-zinc-300"
+                                                    title={isMuted ? "تشغيل الصوت" : "كتم الصوت"}
+                                                >
+                                                    {isMuted ? (
+                                                        <VolumeX className="w-3.5 h-3.5 text-red-400" />
+                                                    ) : (
+                                                        <Volume2 className="w-3.5 h-3.5 text-zinc-300" />
+                                                    )}
+                                                </button>
+
+                                                {/* Time Display */}
+                                                {duration > 0 && (
+                                                    <>
+                                                        <span className="text-zinc-700">|</span>
+                                                        <span className="text-[11px] font-mono text-zinc-400 font-medium">
+                                                            {Math.floor(currentTime / 60).toString().padStart(2, '0')}:{(Math.floor(currentTime) % 60).toString().padStart(2, '0')} / {Math.floor(duration / 60).toString().padStart(2, '0')}:{(Math.floor(duration) % 60).toString().padStart(2, '0')}
+                                                        </span>
+                                                    </>
+                                                )}
+
+                                                <span className="hidden md:inline text-zinc-700">|</span>
+                                                <span className="hidden md:flex text-[10px] text-emerald-400 font-mono items-center gap-1">
+                                                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                                                    بث محمي
+                                                </span>
+                                            </div>
+
+                                            {/* High-Visibility Protected Fullscreen Toggle Button */}
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    togglePlayerFullscreen();
+                                                }}
+                                                className="bg-black/90 hover:bg-black text-emerald-400 hover:text-emerald-300 border border-emerald-500/50 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xl transition-all active:scale-95 cursor-pointer"
+                                                title="تفعيل العرض بالشاشة الكاملة مع العلامة المائية للحماية"
+                                            >
+                                                {isPlayerFullscreen ? (
+                                                    <>
+                                                        <Minimize2 className="w-3.5 h-3.5 text-emerald-400" />
+                                                        <span>خروج</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
+                                                        <span>شاشة كاملة محمية</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+
+                                        {/* Dynamic Ultra Watermark: Z-Index 40, floating permanently on top */}
+                                        <DynamicWatermark 
+                                            studentId={activeStudentId || user?.uid || 'viewer'} 
+                                            teacherId={teacherId}
+                                            config={teacher?.watermarkConfig}
+                                            enableQrStamp={currentVideo?.enableQrStamp ?? displayCourse?.enableQrStamp ?? true}
+                                            enableAudioTts={currentVideo?.enableAudioTts ?? displayCourse?.enableAudioTts ?? true}
+                                            enableVisualWatermark={currentVideo?.enableVisualWatermark ?? displayCourse?.enableVisualWatermark ?? true}
+                                        />
                                     </>
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-destructive-foreground bg-destructive">Invalid Video URL</div>
@@ -1095,22 +1290,12 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                         <div className='p-6'>
                             <Separator/>
                             {courseId && teacherId && (
-                                <Suspense fallback={
-                                    <div className="space-y-4 pt-6">
-                                        <Skeleton className="h-6 w-1/4" />
-                                        <div className="max-h-[500px] overflow-hidden space-y-4">
-                                            <Skeleton className="h-20 w-full" />
-                                            <Skeleton className="h-20 w-full" />
-                                        </div>
-                                    </div>
-                                }>
-                                    <CourseComments 
-                                        courseId={courseId} 
-                                        teacherId={teacherId} 
-                                        isLocked={Boolean(displayCourse.locked && !hasAccess)}
-                                        onUnlockRequest={() => setUnlockOpen(true)}
-                                    />
-                                </Suspense>
+                                <CourseComments 
+                                    courseId={courseId} 
+                                    teacherId={teacherId} 
+                                    isLocked={Boolean(displayCourse.locked && !hasAccess)}
+                                    onUnlockRequest={() => setUnlockOpen(true)}
+                                />
                             )}
                         </div>
                         <div className="p-6 border-t border-border bg-card/50">

@@ -716,11 +716,82 @@ export default function TeacherThemeEditorPage() {
 
             {/* Simulated Full Doctor Profile Canvas */}
             <div 
-              className="rounded-3xl border p-4 sm:p-5 transition-all duration-300 relative overflow-hidden shadow-2xl space-y-4 max-h-[80vh] overflow-y-auto"
-              style={previewCanvasStyle}
+              className={cn(
+                "rounded-3xl border p-4 sm:p-5 transition-all duration-300 relative overflow-hidden shadow-2xl space-y-4 max-h-[80vh] overflow-y-auto",
+                themeFontFamily === 'space' ? 'font-mono' : themeFontFamily === 'mono' ? 'font-mono tracking-tight' : themeFontFamily === 'serif' ? 'font-serif' : 'font-sans'
+              )}
+              style={{
+                ...previewCanvasStyle,
+                fontFamily: themeFontFamily === 'space' ? 'var(--font-geist-mono), monospace' : themeFontFamily === 'serif' ? 'Georgia, serif' : undefined,
+                boxShadow: themeGlowIntensity === 'neon'
+                  ? `0 0 35px ${themeAccent}40, inset 0 0 25px ${themeAccent}15`
+                  : themeGlowIntensity === 'vivid'
+                  ? `0 0 20px ${themeAccent}25`
+                  : themeGlowIntensity === 'subtle'
+                  ? `0 0 10px ${themeAccent}15`
+                  : undefined,
+              }}
             >
+              {/* Grid Pattern Atmosphere Overlay */}
+              {themeGridPattern === 'dots' && (
+                <div 
+                  className="absolute inset-0 pointer-events-none opacity-25"
+                  style={{
+                    backgroundImage: `radial-gradient(${themeAccent} 1.5px, transparent 1.5px)`,
+                    backgroundSize: '20px 20px',
+                  }}
+                />
+              )}
+              {themeGridPattern === 'lines' && (
+                <div 
+                  className="absolute inset-0 pointer-events-none opacity-20"
+                  style={{
+                    backgroundImage: `linear-gradient(${themeAccent}22 1px, transparent 1px), linear-gradient(90deg, ${themeAccent}22 1px, transparent 1px)`,
+                    backgroundSize: '24px 24px',
+                  }}
+                />
+              )}
+              {themeGridPattern === 'cyber' && (
+                <div 
+                  className="absolute inset-0 pointer-events-none opacity-20"
+                  style={{
+                    backgroundImage: `linear-gradient(45deg, ${themeAccent}25 25%, transparent 25%), linear-gradient(-45deg, ${themeAccent}25 25%, transparent 25%), linear-gradient(45deg, transparent 75%, ${themeAccent}25 75%), linear-gradient(-45deg, transparent 75%, ${themeAccent}25 75%)`,
+                    backgroundSize: '32px 32px',
+                  }}
+                />
+              )}
+              {themeGridPattern === 'stars' && (
+                <div 
+                  className="absolute inset-0 pointer-events-none opacity-30"
+                  style={{
+                    backgroundImage: `radial-gradient(1.5px 1.5px at 20px 30px, #ffffff, rgba(0,0,0,0)), radial-gradient(1.5px 1.5px at 40px 70px, ${themeAccent}, rgba(0,0,0,0)), radial-gradient(1px 1px at 90px 40px, #ffffff, rgba(0,0,0,0))`,
+                    backgroundSize: '120px 120px',
+                  }}
+                />
+              )}
+
+              {/* Ambient Glow Cloud Atmosphere */}
+              {themeGlowIntensity !== 'none' && (
+                <div 
+                  className="absolute -top-16 -right-16 w-64 h-64 rounded-full blur-3xl pointer-events-none"
+                  style={{
+                    backgroundColor: `${themeAccent}${themeGlowIntensity === 'neon' ? '30' : themeGlowIntensity === 'vivid' ? '20' : '12'}`,
+                  }}
+                />
+              )}
+
+              {/* Animated Sprinkles / Particles Atmosphere */}
+              {themeSprinkles !== 'none' && (
+                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                  <span className="absolute top-4 left-6 text-xs animate-bounce opacity-40">✨</span>
+                  <span className="absolute top-1/3 right-8 text-xs animate-pulse opacity-50" style={{ animationDuration: '2s' }}>✦</span>
+                  <span className="absolute bottom-12 left-10 text-xs animate-bounce opacity-30" style={{ animationDuration: '3s' }}>✨</span>
+                  <span className="absolute bottom-1/4 right-1/4 text-xs animate-pulse opacity-40" style={{ animationDuration: '2.5s' }}>★</span>
+                </div>
+              )}
+
               {/* 1. Top Bar: Breadcrumb & Doctor Code */}
-              <div className="flex items-center justify-between pb-3 border-b border-white/10 dark:border-white/10 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10 dark:border-white/10 text-xs relative z-10">
                 <div className="flex items-center gap-1.5 opacity-80 text-[11px] font-bold">
                   <ArrowLeft className="w-3.5 h-3.5 rtl:rotate-180" />
                   <span>دليل الأساتذة</span>

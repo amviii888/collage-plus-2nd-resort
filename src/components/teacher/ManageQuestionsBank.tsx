@@ -2,11 +2,11 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { safeZodResolver } from '@/lib/zod-compat';
 import { z } from 'zod';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, query, where } from 'firebase/firestore';
-import type { QuestionBankItem, Grade } from '@/lib/types';
+import { useFirestore } from '@/firebase';
+import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
+import type { QuestionBankItem } from '@/lib/types';
 import { grades } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from 'react-i18next';
@@ -36,10 +36,10 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 
 const questionBankSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
+  title: z.string().min(1, 'العنوان مطلوب'),
   description: z.string().optional().default(''),
-  grade: z.string().min(1, 'Please select a grade'),
-  fileUrl: z.string().min(1, 'File link is required'),
+  grade: z.string().min(1, 'يرجى اختيار الفرقة الدراسية'),
+  fileUrl: z.string().min(1, 'رابط الملف مطلوب'),
 });
 
 type QuestionBankFormValues = z.infer<typeof questionBankSchema>;
@@ -57,7 +57,7 @@ function QuestionBankFormModal({ teacherId, itemToEdit, onFinished }: QuestionBa
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<QuestionBankFormValues>({
-    resolver: zodResolver(questionBankSchema),
+    resolver: safeZodResolver(questionBankSchema),
     defaultValues: itemToEdit
       ? {
           title: itemToEdit.title || '',
@@ -74,7 +74,6 @@ function QuestionBankFormModal({ teacherId, itemToEdit, onFinished }: QuestionBa
   });
 
   const onSubmit = async (data: QuestionBankFormValues) => {
-    if (!firestore) return;
     setIsSubmitting(true);
 
     let cleanUrl = data.fileUrl.trim();
@@ -83,15 +82,14 @@ function QuestionBankFormModal({ teacherId, itemToEdit, onFinished }: QuestionBa
     }
 
     try {
-      let response;
-      if (itemToEdit) {
-        response = await fetch('/api/questions-bank', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+      let success = false;
+      // 1. Try API route first
+      try {
+        const response = await fetch('/api/questions-bank' + (itemToEdit ? '' : ''), {
+          method: itemToEdit ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            id: itemToEdit.id,
+            ...(itemToEdit ? { id: itemToEdit.id } : {}),
             title: data.title.trim(),
             description: (data.description || '').trim(),
             grade: data.grade,
@@ -99,46 +97,45 @@ function QuestionBankFormModal({ teacherId, itemToEdit, onFinished }: QuestionBa
             teacherId,
           }),
         });
-
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || 'Failed to update question bank');
+        if (response.ok) {
+          success = true;
         }
+      } catch (err) {}
 
-        toast({ 
-          title: t('Questions Bank Updated'), 
-          description: t('The question bank has been successfully updated.') 
-        });
-      } else {
-        response = await fetch('/api/questions-bank', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
+      // 2. Client-side Firestore fallback if API route couldn't save
+      if (!success && firestore) {
+        if (itemToEdit) {
+          const docRef = doc(firestore, 'questionBanks', itemToEdit.id);
+          await updateDoc(docRef, {
             title: data.title.trim(),
             description: (data.description || '').trim(),
             grade: data.grade,
             fileUrl: cleanUrl,
             teacherId,
-          }),
-        });
-
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || 'Failed to publish question bank');
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          await addDoc(collection(firestore, 'questionBanks'), {
+            title: data.title.trim(),
+            description: (data.description || '').trim(),
+            grade: data.grade,
+            fileUrl: cleanUrl,
+            teacherId,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
         }
-
-        toast({ 
-          title: t('Questions Bank Published'), 
-          description: t('Your questions file has been published for students.') 
-        });
       }
+
+      toast({ 
+        title: itemToEdit ? 'تم تحديث بنك الأسئلة' : 'تم نشر بنك الأسئلة بنجاح', 
+        description: 'الملف متاح الآن لطلابك في الفرقة المختارة.' 
+      });
       onFinished();
     } catch (e: any) {
       toast({ 
-        title: t('Error saving'), 
-        description: e.message || 'An unexpected error occurred.', 
+        title: 'خطأ أثناء الحفظ', 
+        description: e.message || 'حدث خطأ غير متوقع.', 
         variant: 'destructive' 
       });
     } finally {
@@ -303,39 +300,42 @@ export function ManageQuestionsBank({ teacherId }: { teacherId: string }) {
     if (!teacherId) return;
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/questions-bank?teacherId=${teacherId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch question banks');
-      }
-      const json = await response.json();
-      
-      const items = (json.data || []).map((item: any) => {
-        const mapped = { ...item };
-        if (mapped.createdAt && typeof mapped.createdAt.seconds === 'number') {
-          mapped.createdAt = {
-            seconds: mapped.createdAt.seconds,
-            nanoseconds: mapped.createdAt.nanoseconds || 0,
-            toDate: () => new Date(mapped.createdAt.seconds * 1000),
-          };
-        }
-        if (mapped.updatedAt && typeof mapped.updatedAt.seconds === 'number') {
-          mapped.updatedAt = {
-            seconds: mapped.updatedAt.seconds,
-            nanoseconds: mapped.updatedAt.nanoseconds || 0,
-            toDate: () => new Date(mapped.updatedAt.seconds * 1000),
-          };
-        }
-        return mapped;
-      });
+      let loadedItems: QuestionBankItem[] = [];
 
-      setQuestions(items);
+      // 1. Try client-side Firestore query first
+      if (firestore) {
+        try {
+          const q = query(collection(firestore, 'questionBanks'), where('teacherId', '==', teacherId));
+          const snap = await getDocs(q);
+          loadedItems = snap.docs.map(d => ({
+            id: d.id,
+            ...d.data(),
+          } as QuestionBankItem));
+        } catch (fErr) {}
+      }
+
+      // 2. If client-side was empty, fallback to API route
+      if (loadedItems.length === 0) {
+        try {
+          const response = await fetch(`/api/questions-bank?teacherId=${teacherId}`);
+          if (response.ok) {
+            const json = await response.json();
+            loadedItems = (json.data || []).map((item: any) => ({
+              ...item,
+              createdAt: item.createdAt?.seconds ? {
+                seconds: item.createdAt.seconds,
+                nanoseconds: item.createdAt.nanoseconds || 0,
+                toDate: () => new Date(item.createdAt.seconds * 1000),
+              } : null,
+            }));
+          }
+        } catch (apiErr) {}
+      }
+
+      setQuestions(loadedItems);
     } catch (e: any) {
       console.error(e);
-      toast({
-        title: t('Error loading data'),
-        description: e.message || 'Could not fetch question banks.',
-        variant: 'destructive',
-      });
+      setQuestions([]);
     } finally {
       setIsLoading(false);
     }

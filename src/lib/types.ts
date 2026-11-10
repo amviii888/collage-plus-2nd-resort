@@ -12,6 +12,9 @@ export type Video = {
   id: string;
   title: string;
   url: string;
+  enableQrStamp?: boolean; // Layer 1: QR Code Verification Stamp
+  enableAudioTts?: boolean; // Layer 2: Text-To-Speech Audio Watermark
+  enableVisualWatermark?: boolean; // Layer 3: Dynamic Visual Watermark & Diagonal Stamp
 };
 
 export type Unit = {
@@ -144,6 +147,9 @@ export type Course = {
   teacherProfilePictureUrl?: string; // Denormalized
   homeworkId?: string; // NEW
   testId?: string; // NEW
+  enableQrStamp?: boolean; // Layer 1: QR Code Stamp default for course
+  enableAudioTts?: boolean; // Layer 2: Text-To-Speech Audio Watermark default for course
+  enableVisualWatermark?: boolean; // Layer 3: Dynamic Visual Watermark default for course
 };
 
 export type CollectionCustomItem = {
@@ -261,13 +267,21 @@ export type Announcement = {
 export type ShareCode = {
   id: string;
   code: string;
-  courseId?: string; // Optional: for single course
-  collectionId?: string; // Optional: for course collection
-  teacherId: string; // Keep track of which teacher generated the code
+  type?: 'course' | 'unit' | 'collection';
+  courseId?: string;
+  courseTitle?: string;
+  unitId?: string;
+  unitTitle?: string;
+  collectionId?: string;
+  collectionTitle?: string;
+  teacherId: string;
   used: boolean;
   usedBy?: string;
-  usedAt?: Timestamp;
-  createdAt: Timestamp;
+  usedByName?: string;
+  usedAt?: Timestamp | any;
+  createdAt: Timestamp | any;
+  price?: number;
+  viewLimit?: number;
   hidden?: boolean;
 };
 

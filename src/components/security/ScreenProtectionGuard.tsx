@@ -23,7 +23,10 @@ export function ScreenProtectionGuard() {
     pathname.startsWith('/parent-login') ||
     pathname.startsWith('/signup') ||
     pathname.startsWith('/signup-options') ||
-    pathname.startsWith('/forgot-password');
+    pathname.startsWith('/forgot-password') ||
+    pathname.startsWith('/teacher') ||
+    pathname.startsWith('/settings') ||
+    pathname.startsWith('/librarian');
   const [isBlackedOut, setIsBlackedOut] = useState(false);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -203,11 +206,110 @@ export function ScreenProtectionGuard() {
       } catch {}
     }
 
-    // Engage Web Keyboard Lock API on desktop browsers to intercept OS screenshot keys
-    if (typeof navigator !== 'undefined' && (navigator as any).keyboard?.lock) {
+    // Override document.pictureInPictureEnabled & HTMLVideoElement properties
+    if (typeof document !== 'undefined') {
       try {
-        (navigator as any).keyboard.lock(['PrintScreen']).catch(() => {});
+        Object.defineProperty(document, 'pictureInPictureEnabled', {
+          get: () => false,
+          configurable: true,
+        });
       } catch {}
+    }
+
+    if (typeof HTMLVideoElement !== 'undefined' && HTMLVideoElement.prototype) {
+      try {
+        Object.defineProperty(HTMLVideoElement.prototype, 'disablePictureInPicture', {
+          get: () => true,
+          set: () => {},
+          configurable: true,
+        });
+        HTMLVideoElement.prototype.requestPictureInPicture = function () {
+          return Promise.reject(new DOMException('Picture-in-Picture is disabled by security policy.', 'NotAllowedError'));
+        };
+      } catch {}
+    }
+
+    const disablePipOnAllMedia = () => {
+      if (typeof document === 'undefined') return;
+      try {
+        const videos = document.querySelectorAll('video');
+        videos.forEach((v: any) => {
+          v.disablePictureInPicture = true;
+          v.setAttribute('disablePictureInPicture', 'true');
+          v.setAttribute('disablepictureinpicture', 'true');
+          v.setAttribute('data-disable-pip', 'true');
+          const existingControls = v.getAttribute('controlsList') || '';
+          if (!existingControls.includes('disablePictureInPicture')) {
+            v.setAttribute('controlsList', `${existingControls} nodownload noplaybackrate disablePictureInPicture`.trim());
+          }
+        });
+
+        const iframes = document.querySelectorAll('iframe');
+        iframes.forEach((f: any) => {
+          f.setAttribute('disablePictureInPicture', 'true');
+          f.setAttribute('disablepictureinpicture', 'true');
+          f.setAttribute('data-disable-pip', 'true');
+          const currentAllow = f.getAttribute('allow') || '';
+          if (currentAllow.includes('picture-in-picture')) {
+            f.setAttribute('allow', currentAllow.replace(/picture-in-picture/g, "picture-in-picture 'none'").trim());
+          }
+        });
+      } catch {}
+    };
+
+    disablePipOnAllMedia();
+
+    const handlePipEvent = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+      if (typeof document !== 'undefined' && document.pictureInPictureElement) {
+        if (typeof document.exitPictureInPicture === 'function') {
+          document.exitPictureInPicture().catch(() => {});
+        }
+      }
+      applyInstantBlackout();
+      engageVideoShutter();
+      showSecurityWarning('⛔ تم حظر وضع صورة داخل صورة (Picture-in-Picture) لحماية المحتوى.', 5000);
+      return false;
+    };
+
+    window.addEventListener('enterpictureinpicture', handlePipEvent, true);
+    document.addEventListener('enterpictureinpicture', handlePipEvent, true);
+    window.addEventListener('leavepictureinpicture', handlePipEvent, true);
+    document.addEventListener('leavepictureinpicture', handlePipEvent, true);
+
+    // Active 150ms Watchdog loop to kill any active Picture-in-Picture instantly
+    const pipWatchdogInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.pictureInPictureElement) {
+        try {
+          if (typeof document.exitPictureInPicture === 'function') {
+            document.exitPictureInPicture().catch(() => {});
+          }
+        } catch {}
+        applyInstantBlackout();
+        engageVideoShutter();
+        showSecurityWarning('⛔ تم حظر وتجميد وضع صورة داخل صورة (Picture-in-Picture).', 5000);
+      }
+    }, 150);
+
+    let videoObserver: MutationObserver | null = null;
+    if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') {
+      videoObserver = new MutationObserver((mutations) => {
+        let hasNewMedia = false;
+        for (const m of mutations) {
+          if (m.addedNodes.length > 0) {
+            hasNewMedia = true;
+            break;
+          }
+        }
+        if (hasNewMedia) {
+          disablePipOnAllMedia();
+        }
+      });
+      if (document.body) {
+        videoObserver.observe(document.body, { childList: true, subtree: true });
+      }
     }
 
     let lastMetaKeyTime = 0;
@@ -463,18 +565,7 @@ export function ScreenProtectionGuard() {
             return;
           }
 
-          const bluetoothAudioDevice = devices.find(d => {
-            const label = (d.label || '').toLowerCase();
-            return (
-              (d.kind === 'audiooutput' || (d as any).kind === 'audio') &&
-              (label.includes('bluetooth') || label.includes('bth') || label.includes('wireless') || label.includes('airpods') || label.includes('tws') || label.includes('speaker'))
-            );
-          });
-
-          if (bluetoothAudioDevice) {
-            engageVideoShutter();
-            showSecurityWarning('⚠️ تنبيه أمني: استخدام أجهزة البلوتوث أو مكبرات الصوت الخارجية محظور. يرجى استخدام سماعات سلكية (Wired Headphones).', 5000);
-          }
+          // Virtual audio capture devices detection (OBS, stereo mix, virtual audio cables)
         }
       } catch (err) {}
     };
@@ -487,31 +578,8 @@ export function ScreenProtectionGuard() {
     document.addEventListener('webkitplaybacktargetavailabilitychanged', handleAirPlayTarget, true);
     enforceNoAirPlayOnMedia();
 
-    // 6. Watermark Anti-Tampering DOM Observer
-    const watermarkObserver = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (mutation.type === 'childList') {
-          mutation.removedNodes.forEach((node: any) => {
-            if (node.nodeType === 1) {
-              const isWatermark = 
-                node.id === 'dynamic-watermark-overlay' || 
-                node.classList?.contains('watermark-shield') ||
-                node.classList?.contains('protected-watermark') ||
-                node.tagName === 'CANVAS';
-              if (isWatermark) {
-                applyInstantBlackout();
-                showSecurityWarning('تحذير أمني: تم رصد محاولة إزالة العلامة المائية.', 6000);
-                window.dispatchEvent(new Event('watermark_tamper_detected'));
-              }
-            }
-          });
-        }
-      }
-    });
-
-    try {
-      watermarkObserver.observe(document.body, { childList: true, subtree: true });
-    } catch {}
+    // 6. Note: Watermark presence & self-healing is handled directly in DynamicWatermark.tsx
+    // to avoid false-positive tamper warnings during React tab switches or page navigations.
 
     // 7. Window Blur & Visibility (Snipping Tool & Background Screenshot Interception)
     let lastInputInteractionTimestamp = 0;
@@ -829,9 +897,14 @@ export function ScreenProtectionGuard() {
         clearInterval(focusCheckInterval);
       }
       clearInterval(devToolsCheck);
-      try {
-        watermarkObserver.disconnect();
-      } catch {}
+      clearInterval(pipWatchdogInterval);
+      if (videoObserver) {
+        videoObserver.disconnect();
+      }
+      window.removeEventListener('enterpictureinpicture', handlePipEvent, true);
+      document.removeEventListener('enterpictureinpicture', handlePipEvent, true);
+      window.removeEventListener('leavepictureinpicture', handlePipEvent, true);
+      document.removeEventListener('leavepictureinpicture', handlePipEvent, true);
       document.removeEventListener('webkitplaybacktargetavailabilitychanged', handleAirPlayTarget, true);
       window.removeEventListener('keydown', handleKeyDown, { capture: true });
       window.removeEventListener('keyup', handleKeyUp, { capture: true });
@@ -892,6 +965,10 @@ export function ScreenProtectionGuard() {
           user-select: text !important;
           -webkit-user-select: text !important;
           pointer-events: auto !important;
+        }
+        video::-webkit-media-controls-picture-in-picture-button,
+        video::-picture-in-picture-button {
+          display: none !important;
         }
       `}} />
 

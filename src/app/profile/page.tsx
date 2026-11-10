@@ -376,9 +376,32 @@ function TeacherDashboard({ teacherId }: { teacherId: string }) {
     setLocalAttendance,
     triggerTwoWaySync
   } = useLocalData();
+  const { user: activeUser } = useUser();
   const teacherRef = useMemoFirebase(() => doc(firestore, 'teachers', teacherId), [firestore, teacherId]);
-  const { data: teacher, isLoading: teacherLoading } = useDoc<Teacher>(teacherRef);
+  const { data: cloudTeacher, isLoading: teacherLoading } = useDoc<Teacher>(teacherRef);
   
+  // Auto-provision teacher record if missing in cloud
+  useEffect(() => {
+    if (!teacherLoading && !cloudTeacher && firestore && teacherId && teacherId !== 'guest_teacher' && activeUser?.uid === teacherId) {
+      import('firebase/firestore').then(({ doc, setDoc, serverTimestamp }) => {
+        const tRef = doc(firestore, 'teachers', teacherId);
+        setDoc(tRef, {
+          id: teacherId,
+          name: activeUser.displayName || activeUser.email?.split('@')[0] || 'المحاضر',
+          email: activeUser.email || '',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }, { merge: true }).catch(() => {});
+      });
+    }
+  }, [teacherLoading, cloudTeacher, firestore, teacherId, activeUser]);
+
+  const teacher = cloudTeacher || (activeUser && activeUser.uid === teacherId ? ({
+    id: teacherId,
+    name: activeUser.displayName || activeUser.email?.split('@')[0] || 'المحاضر',
+    email: activeUser.email || '',
+  } as any) : null);
+
   const [customCodesUpdateKey, setCustomCodesUpdateKey] = useState(0);
   useEffect(() => {
     const handleUpdate = () => setCustomCodesUpdateKey(k => k + 1);
@@ -2687,7 +2710,14 @@ export default function ProfilePage() {
     }
   }, [hasMounted, isUserLoading, isAssistant, user, offlineStudentId, storedTeacherId, router]);
 
-  if (isUserLoading || !hasMounted || isAssistant) {
+  const firestore = useFirestore();
+  const teacherDocRef = useMemoFirebase(() => {
+    if (!firestore || !user?.uid) return null;
+    return doc(firestore, 'teachers', user.uid);
+  }, [firestore, user?.uid]);
+  const { data: teacherDoc, isLoading: isTeacherDocLoading } = useDoc<Teacher>(teacherDocRef);
+
+  if (isUserLoading || (user && isTeacherDocLoading) || !hasMounted || isAssistant) {
     return (
         <div className="p-4 space-y-4 max-w-7xl mx-auto">
             <Skeleton className="h-32 w-full rounded-2xl" />
@@ -2700,7 +2730,7 @@ export default function ProfilePage() {
       if (offlineStudentId) {
           return <StudentProfile studentId={offlineStudentId} />;
       }
-      if (storedTeacherId) {
+      if (storedTeacherId && typeof window !== 'undefined' && localStorage.getItem('teacher_session') === 'true') {
           return (
             <LocalDataProvider teacherId={storedTeacherId}>
                 <TeacherDashboard teacherId={storedTeacherId} />
@@ -2728,20 +2758,20 @@ export default function ProfilePage() {
       return null;
   }
 
-  // Robust Student Role Check: checks mol5saty.student, universe.student, or local student sessions
-  const hasLocalStudent = typeof window !== 'undefined' && (
-      !!localStorage.getItem('cached_student_profile_' + user.uid) ||
-      !!localStorage.getItem('student_profile_offline_' + user.uid) ||
-      localStorage.getItem('viewingStudentId') === user.uid
+  // Robust Student vs Teacher Role Check:
+  const isStudentMail = isStudentEmail(user.email);
+  const isTeacherSession = typeof window !== 'undefined' && (
+      localStorage.getItem('teacher_session') === 'true' ||
+      localStorage.getItem('teacherId') === user.uid
   );
 
-  const isStudent = isStudentEmail(user.email) || !!offlineStudentId || hasLocalStudent;
+  const isTeacher = !!teacherDoc || isTeacherSession || (!isStudentMail && !user.isAnonymous);
 
-  if (isStudent) {
+  if (!isTeacher && (isStudentMail || user.isAnonymous)) {
       return <StudentProfile studentId={offlineStudentId || user.uid} />;
   }
 
-  // If user is anonymous and not a student, check if they have offline student profile, else show loading while redirecting
+  // If user is anonymous and not a teacher, route to student profile or redirect
   if (user.isAnonymous) {
       if (offlineStudentId) {
           return <StudentProfile studentId={offlineStudentId} />;

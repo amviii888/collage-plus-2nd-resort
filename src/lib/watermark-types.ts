@@ -32,9 +32,10 @@ export interface DynamicWatermarkConfig {
 
   // Audio Watermark (TTS - Text to Speech Web Speech API, 100% free)
   ttsEnabled: boolean;
-  ttsIntervalMinutes: 0 | 5 | 15 | 30 | 60; // 0 = off, 5, 15, 30, 60 minutes
+  ttsAutoStart?: boolean; // speaks immediately on video start
+  ttsIntervalMinutes: number; // 5, 10, 15, 30, 60 minutes
   ttsVoice: 'female' | 'male' | 'child'; // voice personality
-  ttsInitialTestDelaySeconds?: number; // 0 = disabled, 10 or 15 = speaks once shortly after starting to verify audio
+  ttsInitialTestDelaySeconds?: number; // delay in seconds before initial speech
 
   // Anti-Tamper & Anti-Inspect Shield
   antiTamperShieldEnabled?: boolean; // Blocks inspect element, devtools tampering, DOM deletion
@@ -44,6 +45,17 @@ export interface DynamicWatermarkConfig {
   qrPosition?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
   qrSize?: number;
   qrPassTitle?: string;
+
+  // Diagonal Parallel Text Watermark Customization
+  textStampOpacity?: number; // 0.1 to 1.0 (default 0.40)
+  stampShowPhone?: boolean; // default true (mandatory default)
+  stampShowName?: boolean; // default true
+  stampShowStudentCode?: boolean; // default true
+  stampShowUniversity?: boolean; // default false
+
+  // Moving Dynamic Badge Frame Shape & Color Customization
+  frameShape?: 'none' | 'thin' | 'glow' | 'rounded_card' | 'thick'; // Frame shape/style
+  frameColor?: string; // Custom frame border color (e.g. '#22c55e', '#3b82f6', '#eab308', '#ef4444', '#a855f7', '#ffffff')
 
   // Visual Theme Representation
   profileTheme?: 'emerald' | 'sapphire' | 'amber' | 'obsidian' | 'violet';
@@ -71,13 +83,23 @@ export const DEFAULT_WATERMARK_CONFIG: DynamicWatermarkConfig = {
   flickerEnabled: true,
   flickerIntervalSeconds: 40,
   ttsEnabled: false,
-  ttsIntervalMinutes: 0,
+  ttsAutoStart: true,
+  ttsIntervalMinutes: 15,
   ttsVoice: 'female',
-  ttsInitialTestDelaySeconds: 15,
+  ttsInitialTestDelaySeconds: 3,
   antiTamperShieldEnabled: true,
   showQrStamp: true,
   qrPosition: 'bottom-right',
   qrSize: 44,
   qrPassTitle: 'SECURE DIGITAL PASS',
   profileTheme: 'emerald',
+  // New Diagonal Text Watermark Defaults
+  textStampOpacity: 0.40,
+  stampShowPhone: true,
+  stampShowName: true,
+  stampShowStudentCode: true,
+  stampShowUniversity: false,
+  // New Moving Dynamic Badge Frame Defaults
+  frameShape: 'thin',
+  frameColor: '#22c55e',
 };

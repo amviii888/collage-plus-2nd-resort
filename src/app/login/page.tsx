@@ -278,8 +278,14 @@ function LoginFormContent() {
                 }
             }
 
-            // Accurately resolve role from Firestore collections
-            let detectedRole = 'student';
+            // Accurately resolve role: Standard non-student emails are Teacher / Admin by default
+            const isStudentMail = isStudentEmail(userCredential.user.email) ||
+                                  identifier.trim().toLowerCase().endsWith('@mol5saty.student') || 
+                                  identifier.trim().toLowerCase().endsWith('@universe.student') ||
+                                  userCredential.user.email?.toLowerCase().endsWith('@mol5saty.student') ||
+                                  userCredential.user.email?.toLowerCase().endsWith('@universe.student');
+
+            let detectedRole = isStudentAttempt || isStudentMail ? 'student' : 'teacher';
             if (firestore && userCredential?.user) {
                 try {
                     const { doc, getDoc } = await import('firebase/firestore');
@@ -297,12 +303,7 @@ function LoginFormContent() {
                 } catch (e) {}
             }
 
-            const isStudent = detectedRole === 'student' ||
-                              isStudentAttempt || 
-                              identifier.trim().toLowerCase().endsWith('@mol5saty.student') || 
-                              identifier.trim().toLowerCase().endsWith('@universe.student') ||
-                              userCredential.user.email?.toLowerCase().endsWith('@mol5saty.student') ||
-                              userCredential.user.email?.toLowerCase().endsWith('@universe.student');
+            const isStudent = detectedRole === 'student' && (isStudentAttempt || isStudentMail);
 
             const isAdmin = detectedRole === 'admin' || 
                             detectedRole === 's admin' || 
@@ -423,29 +424,45 @@ function LoginFormContent() {
 
                 if (firestore && userCredential?.user) {
                     try {
-                        const { doc, getDoc } = await import('firebase/firestore');
-                        const teacherSnap = await getDoc(doc(firestore, 'teachers', userCredential.user.uid));
+                        const { doc, getDoc, setDoc, serverTimestamp } = await import('firebase/firestore');
+                        const teacherRef = doc(firestore, 'teachers', userCredential.user.uid);
+                        const teacherSnap = await getDoc(teacherRef);
+                        let tData: any = null;
+
                         if (teacherSnap.exists()) {
-                            const tData = teacherSnap.data();
-                            if (tData?.profilePictureUrl) {
-                                localStorage.setItem(`custom_teacher_avatar_${userCredential.user.uid}`, tData.profilePictureUrl);
-                            }
-                            if (tData?.heroImageUrl) {
-                                localStorage.setItem(`custom_teacher_hero_${userCredential.user.uid}`, tData.heroImageUrl);
-                            }
-                            // Store account in switcher
-                            const stored = localStorage.getItem('teacher_accounts');
-                            let accs = stored ? JSON.parse(stored) : [];
-                            accs = accs.filter((a: any) => a.id !== userCredential.user.uid);
-                            accs.unshift({
+                            tData = teacherSnap.data();
+                        } else {
+                            // Auto-provision teacher profile if missing in Firestore
+                            tData = {
                                 id: userCredential.user.uid,
-                                name: tData?.name || 'الأستاذ',
-                                email: tData?.email || userCredential.user.email,
-                                profilePictureUrl: tData?.profilePictureUrl || ''
-                            });
-                            localStorage.setItem('teacher_accounts', JSON.stringify(accs));
+                                name: userCredential.user.displayName || userCredential.user.email?.split('@')[0] || 'المحاضر',
+                                email: userCredential.user.email || '',
+                                createdAt: serverTimestamp(),
+                                updatedAt: serverTimestamp(),
+                            };
+                            await setDoc(teacherRef, tData, { merge: true });
                         }
-                    } catch (tErr) {}
+
+                        if (tData?.profilePictureUrl) {
+                            localStorage.setItem(`custom_teacher_avatar_${userCredential.user.uid}`, tData.profilePictureUrl);
+                        }
+                        if (tData?.heroImageUrl) {
+                            localStorage.setItem(`custom_teacher_hero_${userCredential.user.uid}`, tData.heroImageUrl);
+                        }
+                        // Store account in switcher
+                        const stored = localStorage.getItem('teacher_accounts');
+                        let accs = stored ? JSON.parse(stored) : [];
+                        accs = accs.filter((a: any) => a.id !== userCredential.user.uid);
+                        accs.unshift({
+                            id: userCredential.user.uid,
+                            name: tData?.name || userCredential.user.displayName || 'الأستاذ',
+                            email: tData?.email || userCredential.user.email,
+                            profilePictureUrl: tData?.profilePictureUrl || ''
+                        });
+                        localStorage.setItem('teacher_accounts', JSON.stringify(accs));
+                    } catch (tErr) {
+                        console.warn('Teacher setup notice:', tErr);
+                    }
                 }
             }
 

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const LIBRARY_ID = process.env.BUNNY_STREAM_LIBRARY_ID || process.env.NEXT_PUBLIC_BUNNY_STREAM_LIBRARY_ID || '775464';
-const API_KEY = process.env.BUNNY_STREAM_API_KEY || 'f51c7eeb-a556-4f0c-b89eb28b965c-38f1-4b98';
-const CDN_HOSTNAME = process.env.BUNNY_STREAM_CDN_HOSTNAME || process.env.NEXT_PUBLIC_BUNNY_CDN_HOSTNAME || 'vz-c109ef36-52a.b-cdn.net';
+// Active Bunny Stream Credentials (Library 804078)
+const isOldOrStale = (val?: string) => !val || val === '775464' || val.startsWith('f51c7eeb') || val.includes('vz-c109ef36');
+
+const LIBRARY_ID = isOldOrStale(process.env.BUNNY_STREAM_LIBRARY_ID) ? '804078' : process.env.BUNNY_STREAM_LIBRARY_ID!;
+const API_KEY = isOldOrStale(process.env.BUNNY_STREAM_API_KEY) ? 'c30837fc-ac31-4c78-bd13ea7e8d85-177d-4dbd' : process.env.BUNNY_STREAM_API_KEY!;
+const CDN_HOSTNAME = isOldOrStale(process.env.BUNNY_STREAM_CDN_HOSTNAME) ? 'vz-7dc30faa-b42.b-cdn.net' : process.env.BUNNY_STREAM_CDN_HOSTNAME!;
 
 export async function PUT(
   req: NextRequest,

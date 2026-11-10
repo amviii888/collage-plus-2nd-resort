@@ -52,8 +52,10 @@ import {
   Plus,
   X,
   Check,
+  CheckCircle,
   Film,
   Repeat,
+  KeyRound,
 } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { Checkbox } from './ui/checkbox';
@@ -90,6 +92,9 @@ const videoSchema = z.object({
   id: z.string(),
   title: z.string().min(1, 'Video title is required'),
   url: z.string().min(1, 'Video URL or Bunny Video ID is required'),
+  enableQrStamp: z.boolean().optional(),
+  enableAudioTts: z.boolean().optional(),
+  enableVisualWatermark: z.boolean().optional(),
 });
 
 const unitSchema = z.object({
@@ -117,6 +122,9 @@ const courseSchema = z.object({
   price: z.coerce.number().min(0).optional(),
   viewLimit: z.coerce.number().int().min(0).optional(),
   testId: z.string().optional(),
+  enableQrStamp: z.boolean().optional(),
+  enableAudioTts: z.boolean().optional(),
+  enableVisualWatermark: z.boolean().optional(),
 });
 
 type CourseFormValues = z.infer<typeof courseSchema>;
@@ -171,23 +179,37 @@ function NestedVideoArray({ unitIndex, control, register, errors, watch, setValu
                 <div>
                   <div className="relative flex items-center gap-1.5">
                     <div className="relative flex-1">
-                      <Input
-                        {...register(`units.${unitIndex}.videos.${videoIndex}.url`)}
-                        placeholder="Bunny Video ID, Bunny Stream URL, or YouTube"
-                        className="bg-white dark:bg-zinc-950/60 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-sm h-9 pr-24"
-                      />
-                      {videoUrlVal && (
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2">
-                          {isBunny ? (
-                            <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] py-0 px-1.5 flex items-center gap-1">
-                              <ShieldCheck className="w-3 h-3" /> Bunny DRM
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 text-[10px] py-0 px-1.5">
-                              External
-                            </Badge>
+                      {isBunny ? (
+                        <div className="flex items-center justify-between h-9 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs">
+                          <div className="flex items-center gap-2 text-emerald-400 font-medium">
+                            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span>فيديو سحابي مشفر (DRM Protected)</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setValue?.(`units.${unitIndex}.videos.${videoIndex}.url`, '', { shouldDirty: true, shouldTouch: true, shouldValidate: true })}
+                            className="text-[11px] text-zinc-400 hover:text-rose-400 hover:underline px-1 py-0.5"
+                            title="إزالة أو تغيير رابط الفيديو"
+                          >
+                            تغيير
+                          </button>
+                          <input type="hidden" {...register(`units.${unitIndex}.videos.${videoIndex}.url`)} />
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <Input
+                            {...register(`units.${unitIndex}.videos.${videoIndex}.url`)}
+                            placeholder="رابط يوتيوب أو فيديو خارجي"
+                            className="bg-white dark:bg-zinc-950/60 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-sm h-9 pr-20"
+                          />
+                          {videoUrlVal && (
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2">
+                              <Badge variant="outline" className="text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700 text-[10px] py-0 px-1.5">
+                                External
+                              </Badge>
+                            </span>
                           )}
-                        </span>
+                        </div>
                       )}
                     </div>
 
@@ -247,6 +269,40 @@ function NestedVideoArray({ unitIndex, control, register, errors, watch, setValu
                 />
               </div>
             )}
+
+            {/* Per-Video Security Layers Bar (Per-Video Toggles) */}
+            <div className="mt-1 pt-2 border-t border-zinc-800/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="text-[11px] font-bold text-zinc-400 flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>طبقات حماية هذا الدرس (Per-Video Security):</span>
+              </span>
+
+              <div className="flex flex-wrap items-center gap-3 text-[11px]">
+                <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300 hover:text-white select-none">
+                  <Switch
+                    checked={watch(`units.${unitIndex}.videos.${videoIndex}.enableQrStamp`) ?? true}
+                    onCheckedChange={(val) => setValue?.(`units.${unitIndex}.videos.${videoIndex}.enableQrStamp`, val, { shouldDirty: true })}
+                  />
+                  <span>🛡️ ختم الـ QR</span>
+                </label>
+
+                <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300 hover:text-white select-none">
+                  <Switch
+                    checked={watch(`units.${unitIndex}.videos.${videoIndex}.enableAudioTts`) ?? true}
+                    onCheckedChange={(val) => setValue?.(`units.${unitIndex}.videos.${videoIndex}.enableAudioTts`, val, { shouldDirty: true })}
+                  />
+                  <span>🔊 الصوت (TTS)</span>
+                </label>
+
+                <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300 hover:text-white select-none">
+                  <Switch
+                    checked={watch(`units.${unitIndex}.videos.${videoIndex}.enableVisualWatermark`) ?? true}
+                    onCheckedChange={(val) => setValue?.(`units.${unitIndex}.videos.${videoIndex}.enableVisualWatermark`, val, { shouldDirty: true })}
+                  />
+                  <span>🎨 العلامة المائية</span>
+                </label>
+              </div>
+            </div>
           </div>
         );
       })}
@@ -519,7 +575,7 @@ function CourseForm({
   const { toast } = useToast();
   const { t } = useTranslation();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'info' | 'audience' | 'content' | 'access'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'audience' | 'content' | 'access' | 'security'>('info');
 
   // Custom subjects and grades state - NO generic default suggestions, only recent ones made by teacher
   const [allSubjects, setAllSubjects] = useState<string[]>(() => {
@@ -575,6 +631,9 @@ function CourseForm({
           courseToEdit.units ||
           (courseToEdit.videos ? [{ id: uuidv4(), title: 'Unit 1', videos: courseToEdit.videos }] : []),
         testId: courseToEdit.testId || 'none',
+        enableQrStamp: courseToEdit.enableQrStamp ?? true,
+        enableAudioTts: courseToEdit.enableAudioTts ?? true,
+        enableVisualWatermark: courseToEdit.enableVisualWatermark ?? true,
       }
     : {
         title: '',
@@ -583,7 +642,7 @@ function CourseForm({
           {
             id: uuidv4(),
             title: 'Unit 1: Course Overview & Introduction',
-            videos: [{ id: uuidv4(), title: 'Lesson 1: Introduction', url: '' }],
+            videos: [{ id: uuidv4(), title: 'Lesson 1: Introduction', url: '', enableQrStamp: true, enableAudioTts: true, enableVisualWatermark: true }],
           },
         ],
         thumbnailUrl: 'https://picsum.photos/seed/course-thumb/800/450',
@@ -596,6 +655,9 @@ function CourseForm({
         price: 0,
         viewLimit: 3,
         testId: 'none',
+        enableQrStamp: true,
+        enableAudioTts: true,
+        enableVisualWatermark: true,
       };
 
   const form = useForm<CourseFormValues>({
@@ -623,6 +685,9 @@ function CourseForm({
           courseToEdit.units ||
           (courseToEdit.videos ? [{ id: uuidv4(), title: 'Unit 1', videos: courseToEdit.videos }] : []),
         testId: courseToEdit.testId || 'none',
+        enableQrStamp: courseToEdit.enableQrStamp ?? true,
+        enableAudioTts: courseToEdit.enableAudioTts ?? true,
+        enableVisualWatermark: courseToEdit.enableVisualWatermark ?? true,
       });
       if (courseToEdit.subjects) {
         setAllSubjects((prev) => Array.from(new Set([...prev, ...courseToEdit.subjects])));
@@ -855,6 +920,9 @@ function CourseForm({
         lockMode: data.lockMode || 'both',
         price: Number(data.price ?? 0),
         viewLimit: Number(data.viewLimit ?? 3),
+        enableQrStamp: data.enableQrStamp ?? true,
+        enableAudioTts: data.enableAudioTts ?? true,
+        enableVisualWatermark: data.enableVisualWatermark ?? true,
         units: (data.units || []).map((u) => ({
           id: u.id || uuidv4(),
           title: u.title || '',
@@ -862,6 +930,9 @@ function CourseForm({
             id: v.id || uuidv4(),
             title: v.title || '',
             url: v.url || '',
+            enableQrStamp: v.enableQrStamp ?? true,
+            enableAudioTts: v.enableAudioTts ?? true,
+            enableVisualWatermark: v.enableVisualWatermark ?? true,
           })),
           attachmentUrl: u.attachmentUrl || undefined,
           attachmentPages: Array.isArray(u.attachmentPages) ? u.attachmentPages : undefined,
@@ -1050,6 +1121,19 @@ function CourseForm({
             )}
           </button>
 
+          <button
+            type="button"
+            onClick={() => setActiveTab('security')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
+              activeTab === 'security'
+                ? 'bg-emerald-600 dark:bg-emerald-500 text-white dark:text-black shadow-md shadow-emerald-500/20'
+                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-zinc-800/60'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Security Layers (الحماية والأمان)</span>
+          </button>
+
           <Button
             type="button"
             variant="outline"
@@ -1161,20 +1245,37 @@ function CourseForm({
                     </Button>
                   </div>
 
-                  <div>
-                    <Label htmlFor="thumbnailUrl" className="text-xs text-slate-600 dark:text-zinc-400">
-                      Or Direct Image URL:
-                    </Label>
-                    <Input
-                      id="thumbnailUrl"
-                      {...register('thumbnailUrl')}
-                      placeholder="https://images.unsplash.com/photo-..."
-                      className="bg-white dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs mt-1 h-8"
-                    />
-                    {errors.thumbnailUrl && (
-                      <p className="text-rose-500 text-xs mt-1">{errors.thumbnailUrl.message}</p>
-                    )}
-                  </div>
+                  {thumbnailUrlValue ? (
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">تم تعيين صورة غلاف الكورس بنجاح</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setValue('thumbnailUrl', '')}
+                        className="text-xs text-rose-500 hover:text-rose-600 font-bold hover:underline"
+                      >
+                        إزالة الصورة
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <Label htmlFor="thumbnailUrl" className="text-xs text-slate-600 dark:text-zinc-400">
+                        رابط صورة مخصصة (اختياري):
+                      </Label>
+                      <Input
+                        id="thumbnailUrl"
+                        type="password"
+                        {...register('thumbnailUrl')}
+                        placeholder="https://..."
+                        className="bg-white dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white text-xs mt-1 h-8"
+                      />
+                      {errors.thumbnailUrl && (
+                        <p className="text-rose-500 text-xs mt-1">{errors.thumbnailUrl.message}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Protected Lecture Materials & In-App Viewer Studio */}
@@ -1645,30 +1746,9 @@ function CourseForm({
 
               {isLocked && (
                 <div className="pt-3 border-t border-slate-200 dark:border-zinc-800 space-y-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
-                      Lock & Unlock Mode (طريقة القفل وإتاحة المحتوى)
-                    </Label>
-                    <Controller
-                      name="lockMode"
-                      control={control}
-                      defaultValue="both"
-                      render={({ field }) => (
-                        <Select value={field.value || 'both'} onValueChange={field.onChange}>
-                          <SelectTrigger className="bg-white dark:bg-zinc-950 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white h-9 text-xs">
-                            <SelectValue placeholder="Select unlock mode" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white text-xs">
-                            <SelectItem value="both">Both (Either/Or): Student chooses Share Code OR Request (مزدوج: كود أو طلب)</SelectItem>
-                            <SelectItem value="requests_only">Requests Only: Student must submit request (طلبات وصول فقط)</SelectItem>
-                            <SelectItem value="codes_only">Share Codes Only: Only redeemable by code (أكواد وصول فقط)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                    <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                      Determine how students can purchase or request access to this course.
-                    </p>
+                  <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-300 dark:border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-400 font-bold">
+                    <KeyRound className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>الكورس مغلق برمز وصول (Share Code Protected): يتم الشراء والتفعيل حصرياً بواسطة أكواد الوصول الصادرة من الأستاذ.</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1747,6 +1827,82 @@ function CourseForm({
           </div>
         )}
 
+        {/* Tab 5: Security Layers */}
+        {activeTab === 'security' && (
+          <div className="space-y-5 animate-in fade-in duration-200">
+            <div className="p-5 rounded-2xl bg-slate-50/90 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 space-y-4">
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                  طبقات حماية فيديو المقرر (Course Security Layers)
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-zinc-400">
+                  يمكنك تفعيل أو إيقاف طبقات الحماية الثلاث لهذا المقرر ككل. يمكنك أيضاً تخصيص كل فيديو على حدة داخل تبويب الفيديوهات.
+                </p>
+              </div>
+
+              <div className="space-y-4 pt-3 border-t border-slate-200 dark:border-zinc-800">
+                {/* Layer 1: QR Code Stamp */}
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <span>🛡️ الطبقة الأولى: ختم كود الـ QR الديناميكي</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                      يظهر ختم QR متطابق مع بيانات الطالب الحالية في أعلى زاوية الفيديو.
+                    </p>
+                  </div>
+                  <Controller
+                    name="enableQrStamp"
+                    control={control}
+                    render={({ field }) => (
+                      <Switch checked={field.value ?? true} onCheckedChange={field.onChange} />
+                    )}
+                  />
+                </div>
+
+                {/* Layer 2: Audio TTS Watermark */}
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <span>🔊 الطبقة الثانية: العلامة المائية الصوتية (TTS)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                      تتلو اسم ورقم الطالب بصوت عالي الدقة بشكل فترات عشوائية أثناء تشغيل الفيديو لمنع تسجيل الصوت.
+                    </p>
+                  </div>
+                  <Controller
+                    name="enableAudioTts"
+                    control={control}
+                    render={({ field }) => (
+                      <Switch checked={field.value ?? true} onCheckedChange={field.onChange} />
+                    )}
+                  />
+                </div>
+
+                {/* Layer 3: Visual Watermark & Diagonal Text */}
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <span>🎨 الطبقة الثالثة: العلامة المائية البصرية والخطوط المائلة</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                      تعرض رقم الهاتف والبيانات بخطوط مائلة شفافة مستمرة وإطار ديناميكي يتحرك عبر الشاشة.
+                    </p>
+                  </div>
+                  <Controller
+                    name="enableVisualWatermark"
+                    control={control}
+                    render={({ field }) => (
+                      <Switch checked={field.value ?? true} onCheckedChange={field.onChange} />
+                    )}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer Actions */}
         <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-zinc-800/80 mt-auto shrink-0">
           <div className="text-xs text-slate-500 dark:text-zinc-400">
@@ -1787,7 +1943,12 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
   const [isRepostModalOpen, setIsRepostModalOpen] = useState(false);
   const [repostTitle, setRepostTitle] = useState('');
   const [repostDescription, setRepostDescription] = useState('');
+  const [repostPrice, setRepostPrice] = useState<number>(0);
+  const [repostThumbnailUrl, setRepostThumbnailUrl] = useState('');
+  const [selectedRepostUnitIds, setSelectedRepostUnitIds] = useState<string[]>([]);
   const [isReposting, setIsReposting] = useState(false);
+  const [isUploadingRepostThumb, setIsUploadingRepostThumb] = useState(false);
+  const repostThumbInputRef = useRef<HTMLInputElement>(null);
 
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -1796,6 +1957,10 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
     setRepostingCourse(course);
     setRepostTitle(course.title || '');
     setRepostDescription(course.description || '');
+    setRepostPrice(course.price ?? 0);
+    setRepostThumbnailUrl(course.thumbnailUrl || '');
+    const unitIds = (course.units || []).map((u, idx) => u.id || `unit_${idx}`);
+    setSelectedRepostUnitIds(unitIds);
     setIsRepostModalOpen(true);
   };
 
@@ -1804,40 +1969,72 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
     setIsReposting(true);
 
     try {
-      const courseRef = doc(firestore, 'teachers', teacherId, 'courses', repostingCourse.id);
-      const featuredRef = doc(firestore, 'featuredCourses', repostingCourse.id);
+      // Filter units according to teacher's selection
+      const existingUnits = repostingCourse.units || [];
+      const filteredUnits = existingUnits.filter((u, idx) => {
+        const uId = u.id || `unit_${idx}`;
+        return selectedRepostUnitIds.includes(uId);
+      });
 
-      const updateData = {
+      // Generate a brand new document reference so the original course remains completely untouched
+      const coursesCollection = collection(firestore, 'teachers', teacherId, 'courses');
+      const newCourseDocRef = doc(coursesCollection);
+      const newCourseId = newCourseDocRef.id;
+
+      const rawNewCourseData: Record<string, any> = {
         title: repostTitle.trim() || repostingCourse.title,
         description: repostDescription.trim() || repostingCourse.description,
+        price: Number(repostPrice ?? 0),
+        thumbnailUrl: repostThumbnailUrl || repostingCourse.thumbnailUrl,
+        units: filteredUnits.length > 0 ? filteredUnits : existingUnits,
+        teacherId: teacherId,
+        teacherName: repostingCourse.teacherName || '',
+        teacherPhotoURL: repostingCourse.teacherPhotoURL || '',
+        stage: repostingCourse.stage || '',
+        grade: repostingCourse.grade || '',
+        term: repostingCourse.term || '',
+        subjects: repostingCourse.subjects || [],
+        tags: repostingCourse.tags || [],
+        isFree: repostingCourse.isFree ?? (Number(repostPrice ?? 0) === 0),
+        isPublished: true,
+        isFeatured: repostingCourse.isFeatured || false,
+        testId: repostingCourse.testId || null,
+        repostedFromCourseId: repostingCourse.id, // reference to source original
         repostedAt: serverTimestamp(),
+        createdAt: serverTimestamp(), // Puts the reposted course at the very top of date-sorted feeds
         updatedAt: serverTimestamp(),
-        createdAt: serverTimestamp(), // Brings course straight to the top of date-sorted queries!
       };
 
-      await updateDoc(courseRef, updateData);
+      const newCoursePayload = cleanFirestorePayload(rawNewCourseData);
 
+      // Save new course document to Firestore (leaving original course untouched)
+      await setDoc(newCourseDocRef, newCoursePayload);
+
+      // If featured, create a new featuredCourses document for the reposted course
       if (repostingCourse.isFeatured) {
-        await updateDoc(featuredRef, updateData).catch(() => {});
+        const featuredRef = doc(firestore, 'featuredCourses', newCourseId);
+        await setDoc(featuredRef, {
+          ...newCoursePayload,
+          id: newCourseId,
+        }).catch(() => {});
       }
 
-      // Update offline local storage cache immediately
+      // Update offline local storage cache immediately:
+      // The original course stays intact in existing, and the newly reposted course is prepended (unshifted) to the top!
       try {
         const localKey = `offline_teacher_courses_${teacherId}`;
         const existing: Course[] = JSON.parse(localStorage.getItem(localKey) || '[]');
-        const idx = existing.findIndex(c => c.id === repostingCourse.id);
-        const updatedObj = {
+        const newLocalCourse: Course = {
           ...repostingCourse,
-          title: updateData.title,
-          description: updateData.description,
+          ...newCoursePayload,
+          id: newCourseId,
+          createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          createdAt: new Date().toISOString()
+          repostedAt: new Date().toISOString(),
+          synced: true,
         };
-        if (idx !== -1) {
-          existing[idx] = updatedObj;
-        } else {
-          existing.unshift(updatedObj);
-        }
+        // Prepend to the very top so it's the newest item
+        existing.unshift(newLocalCourse);
         localStorage.setItem(localKey, JSON.stringify(existing));
         setOfflineCourses(existing);
       } catch (e) {}
@@ -1852,7 +2049,7 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
       setRepostingCourse(null);
       toast({
         title: t('Course Reposted Successfully!'),
-        description: t('The course has been bumped to the top of your list and home page.'),
+        description: t('The course has been posted as a new item at the top. The original post remains unchanged.'),
       });
     } catch (e: any) {
       toast({ variant: 'destructive', title: t('Repost failed'), description: e.message });
@@ -2193,7 +2390,7 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
               إعادة نشر الكورس ورفعه للأعلى (Repost Course)
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500 dark:text-zinc-400">
-              سيتم رفع هذا الكورس إلى مقدمة القائمة والصفحة الرئيسية مباشرة. الفيديوهات والوحدات ستظل كما هي بدون أي تعديل.
+              سيتم نشر هذا المحتوى كمنشور جديد ومستقل في مقدمة القائمة والصفحة الرئيسية مباشرة، مع بقاء الكورس الأصلي كما هو دون أي تعديل أو استبدال.
             </DialogDescription>
           </DialogHeader>
 
@@ -2218,13 +2415,112 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
               />
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">سعر الكورس الجديد (Price in EGP)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={repostPrice}
+                  onChange={(e) => setRepostPrice(Number(e.target.value))}
+                  placeholder="0"
+                  className="bg-slate-50 dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-sm font-mono text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">صورة الغلاف (Cover Photo)</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    ref={repostThumbInputRef}
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setIsUploadingRepostThumb(true);
+                      try {
+                        const url = await uploadImageToCloudinary(file);
+                        setRepostThumbnailUrl(url);
+                      } catch (err) {}
+                      setIsUploadingRepostThumb(false);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isUploadingRepostThumb}
+                    onClick={() => repostThumbInputRef.current?.click()}
+                    className="w-full h-10 rounded-xl text-xs font-bold border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-200"
+                  >
+                    <Upload className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
+                    <span>{isUploadingRepostThumb ? 'جاري الرفع...' : repostThumbnailUrl ? 'تغيير صورة الغلاف' : 'رفع صورة غلاف'}</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Units Selection Checklist (Include/Exclude units) */}
+            <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-zinc-200">
+                <div className="flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-emerald-500" />
+                  <span>تحديد الوحدات المراد إعادة نشرها (Units to Include):</span>
+                </div>
+                <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400">
+                  {selectedRepostUnitIds.length} من أصل {(repostingCourse?.units || []).length}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                حدد الوحدات التي ترغب بإبقائها داخل الكورس واستبعاد غير المرغوب به:
+              </p>
+
+              <div className="space-y-1.5 max-h-40 overflow-y-auto pt-1">
+                {(repostingCourse?.units || []).map((unit, idx) => {
+                  const uId = unit.id || `unit_${idx}`;
+                  const isChecked = selectedRepostUnitIds.includes(uId);
+                  return (
+                    <div
+                      key={uId}
+                      onClick={() => {
+                        if (isChecked) {
+                          if (selectedRepostUnitIds.length > 1) {
+                            setSelectedRepostUnitIds(prev => prev.filter(id => id !== uId));
+                          } else {
+                            toast({ title: 'تنبيه', description: 'يجب اختيار وحدة واحدة على الأقل لإعادة النشر.' });
+                          }
+                        } else {
+                          setSelectedRepostUnitIds(prev => [...prev, uId]);
+                        }
+                      }}
+                      className={`flex items-center justify-between p-2 rounded-xl border text-xs cursor-pointer transition-all ${
+                        isChecked
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-300 font-bold'
+                          : 'bg-white dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 text-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Checkbox checked={isChecked} />
+                        <span className="truncate max-w-[200px]">{unit.title || `الوحدة ${idx + 1}`}</span>
+                      </div>
+                      <span className="text-[10px] opacity-75 font-mono">
+                        {(unit.videos || []).length} فيديوهات
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300 space-y-1">
               <div className="font-bold flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>نفس الفيديوهات والروابط بدون إعادة رفع:</span>
               </div>
               <p className="text-[11px] text-slate-600 dark:text-zinc-400 leading-relaxed">
-                يحتوي الكورس على <span className="font-bold text-amber-500">{repostingCourse?.units?.length || 1} وحدات</span> وفيديوهات مرتبطة بنفس الخادم. إعادة النشر تضمن ظهور الكورس في أول قائمة الطلاب فوراً.
+                يحتوي الكورس على <span className="font-bold text-amber-500">{selectedRepostUnitIds.length} وحدات مختارة</span> وفيديوهات مرتبطة بنفس الخادم. إعادة النشر تضمن ظهور الكورس في أول قائمة الطلاب فوراً.
               </p>
             </div>
           </div>

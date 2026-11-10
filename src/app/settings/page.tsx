@@ -894,37 +894,37 @@ export default function SettingsPage() {
     
     return (
         <div 
-            className="p-4 md:p-6 max-w-2xl mx-auto space-y-8 mb-20"
+            className="p-3 sm:p-4 md:p-6 max-w-2xl mx-auto space-y-5 sm:space-y-8 mb-20 overflow-x-hidden"
             dir={isArabic ? 'rtl' : 'ltr'}
             style={{ fontFamily: isArabic ? "'Cairo', sans-serif" : "'Inter', sans-serif" }}
         >
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold tracking-tight">{isArabic ? 'الإعدادات' : 'Settings'}</h1>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{isArabic ? 'الإعدادات' : 'Settings'}</h1>
             </motion.div>
 
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
                 <Card className="glass-card overflow-hidden">
-                    <CardContent className="p-6">
+                    <CardContent className="p-4 sm:p-6">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                                 {isLoading ? (
-                                    <Skeleton className="h-16 w-16 rounded-full" />
+                                    <Skeleton className="h-14 w-14 sm:h-16 sm:w-16 rounded-full shrink-0" />
                                 ) : (
-                                    <Avatar className="h-16 w-16 border border-border shadow-sm">
+                                    <Avatar className="h-14 w-14 sm:h-16 sm:w-16 border border-border shadow-sm shrink-0">
                                         <AvatarImage src={avatarUrl} />
-                                        <AvatarFallback className="bg-primary/10 text-primary font-bold text-lg">{displayName.charAt(0) || <UserIcon className="w-6 h-6"/>}</AvatarFallback>
+                                        <AvatarFallback className="bg-primary/10 text-primary font-bold text-base sm:text-lg">{displayName.charAt(0) || <UserIcon className="w-5 h-5 sm:w-6 sm:h-6"/>}</AvatarFallback>
                                     </Avatar>
                                 )}
-                                <div className="flex-grow">
+                                <div className="flex-grow min-w-0">
                                     {isLoading ? (
                                         <div className="space-y-2">
-                                            <Skeleton className="h-6 w-32"/>
-                                            <Skeleton className="h-4 w-48"/>
+                                            <Skeleton className="h-5 w-28 sm:h-6 sm:w-32"/>
+                                            <Skeleton className="h-3.5 w-40 sm:h-4 sm:w-48"/>
                                         </div>
                                     ) : (
-                                         <div>
-                                            <h2 className="text-xl font-bold">{displayName}</h2>
-                                            <p className="text-muted-foreground text-sm">{displayDetail}</p>
+                                         <div className="min-w-0">
+                                            <h2 className="text-base sm:text-xl font-bold truncate">{displayName}</h2>
+                                            <p className="text-muted-foreground text-xs sm:text-sm truncate">{displayDetail}</p>
                                         </div>
                                     )}
                                 </div>
@@ -932,16 +932,16 @@ export default function SettingsPage() {
 
                             {/* Show QR Code for Students */}
                             {student && student.barcodeId && (
-                                <div className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-zinc-200 shadow-sm hover:scale-[1.03] transition-all duration-300 self-start sm:self-auto" id="student-settings-qr">
+                                <div className="flex items-center gap-2.5 p-2 sm:p-3 bg-white rounded-2xl border border-zinc-200 shadow-sm hover:scale-[1.02] transition-all duration-300 self-start sm:self-auto shrink-0" id="student-settings-qr">
                                     <img
                                         src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${student.barcodeId}`}
                                         alt={student.barcodeId}
-                                        className="w-12 h-12 object-contain"
+                                        className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
                                         referrerPolicy="no-referrer"
                                     />
                                     <div className="text-left font-mono text-zinc-900 select-all leading-none">
-                                        <div className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold">{isArabic ? 'كود الطالب' : 'Student ID'}</div>
-                                        <div className="text-sm font-bold mt-1 text-[#22c55e]">{student.barcodeId}</div>
+                                        <div className="text-[8px] sm:text-[9px] uppercase tracking-wider text-zinc-500 font-bold">{isArabic ? 'كود الطالب' : 'Student ID'}</div>
+                                        <div className="text-xs sm:text-sm font-bold mt-1 text-[#22c55e]">{student.barcodeId}</div>
                                     </div>
                                 </div>
                             )}
@@ -955,7 +955,7 @@ export default function SettingsPage() {
                                     size="icon" 
                                     onClick={handleLogout} 
                                     title={isArabic ? 'تسجيل الخروج' : 'Log Out'} 
-                                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 self-end sm:self-auto cursor-pointer"
+                                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 self-end sm:self-auto cursor-pointer shrink-0"
                                 >
                                     <LogOut className="w-5 h-5"/>
                                 </Button>
@@ -976,28 +976,30 @@ export default function SettingsPage() {
                 </motion.div>
             )}
 
-            <div className="space-y-6">
+            <div className="space-y-5 sm:space-y-6">
                 {navGroups.map((group, gIndex) => (
                     <motion.div key={group.title} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 + gIndex * 0.1 }}>
-                        <h3 className={cn("text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-2", isArabic ? "text-right" : "text-left")}>{group.title}</h3>
+                        <h3 className={cn("text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5 px-2", isArabic ? "text-right" : "text-left")}>{group.title}</h3>
                         <Card className="glass-card overflow-hidden">
                             <div className="divide-y divide-border/50">
                                 {group.items.map((item) => {
                                     const Icon = item.icon;
                                     const content = (
-                                        <div className="flex items-center gap-4 py-4 px-6 hover:bg-muted/30 transition-colors w-full cursor-pointer">
-                                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                                                <Icon className="w-5 h-5" />
+                                        <div className="flex items-center gap-3 sm:gap-4 py-3 sm:py-4 px-3.5 sm:px-6 hover:bg-muted/30 transition-colors w-full cursor-pointer min-w-0">
+                                            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+                                                <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
                                             </div>
-                                            <div className={cn("flex-grow", isArabic ? "text-right" : "text-left")}>
-                                                <p className="font-medium text-sm sm:text-base">{item.title}</p>
-                                                <p className="text-xs text-muted-foreground">{item.description}</p>
+                                            <div className={cn("flex-grow min-w-0", isArabic ? "text-right" : "text-left")}>
+                                                <p className="font-medium text-xs sm:text-sm md:text-base leading-snug truncate sm:whitespace-normal">{item.title}</p>
+                                                <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed mt-0.5 line-clamp-2">{item.description}</p>
                                             </div>
-                                            {item.isToggle ? (
-                                                <Switch checked={item.state} onCheckedChange={item.setState} onClick={(e) => e.stopPropagation()} />
-                                            ) : (
-                                                <ChevronIcon className="w-5 h-5 text-muted-foreground/50" />
-                                            )}
+                                            <div className="shrink-0 flex items-center">
+                                                {item.isToggle ? (
+                                                    <Switch checked={item.state} onCheckedChange={item.setState} onClick={(e) => e.stopPropagation()} />
+                                                ) : (
+                                                    <ChevronIcon className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground/50" />
+                                                )}
+                                            </div>
                                         </div>
                                     );
 

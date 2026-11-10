@@ -170,39 +170,83 @@ export function BiometricAppLock() {
     // Trigger platform WebAuthn credentials prompt (triggers Apple Face ID on iOS, Google Biometrics on Android)
     if (typeof window !== 'undefined' && window.PublicKeyCredential && navigator.credentials) {
       try {
+        const savedCredId = localStorage.getItem('mol5saty_saved_biometric_cred_id');
+        const isRegistered = localStorage.getItem('mol5saty_biometric_registered') === 'true' || !!savedCredId;
         const challenge = new Uint8Array(32);
         window.crypto.getRandomValues(challenge);
-        const userId = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
 
         biometricPromptOpened = true;
 
-        // Try credentials.create with platform authenticator
-        const credPromise = navigator.credentials.create({
-          publicKey: {
-            challenge,
-            rp: { name: 'Mol5saty University' },
-            user: {
-              id: userId,
-              name: user?.email || 'student@mol5saty.edu',
-              displayName: user?.displayName || 'Authorized Scholar',
-            },
-            pubKeyCredParams: [
-              { alg: -7, type: 'public-key' },
-              { alg: -257, type: 'public-key' }
-            ],
-            authenticatorSelection: {
-              authenticatorAttachment: 'platform',
-              userVerification: 'required',
-            },
-            timeout: 25000,
+        if (isRegistered) {
+          // 1. Subsequent unlocks: ALWAYS verify existing saved fingerprint/Face ID via credentials.get
+          // Never ask user to create a passkey again once registered!
+          let allowCredentialsList: PublicKeyCredentialDescriptor[] | undefined = undefined;
+          if (savedCredId) {
+            try {
+              const rawIdBytes = Uint8Array.from(atob(savedCredId), c => c.charCodeAt(0));
+              allowCredentialsList = [
+                {
+                  id: rawIdBytes,
+                  type: 'public-key',
+                }
+              ];
+            } catch (e) {}
           }
-        });
 
-        // 3.5-second race to ensure user is never blocked or left waiting
-        const timeoutPromise = new Promise((res) => setTimeout(res, 3500));
-        await Promise.race([credPromise, timeoutPromise]);
+          const getOptions: CredentialRequestOptions = {
+            publicKey: {
+              challenge,
+              ...(allowCredentialsList && allowCredentialsList.length > 0 ? { allowCredentials: allowCredentialsList } : {}),
+              userVerification: 'preferred',
+              timeout: 60000,
+            }
+          };
+
+          const getAssertion = await navigator.credentials.get(getOptions);
+          if (getAssertion) {
+            // Keep registration flag permanent
+            localStorage.setItem('mol5saty_biometric_registered', 'true');
+          }
+        } else {
+          // 2. First-time registration: Create and save the credential ID once
+          const userId = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+          const credResult: any = await navigator.credentials.create({
+            publicKey: {
+              challenge,
+              rp: { name: 'Mol5saty University' },
+              user: {
+                id: userId,
+                name: user?.email || 'student@mol5saty.edu',
+                displayName: user?.displayName || 'Authorized Scholar',
+              },
+              pubKeyCredParams: [
+                { alg: -7, type: 'public-key' },
+                { alg: -257, type: 'public-key' }
+              ],
+              authenticatorSelection: {
+                authenticatorAttachment: 'platform',
+                userVerification: 'preferred',
+              },
+              timeout: 60000,
+            }
+          });
+
+          if (credResult && credResult.rawId) {
+            const rawIdStr = btoa(String.fromCharCode(...new Uint8Array(credResult.rawId)));
+            localStorage.setItem('mol5saty_saved_biometric_cred_id', rawIdStr);
+          }
+          // Mark permanently registered so it never asks to create again!
+          localStorage.setItem('mol5saty_biometric_registered', 'true');
+        }
       } catch (err: any) {
         console.warn('Biometric platform prompt note:', err?.name);
+        if (err?.name === 'NotAllowedError' || err?.name === 'AbortError') {
+          // User deliberately cancelled the biometric sheet
+          setIsAuthenticating(false);
+          setShowPasscodeField(true);
+          setErrorMessage(isArabic ? 'تم إلغاء فحص البصمة. يمكنك إدخال كود الطالب أو المحاولة مجدداً.' : 'Biometric prompt cancelled. Enter student code or try again.');
+          return;
+        }
       }
     }
 
@@ -222,7 +266,7 @@ export function BiometricAppLock() {
       setIsAuthenticating(false);
       setScanSuccess(false);
     }, 450);
-  }, [user]);
+  }, [user, isArabic]);
 
   // Auto-trigger on phone mount so Face ID / Fingerprint prompt fires immediately upon launch
   useEffect(() => {

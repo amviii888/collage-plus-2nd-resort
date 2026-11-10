@@ -79,7 +79,8 @@ export const clearAllStudentAuthSessions = (studentCodeForLockout?: string, mark
       'parentPhoneNumber',
       'assistantForTeacherId',
       'assistantTeacherName',
-      'admin-session'
+      'active_role',
+      'last_login_role'
     ];
 
     studentKeys.forEach(k => {
@@ -98,13 +99,6 @@ export const clearAllStudentAuthSessions = (studentCodeForLockout?: string, mark
         key.startsWith('student_custom_avatar_') ||
         key.startsWith('student_avatar_')
       )) {
-        keysToRemove.push(key);
-      }
-    }
-    // Also clear any firebase auth cached keys in localStorage if present
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.startsWith('firebase:authUser') || key.startsWith('firebase:host'))) {
         keysToRemove.push(key);
       }
     }

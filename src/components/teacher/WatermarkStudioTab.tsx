@@ -90,6 +90,9 @@ export function WatermarkStudioTab({
 
     try {
       setIsTestingSpeech(true);
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
       window.speechSynthesis.cancel();
 
       const uniSample = config.showUniversity ? '، جامعة القاهرة' : '';
@@ -357,6 +360,85 @@ export function WatermarkStudioTab({
                   className="bg-zinc-950 border-zinc-800 text-xs text-white"
                 />
               </div>
+
+              {/* Diagonal Text Stamp Customization Box */}
+              <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-4 pt-3">
+                <div className="space-y-1 border-b border-zinc-800/80 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-emerald-400">
+                      تخصيص البصمة النصية التكرارية المائلة (Diagonal Parallel Stamp)
+                    </span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      تكراري مضاد للتصوير
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400">
+                    الختم النصي المائل الذي يظهر تكرارياً على طول الفيديو بحجم عريض. رقم الهاتف يكون مدججاً افتراضياً وبشكل إلزامي.
+                  </p>
+                </div>
+
+                {/* Opacity slider for diagonal text stamp */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <Label className="text-zinc-300">شفافية البصمة المائلة (Text Stamp Opacity):</Label>
+                    <span className="font-mono text-emerald-400 font-bold">{Math.round((config.textStampOpacity ?? 0.40) * 100)}%</span>
+                  </div>
+                  <Slider
+                    min={0.10}
+                    max={0.90}
+                    step={0.05}
+                    value={[config.textStampOpacity ?? 0.40]}
+                    onValueChange={([val]) => updateConfig({ textStampOpacity: val })}
+                  />
+                </div>
+
+                {/* Data switches for diagonal text stamp */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+                    <div className="space-y-0.5">
+                      <Label className="text-[11px] font-bold text-zinc-200">رقم الهاتف (إلزامي افتراضياً)</Label>
+                      <p className="text-[9px] text-zinc-400">Phone number on text stamp</p>
+                    </div>
+                    <Switch
+                      checked={config.stampShowPhone ?? true}
+                      onCheckedChange={(v) => updateConfig({ stampShowPhone: v })}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+                    <div className="space-y-0.5">
+                      <Label className="text-[11px] font-bold text-zinc-200">الاسم بالكامل</Label>
+                      <p className="text-[9px] text-zinc-400">Full Name on text stamp</p>
+                    </div>
+                    <Switch
+                      checked={config.stampShowName ?? true}
+                      onCheckedChange={(v) => updateConfig({ stampShowName: v })}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+                    <div className="space-y-0.5">
+                      <Label className="text-[11px] font-bold text-zinc-200">كود الطالب الأكاديمي</Label>
+                      <p className="text-[9px] text-zinc-400">Student Code on text stamp</p>
+                    </div>
+                    <Switch
+                      checked={config.stampShowStudentCode ?? true}
+                      onCheckedChange={(v) => updateConfig({ stampShowStudentCode: v })}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+                    <div className="space-y-0.5">
+                      <Label className="text-[11px] font-bold text-zinc-200">الجامعة / الكلية</Label>
+                      <p className="text-[9px] text-zinc-400">University on text stamp</p>
+                    </div>
+                    <Switch
+                      checked={config.stampShowUniversity ?? false}
+                      onCheckedChange={(v) => updateConfig({ stampShowUniversity: v })}
+                    />
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -598,28 +680,85 @@ export function WatermarkStudioTab({
                 </div>
               </div>
 
-              {/* Border Styles */}
-              <div className="space-y-1.5">
-                <Label className="text-xs text-zinc-300">نمط الإطار (Border Style)</Label>
-                <div className="grid grid-cols-3 gap-2">
+              {/* Moving Badge Frame Shape Selection */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-purple-300">شكل وهيكل إطار الشارة المتحركة (Badge Frame Shape):</Label>
+                  <span className="text-[10px] text-zinc-400">تخصيص الشكل الهندسي للإطار</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   {[
-                    { key: 'none', label: 'بدون إطار' },
+                    { key: 'none', label: 'بدون إطار (No Frame)' },
                     { key: 'thin', label: 'إطار ناعم (Thin)' },
-                    { key: 'glow', label: 'إطار متوهج (Neon Glow)' },
-                  ].map(b => (
+                    { key: 'glow', label: 'توهج نيوني (Glow)' },
+                    { key: 'rounded_card', label: 'كارت محمي (Card)' },
+                    { key: 'thick', label: 'إطار عريض (Thick)' },
+                  ].map(f => (
                     <button
-                      key={b.key}
+                      key={f.key}
                       type="button"
-                      onClick={() => updateConfig({ borderStyle: b.key as any })}
-                      className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
-                        config.borderStyle === b.key
+                      onClick={() => updateConfig({ frameShape: f.key as any, borderStyle: (f.key === 'glow' ? 'glow' : f.key === 'none' ? 'none' : 'thin') as any })}
+                      className={`py-2 px-2 rounded-xl text-[11px] font-bold border transition-all ${
+                        (config.frameShape || config.borderStyle || 'thin') === f.key
                           ? 'bg-purple-500/20 border-purple-500 text-purple-300'
                           : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
                       }`}
                     >
-                      {b.label}
+                      {f.label}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Moving Badge Frame Border Color */}
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-zinc-300">لون إطار الشارة (Badge Frame Border Color):</Label>
+                  <span className="text-[10px] text-zinc-400 font-mono font-bold" style={{ color: config.frameColor || config.borderColor || '#22c55e' }}>
+                    {config.frameColor || config.borderColor || '#22c55e'}
+                  </span>
+                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={config.frameColor || config.borderColor || '#22c55e'}
+                      onChange={(e) => updateConfig({ frameColor: e.target.value, borderColor: e.target.value })}
+                      className="bg-zinc-950 border-zinc-800 w-10 h-9 p-0.5 cursor-pointer shrink-0"
+                    />
+                    <Input
+                      type="text"
+                      value={config.frameColor || config.borderColor || '#22c55e'}
+                      onChange={(e) => updateConfig({ frameColor: e.target.value, borderColor: e.target.value })}
+                      className="bg-zinc-950 border-zinc-800 text-xs font-mono h-9 w-28"
+                    />
+                  </div>
+                  
+                  {/* Preset Color Pills */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {[
+                      { hex: '#22c55e', name: 'زمردي' },
+                      { hex: '#3b82f6', name: 'أزرق' },
+                      { hex: '#eab308', name: 'عنبر' },
+                      { hex: '#ef4444', name: 'أحمر' },
+                      { hex: '#a855f7', name: 'بنفسجي' },
+                      { hex: '#ffffff', name: 'أبيض' },
+                      { hex: '#64748b', name: 'رمادي' },
+                    ].map(clr => (
+                      <button
+                        key={clr.hex}
+                        type="button"
+                        onClick={() => updateConfig({ frameColor: clr.hex, borderColor: clr.hex })}
+                        className="w-7 h-7 rounded-lg border border-zinc-700 hover:scale-110 transition-transform relative flex items-center justify-center cursor-pointer"
+                        style={{ backgroundColor: clr.hex }}
+                        title={clr.name}
+                      >
+                        {(config.frameColor || config.borderColor) === clr.hex && (
+                          <Check className={`w-3.5 h-3.5 ${clr.hex === '#ffffff' ? 'text-black' : 'text-white'}`} />
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -668,12 +807,16 @@ export function WatermarkStudioTab({
                       </span>
                     </div>
                     <p className="text-[11px] text-zinc-400">
-                      يقرأ النظام تلقائياً بيانات الطالب وبصمته بصوت واضح في ميكروفون الجهاز لحرق أي تسجيل غير مصرح به.
+                      يقرأ النظام تلقائياً بيانات الطالب وبصمته بصوت مسموع فور بدء تشغيل الفيديو ثم يتكرر حسب الفاصل الزمني المختار لحرق أي تسجيل للشاشة.
                     </p>
                   </div>
                   <Switch
                     checked={config.ttsEnabled}
-                    onCheckedChange={(v) => updateConfig({ ttsEnabled: v })}
+                    onCheckedChange={(v) => updateConfig({ 
+                      ttsEnabled: v,
+                      ttsIntervalMinutes: config.ttsIntervalMinutes && config.ttsIntervalMinutes > 0 ? config.ttsIntervalMinutes : 15,
+                      ttsAutoStart: true
+                    })}
                   />
                 </div>
 
@@ -708,9 +851,10 @@ export function WatermarkStudioTab({
                           </SelectTrigger>
                           <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
                             <SelectItem value="5">كل 5 دقائق (مكثف)</SelectItem>
-                            <SelectItem value="15">كل 15 دقيقة (موصى به)</SelectItem>
-                            <SelectItem value="30">كل 30 دقيقة</SelectItem>
-                            <SelectItem value="60">كل ساعة (مرة في الساعة)</SelectItem>
+                            <SelectItem value="10">كل 10 دقائق</SelectItem>
+                            <SelectItem value="15">كل 15 دقيقة (الموصى به)</SelectItem>
+                            <SelectItem value="30">كل 30 دقيقة (نصف ساعة)</SelectItem>
+                            <SelectItem value="60">كل 60 دقيقة (ساعة كاملة)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -723,26 +867,12 @@ export function WatermarkStudioTab({
                         size="sm"
                         onClick={handleTestSpeech}
                         disabled={isTestingSpeech}
-                        className="border-blue-500/40 bg-blue-950/40 text-blue-300 hover:bg-blue-900/50 rounded-xl text-xs flex items-center gap-1.5 self-end md:self-auto"
+                        className="border-blue-500/40 bg-blue-950/40 text-blue-300 hover:bg-blue-900/50 rounded-xl text-xs flex items-center gap-1.5 self-end md:self-auto cursor-pointer"
                       >
                         {isTestingSpeech ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <Play className="w-3.5 h-3.5" />}
                         <span>{isTestingSpeech ? 'جاري القراءة بصوت مسموع...' : 'تجربة الصوت الآن (Free Test)'}</span>
                       </Button>
                     </div>
-                  </div>
-                )}
-
-                {/* Initial Automatic TTS Test upon video open */}
-                {config.ttsEnabled && (
-                  <div className="p-3 rounded-xl bg-blue-950/20 border border-blue-500/20 flex items-center justify-between text-xs text-zinc-300">
-                    <div className="space-y-0.5">
-                      <span className="font-bold text-white text-[11px]">تشغيل تجريبي تلقائي عند فتح الفيديو (Auto-Test on start):</span>
-                      <p className="text-[10px] text-zinc-400">ينطق النظام بصمة الطالب تلقائياً بعد 15 ثانية من فتح الفيديو لتأكيد عملها، ثم يستمر كل 15 دقيقة.</p>
-                    </div>
-                    <Switch
-                      checked={(config.ttsInitialTestDelaySeconds ?? 15) > 0}
-                      onCheckedChange={(v) => updateConfig({ ttsInitialTestDelaySeconds: v ? 15 : 0 })}
-                    />
                   </div>
                 )}
               </div>

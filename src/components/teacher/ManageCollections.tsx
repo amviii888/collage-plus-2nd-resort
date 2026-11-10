@@ -221,7 +221,7 @@ function CollectionFormModal({
                             <FormField control={form.control} name="thumbnailUrl" render={({ field }) => (
                                 <FormItem>
                                     <div className="flex justify-between items-center">
-                                        <FormLabel className="text-xs font-semibold text-slate-700 dark:text-zinc-300">Cover Thumbnail URL</FormLabel>
+                                        <FormLabel className="text-xs font-semibold text-slate-700 dark:text-zinc-300">Cover Thumbnail</FormLabel>
                                         <label className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold cursor-pointer hover:underline flex items-center gap-1">
                                             <Upload className="w-3 h-3" />
                                             <span>رفع صورة غلاف</span>
@@ -241,7 +241,26 @@ function CollectionFormModal({
                                         </label>
                                     </div>
                                     <FormControl>
-                                        <Input placeholder="https://..." {...field} className="bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white rounded-xl text-xs h-9" />
+                                        {field.value ? (
+                                            <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-300 dark:border-zinc-800 text-xs">
+                                                <div className="flex items-center gap-2">
+                                                    <Check className="w-4 h-4 text-emerald-500" />
+                                                    <span className="text-emerald-700 dark:text-emerald-400 font-bold">تم حفظ الغلاف بنجاح</span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => field.onChange('')}
+                                                    className="text-rose-500 hover:underline text-[11px] font-bold"
+                                                >
+                                                    إزالة
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <Input placeholder="انقر على رفع صورة غلاف..." readOnly className="bg-slate-50 dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-500 text-xs h-9 cursor-pointer" onClick={(e) => {
+                                                const label = (e.currentTarget.parentElement?.previousElementSibling as HTMLElement)?.querySelector('label');
+                                                label?.click();
+                                            }} />
+                                        )}
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
