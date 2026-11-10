@@ -1076,7 +1076,7 @@ function CourseForm({
                 : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-zinc-800/60'
             }`}
           >
-            <BookOpen className="w-3.5 h-3.5" /> Course Overview
+            <BookOpen className="w-3.5 h-3.5" /> نظرة عامة
           </button>
 
           <button
@@ -1088,7 +1088,7 @@ function CourseForm({
                 : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-zinc-800/60'
             }`}
           >
-            <GraduationCap className="w-3.5 h-3.5" /> College Years & Subjects
+            <GraduationCap className="w-3.5 h-3.5" /> الفرق والمواد
           </button>
 
           <button
@@ -1100,7 +1100,7 @@ function CourseForm({
                 : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-zinc-800/60'
             }`}
           >
-            <Layers className="w-3.5 h-3.5" /> Units & Lectures ({unitFields.length})
+            <Layers className="w-3.5 h-3.5" /> الوحدات والدروس ({unitFields.length})
           </button>
 
           <button
@@ -1113,10 +1113,10 @@ function CourseForm({
             }`}
           >
             <Lock className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-            <span>Locking, Pricing & Modes (القفل والأسعار)</span>
+            <span>القفل والأسعار</span>
             {isLocked && (
               <span className="text-[10px] bg-amber-400 text-black font-bold px-1.5 py-0.2 rounded-md">
-                Locked
+                مغلق
               </span>
             )}
           </button>
@@ -1131,7 +1131,7 @@ function CourseForm({
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Security Layers (الحماية والأمان)</span>
+            <span>طبقات الحماية والأمان</span>
           </button>
 
           <Button
@@ -1153,12 +1153,12 @@ function CourseForm({
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="title" className="text-slate-800 dark:text-zinc-200 text-sm font-semibold">
-                    Course Title <span className="text-emerald-500 dark:text-emerald-400">*</span>
+                    عنوان المقرر (Course Title) <span className="text-emerald-500 dark:text-emerald-400">*</span>
                   </Label>
                   <Input
                     id="title"
                     {...register('title')}
-                    placeholder="e.g. Advanced Operating Systems & Distributed Architecture"
+                    placeholder="مثال: نظم التشغيل المتقدمة وهندسة النظم الموزعة"
                     className="bg-white dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white mt-1.5 focus-visible:ring-emerald-500"
                   />
                   {errors.title && <p className="text-rose-500 text-xs mt-1">{errors.title.message}</p>}
@@ -1166,13 +1166,13 @@ function CourseForm({
 
                 <div>
                   <Label htmlFor="description" className="text-slate-800 dark:text-zinc-200 text-sm font-semibold">
-                    Course Description <span className="text-emerald-500 dark:text-emerald-400">*</span>
+                    وصف المقرر التفصيلي (Course Description) <span className="text-emerald-500 dark:text-emerald-400">*</span>
                   </Label>
                   <Textarea
                     id="description"
                     {...register('description')}
                     rows={4}
-                    placeholder="Provide a comprehensive breakdown of topics, objectives, and prerequisites..."
+                    placeholder="اكتب وصفاً شاملاً للمواضيع والأهداف والمتطلبات الخاصة بالمقرر..."
                     className="bg-white dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white mt-1.5 resize-none focus-visible:ring-emerald-500"
                   />
                   {errors.description && (
@@ -1182,13 +1182,13 @@ function CourseForm({
 
                 <div>
                   <Label htmlFor="videoNote" className="text-slate-800 dark:text-zinc-200 text-sm font-semibold">
-                    Teacher Lecture Notes / Instructions (Optional)
+                    ملاحظات وتوجيهات الأستاذ للطلاب (اختياري)
                   </Label>
                   <Textarea
                     id="videoNote"
                     {...register('videoNote')}
                     rows={3}
-                    placeholder="e.g. Please solve Practice Problem 4.2 before attending Thursday lecture."
+                    placeholder="مثال: يرجى حل التمرين 4.2 قبل حضور محاضرة الخميس القادم."
                     className="bg-white dark:bg-zinc-900 border-slate-300 dark:border-zinc-800 text-slate-900 dark:text-white mt-1.5 resize-none focus-visible:ring-emerald-500"
                   />
                   {errors.videoNote && (
@@ -1203,9 +1203,9 @@ function CourseForm({
                   <div className="flex items-center justify-between">
                     <Label className="text-slate-800 dark:text-zinc-200 text-sm font-semibold flex items-center gap-2">
                       <ImageIcon className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
-                      Course Cover Thumbnail
+                      صورة غلاف المقرر (Thumbnail)
                     </Label>
-                    <span className="text-[11px] text-slate-500 dark:text-zinc-400">16:9 Aspect Ratio</span>
+                    <span className="text-[11px] text-slate-500 dark:text-zinc-400">نسبة 16:9</span>
                   </div>
 
                   <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-slate-200 dark:border-zinc-800 bg-slate-100 dark:bg-zinc-950 flex items-center justify-center group">
@@ -1219,7 +1219,7 @@ function CourseForm({
                     ) : (
                       <div className="text-center text-slate-400 dark:text-zinc-500 p-4">
                         <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-xs">No thumbnail selected</p>
+                        <p className="text-xs">لم يتم اختيار صورة الغلاف بعد</p>
                       </div>
                     )}
                   </div>

@@ -55,15 +55,15 @@ export default function TeacherAssistantsPage() {
         try {
             await deleteDoc(doc(firestore, 'assistants', assistantId));
             toast({
-                title: t('Assistant Removed'),
-                description: `${assistantName} ${t('has been fired/removed successfully.')}`,
+                title: 'تم إزالة المساعد',
+                description: `تم إزالة وصلاحيات ${assistantName} بنجاح.`,
             });
             setRefreshTrigger(prev => prev + 1);
         } catch (error: any) {
             toast({
                 variant: 'destructive',
-                title: t('Error'),
-                description: error.message || t('Could not remove assistant.'),
+                title: 'خطأ',
+                description: error.message || 'تعذر إزالة المساعد.',
             });
         } finally {
             setIsRemoving(null);
@@ -83,14 +83,14 @@ export default function TeacherAssistantsPage() {
         <div className="space-y-6 max-w-lg">
             <Card className="liquid-glass border-zinc-800">
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Briefcase className="text-primary" /> {t('Manage Assistants')}</CardTitle>
+                    <CardTitle className="flex items-center gap-2"><Briefcase className="text-primary" /> إدارة المساعدين (Assistants)</CardTitle>
                     <CardDescription>
-                        {t("Here is your unique code for your assistants to log in. They will be able to manage your courses, calendar, and personal attendance system.")}
+                        هذا هو الكود الخاص بمساعديك لتسجيل الدخول. سيتمكنون من إدارة مقرراتك، التقويم، ونظام الحضور الخاص بك.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <p className="text-2xl font-mono p-4 bg-zinc-950 rounded-xl border border-zinc-800 text-center tracking-widest text-primary font-bold shadow-inner">
-                        {teacher?.assistantCode || 'Loading...'}
+                        {teacher?.assistantCode || 'جاري التحميل...'}
                     </p>
                 </CardContent>
             </Card>
@@ -98,10 +98,10 @@ export default function TeacherAssistantsPage() {
             <Card className="liquid-glass border-zinc-800">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        <Users className="text-accent" /> {t('Active Assistants')}
+                        <Users className="text-accent" /> المساعدون النشطون حالياً
                     </CardTitle>
                     <CardDescription>
-                        {t('This is a list of assistants currently joined. You can revoke access immediately by removing them.')}
+                        قائمة المساعدين المنضمين لحسابك. يمكنك سحب الصلاحيات فوراً في أي وقت.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -113,8 +113,8 @@ export default function TeacherAssistantsPage() {
                     ) : !assistants || assistants.length === 0 ? (
                         <div className="text-center py-6 text-muted-foreground border border-dashed border-zinc-800 rounded-xl bg-zinc-950/40 p-4">
                             <User className="mx-auto w-10 h-10 text-zinc-600 mb-2" />
-                            <p className="text-sm">{t('No assistants connected yet.')}</p>
-                            <p className="text-xs text-zinc-500 mt-1">{t('Share the code above with your team to get started.')}</p>
+                            <p className="text-sm">لا يوجد مساعدون متصلون حالياً.</p>
+                            <p className="text-xs text-zinc-500 mt-1">شارك الكود أعلاه مع مساعديك للبدء.</p>
                         </div>
                     ) : (
                         <div className="divide-y divide-zinc-800 border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950/20">
@@ -129,7 +129,7 @@ export default function TeacherAssistantsPage() {
                                             {asst.joinedAt && (
                                                 <p className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5">
                                                     <Clock className="w-3 h-3" />
-                                                    {new Date(asst.joinedAt).toLocaleDateString()}
+                                                    {new Date(asst.joinedAt).toLocaleDateString('ar-EG')}
                                                 </p>
                                             )}
                                         </div>
@@ -140,7 +140,7 @@ export default function TeacherAssistantsPage() {
                                         className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                                         onClick={() => handleRemoveAssistant(asst.id, asst.name)}
                                         disabled={isRemoving !== null}
-                                        title={t('Fire Assistant')}
+                                        title="إزالة المساعد"
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </Button>

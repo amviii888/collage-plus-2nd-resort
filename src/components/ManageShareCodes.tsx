@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -158,7 +158,7 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
   // Financial Metrics & Analytics Computations
   // --------------------------------------------------------------------------
   const analytics = useMemo(() => {
-    if (!rawShareCodes) {
+    if (!rawShareCodes || !Array.isArray(rawShareCodes)) {
       return { totalCodes: 0, activatedCount: 0, unusedCount: 0, activatedEarnings: 0, pendingRevenue: 0, totalPotential: 0 };
     }
 
@@ -168,7 +168,8 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
     let activatedEarnings = 0;
     let pendingRevenue = 0;
 
-    rawShareCodes.forEach(item => {
+    rawShareCodes.filter(Boolean).forEach(item => {
+      if (!item) return;
       totalCodes++;
       const itemPrice = typeof item.price === 'number' ? item.price : 0;
 
@@ -193,9 +194,9 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
 
   // Filtered Codes List for 2-Column Grid
   const filteredCodes = useMemo(() => {
-    if (!rawShareCodes) return [];
+    if (!rawShareCodes || !Array.isArray(rawShareCodes)) return [];
 
-    let list = [...rawShareCodes];
+    let list = rawShareCodes.filter(Boolean);
 
     // Status Filter
     if (statusFilter === 'used') {

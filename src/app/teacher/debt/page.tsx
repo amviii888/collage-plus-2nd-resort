@@ -30,37 +30,37 @@ export default function DebtStudentsPage() {
     }, [debtStudents]);
 
     return (
-        <Card>
+        <Card className="liquid-glass border-zinc-800">
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <TrendingDown className="text-destructive"/>
-                    Students in Debt
+                    الطلاب الذين عليهم ديون مستحقة (Debt Tracking)
                 </CardTitle>
                 <CardDescription>
-                    A list of all your personal students with an outstanding balance.
+                    قائمة بجميع طلابك الذين لديهم رصيد مستحق ولم يسددوا بالكامل.
                 </CardDescription>
             </CardHeader>
             <CardContent>
                  <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                     <div className="relative flex-grow w-full sm:w-auto">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                            placeholder="Filter by plan name..."
+                            placeholder="تصفية حسب اسم الخطة..."
                             value={planFilter}
                             onChange={(e) => setPlanFilter(e.target.value)}
-                            className="pl-10"
+                            className="pr-10"
                         />
                     </div>
-                    <div className="text-lg font-bold">Total Debt: <span className="text-destructive">£{totalDebt.toFixed(2)}</span></div>
+                    <div className="text-lg font-bold">إجمالي الديون: <span className="text-destructive font-mono">{totalDebt.toFixed(2)} EGP</span></div>
                  </div>
-                <div className="rounded-md border">
+                <div className="rounded-md border border-zinc-800 bg-zinc-950/20 overflow-hidden">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Name</TableHead>
-                                <TableHead>Plan</TableHead>
-                                <TableHead>Phone</TableHead>
-                                <TableHead className="text-right">Amount Owed</TableHead>
+                                <TableHead className="text-right">الاسم</TableHead>
+                                <TableHead className="text-right">الخطة / الباقة</TableHead>
+                                <TableHead className="text-right">الهاتف</TableHead>
+                                <TableHead className="text-left">المبلغ المستحق</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -69,16 +69,16 @@ export default function DebtStudentsPage() {
                                     <TableRow key={student.id}>
                                         <TableCell className="font-medium">{student.name}</TableCell>
                                         <TableCell>{student.planName}</TableCell>
-                                        <TableCell>{student.phone}</TableCell>
-                                        <TableCell className="text-right">
-                                            <Badge variant="destructive">£{(student.price - student.paid).toFixed(2)}</Badge>
+                                        <TableCell className="font-mono">{student.phone}</TableCell>
+                                        <TableCell className="text-left">
+                                            <Badge variant="destructive" className="font-mono">{(student.price - student.paid).toFixed(2)} EGP</Badge>
                                         </TableCell>
                                     </TableRow>
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center">
-                                        You have no students in debt{debouncedPlanFilter ? ' for this plan' : ''}.
+                                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                                        لا يوجد طلاب عليهم ديون{debouncedPlanFilter ? ' لهذه الخطة' : ''}.
                                     </TableCell>
                                 </TableRow>
                             )}
