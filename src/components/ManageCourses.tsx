@@ -118,7 +118,7 @@ const courseSchema = z.object({
   grades: z.array(z.string()).min(1, 'At least one academic year/grade must be selected'),
   subjects: z.array(z.string()).min(1, 'Please select or add at least one subject / module'),
   locked: z.boolean(),
-  lockMode: z.enum(['requests_only', 'codes_only', 'both']).default('both').optional(),
+  lockMode: z.enum(['requests_only', 'codes_only', 'both']).default('codes_only').optional(),
   price: z.coerce.number().min(0).optional(),
   viewLimit: z.coerce.number().int().min(0).optional(),
   testId: z.string().optional(),
@@ -270,39 +270,7 @@ function NestedVideoArray({ unitIndex, control, register, errors, watch, setValu
               </div>
             )}
 
-            {/* Per-Video Security Layers Bar (Per-Video Toggles) */}
-            <div className="mt-1 pt-2 border-t border-zinc-800/60 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <span className="text-[11px] font-bold text-zinc-400 flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>طبقات حماية هذا الدرس (Per-Video Security):</span>
-              </span>
 
-              <div className="flex flex-wrap items-center gap-3 text-[11px]">
-                <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300 hover:text-white select-none">
-                  <Switch
-                    checked={watch(`units.${unitIndex}.videos.${videoIndex}.enableQrStamp`) ?? true}
-                    onCheckedChange={(val) => setValue?.(`units.${unitIndex}.videos.${videoIndex}.enableQrStamp`, val, { shouldDirty: true })}
-                  />
-                  <span>🛡️ ختم الـ QR</span>
-                </label>
-
-                <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300 hover:text-white select-none">
-                  <Switch
-                    checked={watch(`units.${unitIndex}.videos.${videoIndex}.enableAudioTts`) ?? true}
-                    onCheckedChange={(val) => setValue?.(`units.${unitIndex}.videos.${videoIndex}.enableAudioTts`, val, { shouldDirty: true })}
-                  />
-                  <span>🔊 الصوت (TTS)</span>
-                </label>
-
-                <label className="flex items-center gap-1.5 cursor-pointer text-zinc-300 hover:text-white select-none">
-                  <Switch
-                    checked={watch(`units.${unitIndex}.videos.${videoIndex}.enableVisualWatermark`) ?? true}
-                    onCheckedChange={(val) => setValue?.(`units.${unitIndex}.videos.${videoIndex}.enableVisualWatermark`, val, { shouldDirty: true })}
-                  />
-                  <span>🎨 العلامة المائية</span>
-                </label>
-              </div>
-            </div>
           </div>
         );
       })}
@@ -651,7 +619,7 @@ function CourseForm({
         grades: ['Year 1 (First Year)'],
         subjects: [],
         locked: false,
-        lockMode: 'both',
+        lockMode: 'codes_only',
         price: 0,
         viewLimit: 3,
         testId: 'none',
@@ -678,7 +646,7 @@ function CourseForm({
         subjects: courseToEdit.subjects || [],
         grades: courseToEdit.grades || [],
         locked: courseToEdit.locked || false,
-        lockMode: courseToEdit.lockMode || 'both',
+        lockMode: courseToEdit.lockMode || 'codes_only',
         price: courseToEdit.price ?? 0,
         viewLimit: courseToEdit.viewLimit ?? 3,
         units:
@@ -846,7 +814,7 @@ function CourseForm({
       grades: ['الفرقة الأولى (Year 1)', 'الفرقة الثانية (Year 2)'],
       subjects: ['الفيزياء الطبية الحيوية', 'العلوم السريرية'],
       locked: true,
-      lockMode: 'both',
+      lockMode: 'codes_only',
       price: 250,
       viewLimit: 3,
       testId: 'none',
@@ -917,7 +885,7 @@ function CourseForm({
         grades: Array.isArray(data.grades) ? data.grades : [],
         subjects: Array.isArray(data.subjects) ? data.subjects : [],
         locked: Boolean(data.locked),
-        lockMode: data.lockMode || 'both',
+        lockMode: 'codes_only',
         price: Number(data.price ?? 0),
         viewLimit: Number(data.viewLimit ?? 3),
         enableQrStamp: data.enableQrStamp ?? true,
@@ -1147,8 +1115,7 @@ function CourseForm({
         </div>
 
         {/* Tab 1: Course Overview */}
-        {activeTab === 'info' && (
-          <div className="space-y-5 animate-in fade-in duration-200">
+        <div className={activeTab === 'info' ? "space-y-5 animate-in fade-in duration-200" : "hidden"}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-4">
                 <div>
@@ -1436,13 +1403,10 @@ function CourseForm({
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* Tab 2: College Years & Subjects */}
-        {activeTab === 'audience' && (
-          <div className="space-y-6 animate-in fade-in duration-200">
+        <div className={activeTab === 'audience' ? "space-y-6 animate-in fade-in duration-200" : "hidden"}>
             {/* College Academic Years */}
             <div className="p-5 rounded-2xl bg-slate-50/90 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 space-y-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
@@ -1621,14 +1585,10 @@ function CourseForm({
                   </div>
                 )}
               />
-              {errors.subjects && <p className="text-rose-500 text-xs">{errors.subjects.message}</p>}
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* Tab 3: Units & Lectures */}
-        {activeTab === 'content' && (
-          <div className="space-y-4 animate-in fade-in duration-200">
+        <div className={activeTab === 'content' ? "space-y-4 animate-in fade-in duration-200" : "hidden"}>
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -1715,14 +1675,10 @@ function CourseForm({
               <div className="text-center py-10 text-slate-500 dark:text-zinc-500 border border-dashed border-slate-200 dark:border-zinc-800 rounded-2xl bg-slate-50/50 dark:bg-zinc-950/40">
                 <Layers className="mx-auto h-8 w-8 mb-2 opacity-40" />
                 <p className="text-sm">No units added yet. Click &quot;Add New Unit&quot; to begin.</p>
-              </div>
-            )}
-          </div>
-        )}
+        </div>
 
         {/* Tab 4: Access & Testing */}
-        {activeTab === 'access' && (
-          <div className="space-y-5 animate-in fade-in duration-200">
+        <div className={activeTab === 'access' ? "space-y-5 animate-in fade-in duration-200" : "hidden"}>
             {/* Lock Course Toggle */}
             <div className="p-5 rounded-2xl bg-slate-50/90 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 space-y-4">
               <div className="flex items-start justify-between gap-4">
@@ -1822,14 +1778,10 @@ function CourseForm({
                     </SelectContent>
                   </Select>
                 )}
-              />
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* Tab 5: Security Layers */}
-        {activeTab === 'security' && (
-          <div className="space-y-5 animate-in fade-in duration-200">
+        <div className={activeTab === 'security' ? "space-y-5 animate-in fade-in duration-200" : "hidden"}>
             <div className="p-5 rounded-2xl bg-slate-50/90 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 space-y-4">
               <div className="space-y-1">
                 <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -1837,7 +1789,7 @@ function CourseForm({
                   طبقات حماية فيديو المقرر (Course Security Layers)
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-zinc-400">
-                  يمكنك تفعيل أو إيقاف طبقات الحماية الثلاث لهذا المقرر ككل. يمكنك أيضاً تخصيص كل فيديو على حدة داخل تبويب الفيديوهات.
+                  يمكنك تفعيل أو إيقاف طبقات الحماية الثلاث لهذا المقرر (تطبق الإعدادات تلقائياً على جميع دروس وفيديوهات المقرر).
                 </p>
               </div>
 
@@ -1899,9 +1851,7 @@ function CourseForm({
                   />
                 </div>
               </div>
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* Footer Actions */}
         <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-zinc-800/80 mt-auto shrink-0">
@@ -2214,18 +2164,12 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
                       )}
                     </div>
 
-                    {/* Top-Right: Lock Status & Mode Badge */}
+                    {/* Top-Right: Lock Status Badge */}
                     <div className="absolute top-3 right-3 z-10">
                       {course.locked ? (
                         <Badge className="bg-amber-500 hover:bg-amber-600 text-black font-bold text-[11px] flex items-center gap-1 shadow-lg shadow-black/30 px-2.5 py-0.5">
                           <Lock className="w-3 h-3" />
-                          <span>
-                            {course.lockMode === 'requests_only'
-                              ? 'Locked: طلبات فقط'
-                              : course.lockMode === 'codes_only'
-                              ? 'Locked: كود فقط'
-                              : 'Locked: كود أو طلب'}
-                          </span>
+                          <span>مغلق بالأكواد (Share Code)</span>
                         </Badge>
                       ) : (
                         <Badge className="bg-emerald-500/30 text-emerald-800 dark:text-emerald-300 border border-emerald-400/40 font-bold text-[11px] backdrop-blur-md px-2 py-0.5">
@@ -2265,7 +2209,7 @@ export function ManageCourses({ teacherId, teacher }: { teacherId: string; teach
                     </span>
                     <span className="text-slate-300 dark:text-zinc-600">|</span>
                     <span className={course.locked ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-emerald-600 dark:text-emerald-400'}>
-                      {course.locked ? (course.lockMode === 'requests_only' ? 'طلبات وصول' : course.lockMode === 'codes_only' ? 'أكواد وصول' : 'كود + طلبات') : 'متاح للجميع'}
+                      {course.locked ? 'مغلق بالأكواد' : 'متاح للجميع'}
                     </span>
                     <span className="text-slate-300 dark:text-zinc-600">|</span>
                     <span>{course.units?.length || 1} وحدات</span>

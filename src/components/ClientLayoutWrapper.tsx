@@ -220,13 +220,21 @@ export function ClientLayoutWrapper({ children }: { children: React.ReactNode })
 
   const isRealUser = !!user;
   const isAuthenticated = isRealUser || isStudentSession || isParentSession || isAssistantSession || isTeacherSession;
-
-  // Only block rendering on isUserLoading for protected/private views when no cached local session exists.
-  // Public routes mount immediately and safely because they require no authentication.
   const isProtected = !isPublicRoute && !pathname.startsWith('/admin/');
-  if (isUserLoading && isProtected && !isAuthenticated) {
-      return (
-        <div className="flex h-screen w-full items-center justify-center bg-slate-950 relative overflow-hidden" id="app-auth-splash">
+
+  const showAuthSplash = isUserLoading && isProtected && !isAuthenticated;
+  const isUnauthorized = !isAuthenticated && isProtected && !isUserLoading;
+
+  if (isUnauthorized) {
+    return <UnauthorizedAccess />;
+  }
+
+  const showNav = !noNavRoutes.includes(pathname) && !pathname.startsWith('/admin/');
+
+  return (
+    <I18nextProvider i18n={i18n}>
+      {showAuthSplash && (
+        <div className="fixed inset-0 z-[2147483645] flex h-screen w-full items-center justify-center bg-slate-950 select-none" id="app-auth-splash">
           <div className="flex flex-col items-center gap-4 text-center z-10">
             <div className="w-16 h-16 rounded-2xl bg-blue-600/15 border border-blue-500/30 flex items-center justify-center shadow-[0_0_30px_rgba(37,99,235,0.25)] animate-pulse">
               <Logo width={40} height={40} showText={false} className="rounded-lg shadow-sm" />
@@ -243,19 +251,7 @@ export function ClientLayoutWrapper({ children }: { children: React.ReactNode })
           {/* Subtle ambient glow */}
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(37,99,235,0.1)_0%,transparent_60%)] pointer-events-none" />
         </div>
-      );
-  }
-
-  const isUnauthorized = !isAuthenticated && isProtected;
-
-  if (isUnauthorized) {
-    return <UnauthorizedAccess />;
-  }
-
-  const showNav = !noNavRoutes.includes(pathname) && !pathname.startsWith('/admin/');
-
-  return (
-    <I18nextProvider i18n={i18n}>
+      )}
       <ScreenProtectionGuard />
       <BiometricAppLock />
       <GlobalStudentPassStamp />

@@ -5,7 +5,8 @@ import { doc, runTransaction, serverTimestamp, setDoc, arrayUnion, Timestamp, in
 import type { Course, CourseRating, Teacher, WatchHistory, Video, CourseAccess, Unit, CourseRequest } from '@/lib/types';
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { Star, Download, FileText, Info, User, BookOpen, Clock, CheckCircle, ArrowLeft, Lock, ClipboardList, ShoppingCart, KeyRound, Play, Pause, ShieldCheck, Layers, Maximize2, Minimize2, RotateCcw, RotateCw, Volume2, VolumeX } from 'lucide-react';
+import { Star, Download, FileText, Info, User, BookOpen, Clock, CheckCircle, ArrowLeft, Lock, ClipboardList, ShoppingCart, KeyRound, Play, Pause, ShieldCheck, Layers, Maximize2, Minimize2, RotateCcw, RotateCw, Volume2, VolumeX, Gauge } from 'lucide-react';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { cn, toJsDate } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -1095,122 +1096,171 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                             }}
                                         />
 
-                                        {/* Quick-Action Controls Bar: Play/Pause, -10s, +10s, Volume, Fullscreen (z-40) */}
+                                        {/* Quick-Action Controls Bar: Progress Bar + Play/Pause, -10s, +10s, Speed, Volume, Fullscreen (z-40) */}
                                         <div 
-                                            className="absolute bottom-3 left-3 right-3 z-40 flex items-center justify-between pointer-events-auto select-none gap-2 opacity-95 transition-opacity"
+                                            className="absolute bottom-3 left-3 right-3 z-40 flex flex-col gap-2 pointer-events-auto select-none opacity-95 transition-opacity"
                                             onContextMenu={(e) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
                                                 return false;
                                             }}
                                         >
-                                            <div className="flex items-center gap-1 sm:gap-2 bg-black/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-zinc-800 text-xs text-zinc-300 shadow-2xl">
-                                                {/* Play / Pause button */}
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        togglePlayPause();
+                                            {/* Scrubbable Timeline Progress Bar */}
+                                            <div className="flex items-center gap-2.5 bg-black/90 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-zinc-800 shadow-2xl">
+                                                <span className="text-[11px] font-mono text-emerald-400 font-bold min-w-[40px]">
+                                                    {Math.floor(currentTime / 60).toString().padStart(2, '0')}:{(Math.floor(currentTime) % 60).toString().padStart(2, '0')}
+                                                </span>
+                                                <input
+                                                    type="range"
+                                                    min={0}
+                                                    max={duration > 0 ? Math.floor(duration) : 100}
+                                                    value={Math.floor(currentTime) || 0}
+                                                    onChange={(e) => {
+                                                        const newTime = Number(e.target.value);
+                                                        setCurrentTime(newTime);
+                                                        sendPlayerCommand('setCurrentTime', newTime);
+                                                        sendPlayerCommand('seek', newTime);
                                                     }}
-                                                    className="flex items-center gap-1 font-bold text-white hover:text-emerald-400 transition-colors cursor-pointer px-1.5 py-1 rounded-lg hover:bg-white/5"
-                                                    title={isPlaying ? "إيقاف مؤقت" : "تشغيل"}
-                                                >
-                                                    {isPlaying ? (
-                                                        <Pause className="w-4 h-4 text-emerald-400" />
-                                                    ) : (
-                                                        <Play className="w-4 h-4 text-emerald-400 fill-emerald-400" />
-                                                    )}
-                                                    <span className="hidden sm:inline text-xs">{isPlaying ? "إيقاف" : "تشغيل"}</span>
-                                                </button>
-
-                                                <span className="text-zinc-700">|</span>
-
-                                                {/* -10s Skip Backward */}
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleSkipBackward();
-                                                    }}
-                                                    className="flex items-center gap-1 font-medium hover:text-white transition-colors cursor-pointer px-1.5 py-1 rounded-lg hover:bg-white/5 text-zinc-300"
-                                                    title="رجوع 10 ثواني للخلف"
-                                                >
-                                                    <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-                                                    <span className="text-[11px] font-mono font-bold">-10s</span>
-                                                </button>
-
-                                                {/* +10s Skip Forward */}
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleSkipForward();
-                                                    }}
-                                                    className="flex items-center gap-1 font-medium hover:text-white transition-colors cursor-pointer px-1.5 py-1 rounded-lg hover:bg-white/5 text-zinc-300"
-                                                    title="تقديم 10 ثواني للأمام"
-                                                >
-                                                    <RotateCw className="w-3.5 h-3.5 text-emerald-400" />
-                                                    <span className="text-[11px] font-mono font-bold">+10s</span>
-                                                </button>
-
-                                                <span className="text-zinc-700">|</span>
-
-                                                {/* Volume Mute Toggle */}
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        toggleMute();
-                                                    }}
-                                                    className="flex items-center gap-1 font-medium hover:text-white transition-colors cursor-pointer px-1.5 py-1 rounded-lg hover:bg-white/5 text-zinc-300"
-                                                    title={isMuted ? "تشغيل الصوت" : "كتم الصوت"}
-                                                >
-                                                    {isMuted ? (
-                                                        <VolumeX className="w-3.5 h-3.5 text-red-400" />
-                                                    ) : (
-                                                        <Volume2 className="w-3.5 h-3.5 text-zinc-300" />
-                                                    )}
-                                                </button>
-
-                                                {/* Time Display */}
-                                                {duration > 0 && (
-                                                    <>
-                                                        <span className="text-zinc-700">|</span>
-                                                        <span className="text-[11px] font-mono text-zinc-400 font-medium">
-                                                            {Math.floor(currentTime / 60).toString().padStart(2, '0')}:{(Math.floor(currentTime) % 60).toString().padStart(2, '0')} / {Math.floor(duration / 60).toString().padStart(2, '0')}:{(Math.floor(duration) % 60).toString().padStart(2, '0')}
-                                                        </span>
-                                                    </>
-                                                )}
-
-                                                <span className="hidden md:inline text-zinc-700">|</span>
-                                                <span className="hidden md:flex text-[10px] text-emerald-400 font-mono items-center gap-1">
-                                                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                                                    بث محمي
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="flex-1 h-1.5 accent-emerald-500 bg-zinc-800 rounded-lg cursor-pointer transition-all hover:h-2"
+                                                    title="سحب أو ضغط للتنقل والتخطي داخل الفيديو (Seek Bar)"
+                                                />
+                                                <span className="text-[11px] font-mono text-zinc-400 font-medium min-w-[40px] text-right">
+                                                    {duration > 0 ? `${Math.floor(duration / 60).toString().padStart(2, '0')}:{(Math.floor(duration) % 60).toString().padStart(2, '0')}` : '--:--'}
                                                 </span>
                                             </div>
 
-                                            {/* High-Visibility Protected Fullscreen Toggle Button */}
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    togglePlayerFullscreen();
-                                                }}
-                                                className="bg-black/90 hover:bg-black text-emerald-400 hover:text-emerald-300 border border-emerald-500/50 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xl transition-all active:scale-95 cursor-pointer"
-                                                title="تفعيل العرض بالشاشة الكاملة مع العلامة المائية للحماية"
-                                            >
-                                                {isPlayerFullscreen ? (
-                                                    <>
-                                                        <Minimize2 className="w-3.5 h-3.5 text-emerald-400" />
-                                                        <span>خروج</span>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
-                                                        <span>شاشة كاملة محمية</span>
-                                                    </>
-                                                )}
-                                            </button>
+                                            {/* Buttons & Speed Controls Row */}
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-1 sm:gap-2 bg-black/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-zinc-800 text-xs text-zinc-300 shadow-2xl">
+                                                    {/* Play / Pause button */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            togglePlayPause();
+                                                        }}
+                                                        className="flex items-center gap-1 font-bold text-white hover:text-emerald-400 transition-colors cursor-pointer px-1.5 py-1 rounded-lg hover:bg-white/5"
+                                                        title={isPlaying ? "إيقاف مؤقت" : "تشغيل"}
+                                                    >
+                                                        {isPlaying ? (
+                                                            <Pause className="w-4 h-4 text-emerald-400" />
+                                                        ) : (
+                                                            <Play className="w-4 h-4 text-emerald-400 fill-emerald-400" />
+                                                        )}
+                                                        <span className="hidden sm:inline text-xs">{isPlaying ? "إيقاف" : "تشغيل"}</span>
+                                                    </button>
+
+                                                    <span className="text-zinc-700">|</span>
+
+                                                    {/* -10s Skip Backward */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleSkipBackward();
+                                                        }}
+                                                        className="flex items-center gap-1 font-medium hover:text-white transition-colors cursor-pointer px-1.5 py-1 rounded-lg hover:bg-white/5 text-zinc-300"
+                                                        title="رجوع 10 ثواني للخلف"
+                                                    >
+                                                        <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                                                        <span className="text-[11px] font-mono font-bold">-10s</span>
+                                                    </button>
+
+                                                    {/* +10s Skip Forward */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleSkipForward();
+                                                        }}
+                                                        className="flex items-center gap-1 font-medium hover:text-white transition-colors cursor-pointer px-1.5 py-1 rounded-lg hover:bg-white/5 text-zinc-300"
+                                                        title="تقديم 10 ثواني للأمام"
+                                                    >
+                                                        <RotateCw className="w-3.5 h-3.5 text-emerald-400" />
+                                                        <span className="text-[11px] font-mono font-bold">+10s</span>
+                                                    </button>
+
+                                                    <span className="text-zinc-700">|</span>
+
+                                                    {/* Volume Mute Toggle */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleMute();
+                                                        }}
+                                                        className="flex items-center gap-1 font-medium hover:text-white transition-colors cursor-pointer px-1.5 py-1 rounded-lg hover:bg-white/5 text-zinc-300"
+                                                        title={isMuted ? "تشغيل الصوت" : "كتم الصوت"}
+                                                    >
+                                                        {isMuted ? (
+                                                            <VolumeX className="w-3.5 h-3.5 text-red-400" />
+                                                        ) : (
+                                                            <Volume2 className="w-3.5 h-3.5 text-zinc-300" />
+                                                        )}
+                                                    </button>
+
+                                                    <span className="text-zinc-700">|</span>
+
+                                                    {/* Playback Speed Dropdown Selector */}
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                className="flex items-center gap-1.5 font-bold text-amber-400 hover:text-amber-300 transition-colors cursor-pointer px-2 py-1 rounded-lg hover:bg-white/5 text-xs font-mono"
+                                                                title="تغيير سرعة عرض الفيديو"
+                                                            >
+                                                                <Gauge className="w-3.5 h-3.5 text-amber-400" />
+                                                                <span>{playbackSpeed}x</span>
+                                                            </button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="center" className="bg-zinc-950 border-zinc-800 text-zinc-200 min-w-[110px] p-1 rounded-xl shadow-2xl z-[2147483647]">
+                                                            {[0.75, 1, 1.25, 1.5, 1.75, 2].map((spd) => (
+                                                                <DropdownMenuItem
+                                                                    key={spd}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleSpeedChange(spd);
+                                                                    }}
+                                                                    className={cn(
+                                                                        "cursor-pointer text-xs font-mono font-bold flex items-center justify-between p-2 rounded-lg",
+                                                                        playbackSpeed === spd ? "bg-emerald-500/20 text-emerald-400" : "hover:bg-zinc-900 text-zinc-300"
+                                                                    )}
+                                                                >
+                                                                    <span>{spd}x</span>
+                                                                    {playbackSpeed === spd && <span className="text-[10px] text-emerald-400 font-sans">نشط</span>}
+                                                                </DropdownMenuItem>
+                                                            ))}
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+
+
+                                                </div>
+
+                                                {/* High-Visibility Protected Fullscreen Toggle Button */}
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        togglePlayerFullscreen();
+                                                    }}
+                                                    className="bg-black/90 hover:bg-black text-emerald-400 hover:text-emerald-300 border border-emerald-500/50 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xl transition-all active:scale-95 cursor-pointer"
+                                                    title="تفعيل العرض بالشاشة الكاملة مع العلامة المائية للحماية"
+                                                >
+                                                    {isPlayerFullscreen ? (
+                                                        <>
+                                                            <Minimize2 className="w-3.5 h-3.5 text-emerald-400" />
+                                                            <span>خروج</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
+                                                            <span>شاشة كاملة محمية</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
                                         </div>
 
                                         {/* Dynamic Ultra Watermark: Z-Index 40, floating permanently on top */}

@@ -284,30 +284,46 @@ export function BiometricAppLock() {
     e.preventDefault();
     const val = passcodeInput.trim();
     if (!val) {
-      handleAuthorizeAndUnlock();
+      setErrorMessage(isArabic ? 'يرجى إدخال كود الطالب أو كلمة المرور الخاصة بحسابك' : 'Please enter your student code or account password');
       return;
     }
 
     if (typeof window !== 'undefined') {
       const studentCode = localStorage.getItem('student_barcode') || 
                           localStorage.getItem('studentBarcode') || 
-                          localStorage.getItem('studentCode');
-      
-      if (!studentCode || val.toUpperCase() === studentCode.toUpperCase() || val.length >= 3) {
+                          localStorage.getItem('studentCode') ||
+                          localStorage.getItem('app_student_auth_session') ||
+                          localStorage.getItem('viewingStudentId');
+
+      const teacherPass = localStorage.getItem('teacher_password');
+      const assistantPass = localStorage.getItem('assistantPassword');
+      const userEmailPrefix = user?.email?.split('@')[0];
+
+      const validCodes = [
+        studentCode,
+        userEmailPrefix,
+        teacherPass,
+        assistantPass,
+      ].filter(Boolean).map(c => (c || '').toString().trim().toUpperCase());
+
+      const inputClean = val.trim().toUpperCase();
+
+      const isValid = validCodes.some(code => code === inputClean || (code && inputClean === code));
+
+      if (isValid || validCodes.length === 0) {
+        setErrorMessage(null);
         setScanSuccess(true);
         setTimeout(() => {
           sessionStorage.setItem('mol5saty_app_unlocked', 'true');
           setIsLocked(false);
+          setPasscodeInput('');
         }, 300);
+        return;
+      } else {
+        setErrorMessage(isArabic ? 'كود الطالب أو كلمة المرور غير صحيحة، يرجى إعادة المحاولة.' : 'Incorrect student code or password. Please try again.');
         return;
       }
     }
-
-    setScanSuccess(true);
-    setTimeout(() => {
-      sessionStorage.setItem('mol5saty_app_unlocked', 'true');
-      setIsLocked(false);
-    }, 300);
   };
 
   // If not locked or on public pages, render nothing
