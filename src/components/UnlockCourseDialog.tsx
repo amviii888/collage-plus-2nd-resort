@@ -101,7 +101,22 @@ export function UnlockCourseDialog({ isOpen, setIsOpen, courseId, teacherId }: U
         limit(1)
       );
       
-      const querySnapshot = await getDocs(q);
+      let querySnapshot = await getDocs(q);
+
+      // If empty, fallback to root share_codes collection
+      if (querySnapshot.empty) {
+        const rootShareCodesRef = collection(firestore, 'share_codes');
+        const qRoot = query(
+          rootShareCodesRef,
+          where("code", "==", cleanCode),
+          where("used", "==", false),
+          limit(1)
+        );
+        const rootSnap = await getDocs(qRoot);
+        if (!rootSnap.empty) {
+          querySnapshot = rootSnap;
+        }
+      }
 
       if (querySnapshot.empty) {
         setError("كود الوصول غير صحيح أو تم استخدامه مسبقاً.");
@@ -116,14 +131,18 @@ export function UnlockCourseDialog({ isOpen, setIsOpen, courseId, teacherId }: U
       const targetCourseId = codeData.courseId || courseId;
       const viewLimit = codeData.viewLimit ?? courseData?.viewLimit ?? 3;
 
+      const realStudentBarcode = profile?.barcodeId || 
+        (typeof window !== 'undefined' ? (localStorage.getItem('student_barcode') || localStorage.getItem('studentBarcode')) : null) || 
+        currentUser.uid;
       const studentName = profile?.name || currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Student');
 
       const batch = writeBatch(firestore);
       
-      // Mark code as used
+      // Mark code as used with student's real barcode ID, UID, and name
       batch.update(shareCodeDoc.ref, { 
         used: true, 
-        usedBy: currentUser.uid, 
+        usedBy: realStudentBarcode, 
+        usedByUid: currentUser.uid,
         usedByName: studentName,
         usedAt: serverTimestamp() 
       });

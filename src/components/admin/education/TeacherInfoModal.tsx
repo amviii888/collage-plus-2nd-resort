@@ -55,18 +55,29 @@ export function TeacherInfoModal({ isOpen, onClose, teacher, allStudents }: Teac
   const connectedStudents = useMemo(() => {
     if (!teacher || !allStudents) return [];
     
+    const candidateCodes = new Set<string>();
+    if (teacherCode) candidateCodes.add(teacherCode.trim().toUpperCase());
+    if (teacher.code) candidateCodes.add(String(teacher.code).trim().toUpperCase());
+    if (teacher.teacherCode) candidateCodes.add(String(teacher.teacherCode).trim().toUpperCase());
+    if (teacher.assistantCode) candidateCodes.add(String(teacher.assistantCode).trim().toUpperCase());
+    if (teacher.id) candidateCodes.add(String(teacher.id).trim().toUpperCase());
+
     return allStudents.filter(student => {
       if (!student) return false;
-      const pCode = ((student as any).professorCode || (student as any).teacherCode || '').trim().toUpperCase();
+      const pCode = ((student as any).professorCode || (student as any).teacherCode || (student as any).activeProfessorCode || '').trim().toUpperCase();
       const cArray = Array.isArray((student as any).connectedProfessors) 
         ? (student as any).connectedProfessors.map((c: any) => (c || '').trim().toUpperCase()) 
         : [];
       const tId = (student as any).teacherId;
       const tEmail = (student as any).teacherEmail;
 
+      const hasMatchingCode = Array.from(candidateCodes).some(code => 
+        (pCode && pCode === code) ||
+        cArray.includes(code)
+      );
+
       return (
-        (teacherCode && pCode === teacherCode) ||
-        (teacherCode && cArray.includes(teacherCode)) ||
+        hasMatchingCode ||
         (teacher.id && tId === teacher.id) ||
         (teacher.email && tEmail === teacher.email)
       );
