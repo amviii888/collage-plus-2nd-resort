@@ -475,6 +475,13 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
     const [isMuted, setIsMuted] = useState(false);
     const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
 
+    const formatFormattedTime = (totalSeconds: number) => {
+        if (!totalSeconds || isNaN(totalSeconds) || totalSeconds < 0) return '00:00';
+        const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+        const s = Math.floor(totalSeconds % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    };
+
     const handleSpeedChange = (speed: number) => {
         setPlaybackSpeed(speed);
         sendPlayerCommand('setPlaybackRate', speed);
@@ -1128,7 +1135,7 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                                 onClick={(e) => e.stopPropagation()}
                                             >
                                                 <span className="text-[11px] font-mono text-emerald-400 font-bold min-w-[40px]">
-                                                    {Math.floor(currentTime / 60).toString().padStart(2, '0')}:{(Math.floor(currentTime) % 60).toString().padStart(2, '0')}
+                                                    {formatFormattedTime(currentTime)}
                                                 </span>
                                                 <input
                                                     type="range"
@@ -1148,7 +1155,7 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                                     title="سحب أو ضغط للتنقل والتخطي داخل الفيديو (Seek Bar)"
                                                 />
                                                 <span className="text-[11px] font-mono text-zinc-400 font-medium min-w-[40px] text-right">
-                                                    {duration > 0 ? `${Math.floor(duration / 60).toString().padStart(2, '0')}:{(Math.floor(duration) % 60).toString().padStart(2, '0')}` : '--:--'}
+                                                    {duration > 0 ? formatFormattedTime(duration) : '--:--'}
                                                 </span>
                                             </div>
 
@@ -1302,7 +1309,7 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                             <div className="p-3 bg-zinc-950 border-b border-zinc-800 flex flex-col gap-2">
                                 <div className="flex items-center gap-3">
                                     <span className="text-xs font-mono font-bold text-emerald-400 min-w-[45px]">
-                                        {Math.floor(currentTime / 60).toString().padStart(2, '0')}:{(Math.floor(currentTime) % 60).toString().padStart(2, '0')}
+                                        {formatFormattedTime(currentTime)}
                                     </span>
                                     <input
                                         type="range"
@@ -1319,7 +1326,7 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                         title="شريط تقدم الفيديو: يمكنك السحب والضغط للتقديم والتأخير بسهولة"
                                     />
                                     <span className="text-xs font-mono font-medium text-zinc-400 min-w-[45px] text-right">
-                                        {duration > 0 ? `${Math.floor(duration / 60).toString().padStart(2, '0')}:{(Math.floor(duration) % 60).toString().padStart(2, '0')}` : '--:--'}
+                                        {duration > 0 ? formatFormattedTime(duration) : '--:--'}
                                     </span>
                                 </div>
                                 <div className="flex items-center justify-between gap-2 text-xs">
@@ -1390,11 +1397,6 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                         </button>
                                     </div>
                                 </div>
-                            </div>
-                                    </>
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-destructive-foreground bg-destructive">Invalid Video URL</div>
-                                )}
                             </div>
                         </div>
                     )}
