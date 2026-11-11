@@ -558,24 +558,30 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                 }
                 if (!data || typeof data !== 'object') return;
 
-                if (data.context === 'player.js' || data.event) {
-                    const evtName = data.event || data.method;
-                    if (evtName === 'ready') {
-                        sendPlayerCommand('addEventListener', 'play');
-                        sendPlayerCommand('addEventListener', 'pause');
-                        sendPlayerCommand('addEventListener', 'timeupdate');
-                        sendPlayerCommand('addEventListener', 'ended');
-                    } else if (evtName === 'play') {
-                        setIsPlaying(true);
-                        setHasStarted(true);
-                    } else if (evtName === 'pause') {
-                        setIsPlaying(false);
-                    } else if (evtName === 'timeupdate') {
-                        const sec = typeof data.value?.seconds === 'number' ? data.value.seconds : (typeof data.value === 'number' ? data.value : 0);
-                        const dur = typeof data.value?.duration === 'number' ? data.value.duration : (typeof data.duration === 'number' ? data.duration : 0);
-                        if (sec) setCurrentTime(sec);
-                        if (dur) setDuration(dur);
-                    }
+                const evtName = data.event || data.method || data.type;
+                if (evtName === 'ready' || data.context === 'player.js') {
+                    sendPlayerCommand('addEventListener', 'play');
+                    sendPlayerCommand('addEventListener', 'pause');
+                    sendPlayerCommand('addEventListener', 'timeupdate');
+                    sendPlayerCommand('addEventListener', 'ended');
+                }
+                if (evtName === 'play' || evtName === 'playing') {
+                    setIsPlaying(true);
+                    setHasStarted(true);
+                } else if (evtName === 'pause' || evtName === 'ended') {
+                    setIsPlaying(evtName === 'play');
+                } else if (evtName === 'timeupdate' || evtName === 'progress') {
+                    const sec = typeof data.value?.seconds === 'number' ? data.value.seconds 
+                        : (typeof data.value?.currentTime === 'number' ? data.value.currentTime
+                        : (typeof data.value === 'number' ? data.value
+                        : (typeof data.seconds === 'number' ? data.seconds
+                        : (typeof data.currentTime === 'number' ? data.currentTime
+                        : (typeof data.time === 'number' ? data.time : 0)))));
+                    const dur = typeof data.value?.duration === 'number' ? data.value.duration 
+                        : (typeof data.duration === 'number' ? data.duration 
+                        : (typeof data.timeDuration === 'number' ? data.timeDuration : 0));
+                    if (sec) setCurrentTime(sec);
+                    if (dur) setDuration(dur);
                 }
             } catch {}
         };
@@ -583,6 +589,17 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
         window.addEventListener('message', handlePlayerMessage);
         return () => window.removeEventListener('message', handlePlayerMessage);
     }, [sendPlayerCommand]);
+
+    useEffect(() => {
+        if (!isPlaying) return;
+        const interval = setInterval(() => {
+            setCurrentTime(prev => {
+                if (duration > 0 && prev >= duration) return duration;
+                return prev + 1;
+            });
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [isPlaying, duration]);
 
     useEffect(() => {
         const handleFsChange = () => {
@@ -1084,9 +1101,9 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                             tabIndex={0}
                                         ></iframe>
 
-                                        {/* Anti-PiP Mouse Shield: Prevents browser hover detection from spawning floating PiP buttons */}
+                                        {/* Anti-PiP Mouse Shield: Offset bottom so controls overlay receives touch/clicks */}
                                         <div 
-                                            className="absolute inset-0 z-20 pointer-events-auto cursor-pointer"
+                                            className="absolute top-0 inset-x-0 bottom-24 z-20 pointer-events-auto cursor-pointer"
                                             onClick={togglePlayPause}
                                             onDoubleClick={togglePlayerFullscreen}
                                             onContextMenu={(e) => {
@@ -1096,9 +1113,9 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                             }}
                                         />
 
-                                        {/* Quick-Action Controls Bar: Progress Bar + Play/Pause, -10s, +10s, Speed, Volume, Fullscreen (z-40) */}
+                                        {/* Quick-Action Controls Bar: Progress Bar + Play/Pause, -10s, +10s, Speed, Volume, Fullscreen (z-50) */}
                                         <div 
-                                            className="absolute bottom-3 left-3 right-3 z-40 flex flex-col gap-2 pointer-events-auto select-none opacity-95 transition-opacity"
+                                            className="absolute bottom-3 left-3 right-3 z-50 flex flex-col gap-2 pointer-events-auto select-none opacity-95 transition-opacity"
                                             onContextMenu={(e) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
@@ -1106,7 +1123,10 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                             }}
                                         >
                                             {/* Scrubbable Timeline Progress Bar */}
-                                            <div className="flex items-center gap-2.5 bg-black/90 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-zinc-800 shadow-2xl">
+                                            <div 
+                                                className="flex items-center gap-2.5 bg-black/90 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-zinc-800 shadow-2xl"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
                                                 <span className="text-[11px] font-mono text-emerald-400 font-bold min-w-[40px]">
                                                     {Math.floor(currentTime / 60).toString().padStart(2, '0')}:{(Math.floor(currentTime) % 60).toString().padStart(2, '0')}
                                                 </span>
@@ -1121,6 +1141,8 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                                         sendPlayerCommand('setCurrentTime', newTime);
                                                         sendPlayerCommand('seek', newTime);
                                                     }}
+                                                    onMouseDown={(e) => e.stopPropagation()}
+                                                    onTouchStart={(e) => e.stopPropagation()}
                                                     onClick={(e) => e.stopPropagation()}
                                                     className="flex-1 h-1.5 accent-emerald-500 bg-zinc-800 rounded-lg cursor-pointer transition-all hover:h-2"
                                                     title="سحب أو ضغط للتنقل والتخطي داخل الفيديو (Seek Bar)"
@@ -1234,8 +1256,6 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                                             ))}
                                                         </DropdownMenuContent>
                                                     </DropdownMenu>
-
-
                                                 </div>
 
                                                 {/* High-Visibility Protected Fullscreen Toggle Button */}
@@ -1272,6 +1292,105 @@ export default function CoursePlayerClient({ teacherId, courseId }: { teacherId:
                                             enableAudioTts={currentVideo?.enableAudioTts ?? displayCourse?.enableAudioTts ?? true}
                                             enableVisualWatermark={currentVideo?.enableVisualWatermark ?? displayCourse?.enableVisualWatermark ?? true}
                                         />
+                                    </>
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-destructive-foreground bg-destructive">Invalid Video URL</div>
+                                )}
+                            </div>
+
+                            {/* Dedicated External Progress & Seek Bar Controller Bar (Always accessible right below player) */}
+                            <div className="p-3 bg-zinc-950 border-b border-zinc-800 flex flex-col gap-2">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xs font-mono font-bold text-emerald-400 min-w-[45px]">
+                                        {Math.floor(currentTime / 60).toString().padStart(2, '0')}:{(Math.floor(currentTime) % 60).toString().padStart(2, '0')}
+                                    </span>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={duration > 0 ? Math.floor(duration) : 100}
+                                        value={Math.floor(currentTime) || 0}
+                                        onChange={(e) => {
+                                            const newTime = Number(e.target.value);
+                                            setCurrentTime(newTime);
+                                            sendPlayerCommand('setCurrentTime', newTime);
+                                            sendPlayerCommand('seek', newTime);
+                                        }}
+                                        className="flex-1 h-2 accent-emerald-500 bg-zinc-800 rounded-lg cursor-pointer transition-all hover:h-2.5"
+                                        title="شريط تقدم الفيديو: يمكنك السحب والضغط للتقديم والتأخير بسهولة"
+                                    />
+                                    <span className="text-xs font-mono font-medium text-zinc-400 min-w-[45px] text-right">
+                                        {duration > 0 ? `${Math.floor(duration / 60).toString().padStart(2, '0')}:{(Math.floor(duration) % 60).toString().padStart(2, '0')}` : '--:--'}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2 text-xs">
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={togglePlayPause}
+                                            className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold hover:bg-emerald-500/20 flex items-center gap-1.5 cursor-pointer"
+                                        >
+                                            {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-emerald-400" />}
+                                            <span>{isPlaying ? 'إيقاف' : 'تشغيل'}</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleSkipBackward}
+                                            className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono font-bold hover:text-white flex items-center gap-1 cursor-pointer"
+                                        >
+                                            <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                                            <span>-10s</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleSkipForward}
+                                            className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono font-bold hover:text-white flex items-center gap-1 cursor-pointer"
+                                        >
+                                            <RotateCw className="w-3.5 h-3.5 text-emerald-400" />
+                                            <span>+10s</span>
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <button
+                                                    type="button"
+                                                    className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-amber-400 font-mono font-bold hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+                                                >
+                                                    <Gauge className="w-3.5 h-3.5" />
+                                                    <span>{playbackSpeed}x</span>
+                                                </button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="bg-zinc-950 border-zinc-800 text-zinc-200 min-w-[110px] p-1 rounded-xl shadow-2xl z-50">
+                                                {[0.75, 1, 1.25, 1.5, 1.75, 2].map((spd) => (
+                                                    <DropdownMenuItem
+                                                        key={spd}
+                                                        onClick={() => handleSpeedChange(spd)}
+                                                        className={cn(
+                                                            "cursor-pointer text-xs font-mono font-bold flex items-center justify-between p-2 rounded-lg",
+                                                            playbackSpeed === spd ? "bg-emerald-500/20 text-emerald-400" : "hover:bg-zinc-900 text-zinc-300"
+                                                        )}
+                                                    >
+                                                        <span>{spd}x</span>
+                                                        {playbackSpeed === spd && <span className="text-[10px] text-emerald-400 font-sans">نشط</span>}
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+
+                                        <button
+                                            type="button"
+                                            onClick={togglePlayerFullscreen}
+                                            className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 font-bold hover:text-white flex items-center gap-1 cursor-pointer"
+                                        >
+                                            <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
+                                            <span className="hidden sm:inline">شاشة كاملة</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                                     </>
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-destructive-foreground bg-destructive">Invalid Video URL</div>
