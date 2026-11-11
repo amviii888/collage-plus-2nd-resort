@@ -262,7 +262,43 @@ function LoginFormContent() {
                 try {
                     userCredential = await signInWithEmailAndPassword(auth, `${resolvedIdentifier}@mol5saty.student`, password);
                 } catch (err: any) {
-                    userCredential = await signInWithEmailAndPassword(auth, `${resolvedIdentifier}@universe.student`, password);
+                    try {
+                        userCredential = await signInWithEmailAndPassword(auth, `${resolvedIdentifier}@universe.student`, password);
+                    } catch (err2: any) {
+                        try {
+                            userCredential = await signInWithEmailAndPassword(auth, resolvedIdentifier, password);
+                        } catch (err3: any) {
+                            // Firestore direct lookup fallback if student registered in database
+                            if (firestore) {
+                                const { collection, query, where, getDocs, limit } = await import('firebase/firestore');
+                                const qStud = query(
+                                    collection(firestore, 'students'), 
+                                    where('barcodeId', '==', resolvedIdentifier), 
+                                    limit(1)
+                                );
+                                const studSnap = await getDocs(qStud);
+                                if (!studSnap.empty) {
+                                    const sDoc = studSnap.docs[0].data();
+                                    const storedPass = (sDoc.password || sDoc.passcode || sDoc.barcodeId || '').toString().trim();
+                                    if (storedPass === password.trim()) {
+                                        userCredential = {
+                                            user: {
+                                                uid: studSnap.docs[0].id,
+                                                email: sDoc.email || `${resolvedIdentifier}@mol5saty.student`,
+                                                displayName: sDoc.name || `طالب ${resolvedIdentifier}`
+                                            }
+                                        };
+                                    } else {
+                                        throw err3;
+                                    }
+                                } else {
+                                    throw err3;
+                                }
+                            } else {
+                                throw err3;
+                            }
+                        }
+                    }
                 }
             } else {
                 try {
@@ -270,12 +306,42 @@ function LoginFormContent() {
                 } catch (firstErr: any) {
                     const idLower = resolvedIdentifier.toLowerCase().trim();
                     if (idLower === 'librarian123@gmail.com' || idLower.includes('librarian')) {
-                        // If librarian user doesn't exist yet, create account automatically
                         userCredential = await createUserWithEmailAndPassword(auth, resolvedIdentifier, password);
+                    } else if (firestore) {
+                        // Check if teacher or student matches directly in Firestore
+                        const { collection, query, where, getDocs, limit } = await import('firebase/firestore');
+                        const qStud = query(
+                            collection(firestore, 'students'), 
+                            where('email', '==', resolvedIdentifier), 
+                            limit(1)
+                        );
+                        const studSnap = await getDocs(qStud);
+                        if (!studSnap.empty) {
+                            const sDoc = studSnap.docs[0].data();
+                            const storedPass = (sDoc.password || sDoc.passcode || '').toString().trim();
+                            if (storedPass === password.trim()) {
+                                userCredential = {
+                                    user: {
+                                        uid: studSnap.docs[0].id,
+                                        email: resolvedIdentifier,
+                                        displayName: sDoc.name || 'طالب أكاديمي'
+                                    }
+                                };
+                            } else {
+                                throw firstErr;
+                            }
+                        } else {
+                            throw firstErr;
+                        }
                     } else {
                         throw firstErr;
                     }
                 }
+            }
+
+            // Always save last valid password for lock screens and session continuity
+            if (password) {
+                localStorage.setItem('mol5saty_last_valid_password', password);
             }
 
             // Accurately resolve role: Standard non-student emails are Teacher / Admin by default

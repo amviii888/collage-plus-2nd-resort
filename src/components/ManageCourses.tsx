@@ -1403,9 +1403,10 @@ function CourseForm({
                   </div>
                 </div>
               </div>
-        </div>
+            </div>
+          </div>
 
-        {/* Tab 2: College Years & Subjects */}
+          {/* Tab 2: College Years & Subjects */}
         <div className={activeTab === 'audience' ? "space-y-6 animate-in fade-in duration-200" : "hidden"}>
             {/* College Academic Years */}
             <div className="p-5 rounded-2xl bg-slate-50/90 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 space-y-4">
@@ -1585,9 +1586,10 @@ function CourseForm({
                   </div>
                 )}
               />
-        </div>
+            </div>
+          </div>
 
-        {/* Tab 3: Units & Lectures */}
+          {/* Tab 3: Units & Lectures */}
         <div className={activeTab === 'content' ? "space-y-4 animate-in fade-in duration-200" : "hidden"}>
             <div className="flex items-center justify-between">
               <div>
@@ -1675,10 +1677,12 @@ function CourseForm({
               <div className="text-center py-10 text-slate-500 dark:text-zinc-500 border border-dashed border-slate-200 dark:border-zinc-800 rounded-2xl bg-slate-50/50 dark:bg-zinc-950/40">
                 <Layers className="mx-auto h-8 w-8 mb-2 opacity-40" />
                 <p className="text-sm">No units added yet. Click &quot;Add New Unit&quot; to begin.</p>
-        </div>
+              </div>
+            )}
+          </div>
 
-        {/* Tab 4: Access & Testing */}
-        <div className={activeTab === 'access' ? "space-y-5 animate-in fade-in duration-200" : "hidden"}>
+          {/* Tab 4: Access & Testing */}
+          <div className={activeTab === 'access' ? "space-y-5 animate-in fade-in duration-200" : "hidden"}>
             {/* Lock Course Toggle */}
             <div className="p-5 rounded-2xl bg-slate-50/90 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 space-y-4">
               <div className="flex items-start justify-between gap-4">
@@ -1778,10 +1782,12 @@ function CourseForm({
                     </SelectContent>
                   </Select>
                 )}
-        </div>
+              />
+            </div>
+          </div>
 
-        {/* Tab 5: Security Layers */}
-        <div className={activeTab === 'security' ? "space-y-5 animate-in fade-in duration-200" : "hidden"}>
+          {/* Tab 5: Security Layers */}
+          <div className={activeTab === 'security' ? "space-y-5 animate-in fade-in duration-200" : "hidden"}>
             <div className="p-5 rounded-2xl bg-slate-50/90 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 space-y-4">
               <div className="space-y-1">
                 <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -1851,7 +1857,8 @@ function CourseForm({
                   />
                 </div>
               </div>
-        </div>
+            </div>
+          </div>
 
         {/* Footer Actions */}
         <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-zinc-800/80 mt-auto shrink-0">

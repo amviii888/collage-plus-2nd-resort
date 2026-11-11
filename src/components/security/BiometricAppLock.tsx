@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation';
 import { Fingerprint, Lock, ShieldCheck, KeyRound, Sparkles, CheckCircle, ArrowRight, Shield, ScanFace, Smartphone, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
-import { useUser } from '@/firebase';
+import { useUser, useAuth } from '@/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 const PUBLIC_ROUTES = [
   '/',
@@ -34,6 +35,7 @@ export function BiometricAppLock() {
   const { i18n } = useTranslation();
   const isArabic = i18n.language === 'ar';
   const { user } = useUser();
+  const auth = useAuth();
 
   const [isLocked, setIsLocked] = useState(false);
   const [deviceType, setDeviceType] = useState<'ios' | 'android' | 'other'>('other');
@@ -280,7 +282,7 @@ export function BiometricAppLock() {
   }, [isLocked, showPasscodeField, handleAuthorizeAndUnlock]);
 
   // Passcode / Student Code / Password Unlock
-  const handlePasscodeSubmit = (e: React.FormEvent) => {
+  const handlePasscodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const val = passcodeInput.trim();
     if (!val) {
@@ -288,31 +290,74 @@ export function BiometricAppLock() {
       return;
     }
 
+    setErrorMessage(null);
+
     if (typeof window !== 'undefined') {
-      const studentCode = localStorage.getItem('student_barcode') || 
-                          localStorage.getItem('studentBarcode') || 
-                          localStorage.getItem('studentCode') ||
-                          localStorage.getItem('app_student_auth_session') ||
-                          localStorage.getItem('viewingStudentId');
+      const studentCode = (
+        localStorage.getItem('student_barcode') || 
+        localStorage.getItem('studentBarcode') || 
+        localStorage.getItem('studentCode') ||
+        localStorage.getItem('app_student_auth_session') ||
+        localStorage.getItem('viewingStudentId') ||
+        ''
+      ).trim();
 
-      const teacherPass = localStorage.getItem('teacher_password');
-      const assistantPass = localStorage.getItem('assistantPassword');
-      const userEmailPrefix = user?.email?.split('@')[0];
+      const lastValidPassword = (localStorage.getItem('mol5saty_last_valid_password') || '').trim();
+      const teacherPass = (localStorage.getItem('teacher_password') || '').trim();
+      const assistantPass = (localStorage.getItem('assistantPassword') || '').trim();
+      const studentPass = (localStorage.getItem('student_password') || '').trim();
+      const studentPhone = (localStorage.getItem('student_phone') || localStorage.getItem('studentPhone') || '').trim();
+      const userEmailPrefix = user?.email?.split('@')[0] || '';
+      const userUid = user?.uid || '';
 
-      const validCodes = [
-        studentCode,
-        userEmailPrefix,
+      const validExactCodes = [
+        lastValidPassword,
         teacherPass,
         assistantPass,
-      ].filter(Boolean).map(c => (c || '').toString().trim().toUpperCase());
+        studentPass,
+        user?.email,
+      ].filter(Boolean);
 
-      const inputClean = val.trim().toUpperCase();
+      const validCaseInsensitiveCodes = [
+        studentCode,
+        studentPhone,
+        userEmailPrefix,
+        userUid,
+        userUid.slice(0, 6),
+      ].filter(Boolean).map(c => c.toUpperCase());
 
-      const isValid = validCodes.some(code => code === inputClean || (code && inputClean === code));
+      const inputClean = val.toUpperCase();
 
-      if (isValid || validCodes.length === 0) {
+      // Check 1: Exact password match against local stored passwords
+      let isMatched = validExactCodes.some(code => code === val);
+
+      // Check 2: Case-insensitive student code / phone / UID / email prefix
+      if (!isMatched) {
+        isMatched = validCaseInsensitiveCodes.some(code => code === inputClean || inputClean === code);
+      }
+
+      // Check 3: Firebase Auth live sign-in verification for user's actual password
+      if (!isMatched && auth) {
+        const emailOptions = [
+          user?.email,
+          studentCode ? `${studentCode}@mol5saty.student` : null,
+          studentCode ? `${studentCode}@universe.student` : null,
+        ].filter(Boolean) as string[];
+
+        for (const testEmail of emailOptions) {
+          try {
+            await signInWithEmailAndPassword(auth, testEmail, val);
+            isMatched = true;
+            localStorage.setItem('mol5saty_last_valid_password', val);
+            break;
+          } catch (e) {}
+        }
+      }
+
+      if (isMatched) {
         setErrorMessage(null);
         setScanSuccess(true);
+        localStorage.setItem('mol5saty_last_valid_password', val);
         setTimeout(() => {
           sessionStorage.setItem('mol5saty_app_unlocked', 'true');
           setIsLocked(false);
@@ -490,6 +535,11 @@ export function BiometricAppLock() {
                     {isArabic ? 'دخول' : 'Enter'}
                   </button>
                 </div>
+                {errorMessage && (
+                  <p className="text-[11px] text-rose-400 font-bold mt-1 text-start animate-in fade-in duration-150">
+                    ⚠️ {errorMessage}
+                  </p>
+                )}
               </form>
             )}
           </div>

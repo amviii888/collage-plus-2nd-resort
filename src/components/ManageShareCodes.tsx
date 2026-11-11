@@ -47,7 +47,9 @@ import {
   Tag,
   Trash2,
   RefreshCw,
-  Coins
+  Coins,
+  Printer,
+  FileText
 } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import * as XLSX from 'xlsx';
@@ -57,6 +59,7 @@ import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { BadgeHelp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { generateShareCodesPdfVouchers } from '@/lib/pdfVouchers';
 
 const generateCodeSchema = z.object({
   scopeType: z.enum(['course', 'collection']),
@@ -373,6 +376,8 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
     } catch (e) {}
   };
 
+  const [submitFormat, setSubmitFormat] = useState<'pdf' | 'excel' | 'both'>('pdf');
+
   const handleGenerateAndExport = async (data: GenerateCodeFormValues) => {
     if (!firestore || isLimitReached) return;
     setIsSubmitting(true);
@@ -466,7 +471,7 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
       const batch = writeBatch(firestore);
 
       const scopeNameLabel = codeType === 'unit' 
-        ? `وحدة: ${targetUnitTitle} (${targetCourseTitle})` 
+        ? `وحدة: ${targetUnitTitle} - ${targetCourseTitle}` 
         : codeType === 'collection' 
         ? `باقة: ${targetCollectionTitle}` 
         : `كورس: ${targetCourseTitle}`;
@@ -526,22 +531,47 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
       await batch.commit();
       
       const sanitizedTitle = scopeNameLabel.replace(/[^a-z0-9_]/gi, '_').toLowerCase();
-      const fileName = `${sanitizedTitle}_share_codes.xlsx`;
+
+      // 1. Export Excel if requested or both
+      if (submitFormat === 'excel' || submitFormat === 'both') {
+        const fileName = `${sanitizedTitle}_share_codes.xlsx`;
+        const ws = XLSX.utils.json_to_sheet(codesToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Share Codes");
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+        saveAs(blob, fileName);
+      }
+
+      // 2. Export PDF Voucher Cards for cutting/printing if requested or both
+      if (submitFormat === 'pdf' || submitFormat === 'both') {
+        try {
+          const voucherItems = codesToExport.map(item => ({
+            code: item.code,
+            scopeTitle: item.item,
+            price: item.price,
+            allowedViews: 3,
+          }));
+          await generateShareCodesPdfVouchers({
+            teacherName: teacher.name || 'الأستاذ / المحاضر',
+            codes: voucherItems,
+          });
+        } catch (pdfErr) {
+          console.warn("PDF generation warning:", pdfErr);
+        }
+      }
       
-      const ws = XLSX.utils.json_to_sheet(codesToExport);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Share Codes");
-      
-      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-      const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
-      
-      saveAs(blob, fileName);
-      
+      const formatToastLabel = submitFormat === 'pdf' 
+        ? "وتصدير كروت PDF للقص والتوزيع!" 
+        : submitFormat === 'excel' 
+        ? "وتصدير ملف Excel!" 
+        : "وتصدير ملف Excel وكروت PDF للقص!";
+
       toast({ 
-        title: "🎉 تم إنشاء الأكواد وتصدير ملف Excel!",
+        title: `🎉 تم إنشاء الأكواد ${formatToastLabel}`,
         description: isManual 
           ? `تم إنشاء الكود اليدوي "${data.customCode!.trim().toUpperCase()}" بقيمة ${priceToSet} EGP.` 
-          : `تم إنشاء ${data.count} كود وصول بقيمة ${priceToSet} EGP للكود الواحد.` 
+          : `تم إنشاء ${data.count} كود وصول بقيمة ${priceToSet} EGP وتنزيل الملف المطلوب.` 
       });
       reset({ ...data, count: 10, customCode: '' });
       
@@ -623,6 +653,47 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
     }
   };
 
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  const handleExportFilteredPdfVouchers = async () => {
+    if (!filteredCodes || filteredCodes.length === 0) {
+      toast({ variant: 'destructive', title: 'لا توجد أكواد مطابقة للتصدير' });
+      return;
+    }
+
+    setIsExportingPdf(true);
+    toast({ title: "🖨️ جاري تجهيز كروت PDF للقص والتوزيع...", description: `قد يستغرق تحضير ${filteredCodes.length} كود بضع ثوانٍ.` });
+
+    try {
+      const items = filteredCodes.map(c => {
+        const itemScopeTitle = c.type === 'unit'
+          ? `وحدة: ${c.unitTitle || 'الوحدة'} - ${c.courseTitle || ''}`
+          : c.type === 'collection'
+          ? `باقة: ${c.collectionTitle || 'الباقة'}`
+          : `كورس: ${c.courseTitle || 'الكورس كاملاً'}`;
+
+        return {
+          code: c.code,
+          scopeTitle: itemScopeTitle,
+          price: c.price || 0,
+          allowedViews: c.viewLimit || 3,
+        };
+      });
+
+      await generateShareCodesPdfVouchers({
+        teacherName: teacher.name || 'الأستاذ / المحاضر',
+        codes: items,
+      });
+
+      toast({ title: "📄 تم تصدير كروت PDF للقص بنجاح!", description: "الملف جاهز للطباعة والقص والتوزيع على الطلاب." });
+    } catch (error: any) {
+      console.error("PDF Export error:", error);
+      toast({ variant: 'destructive', title: 'خطأ أثناء تصدير كروت PDF', description: error.message });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Top Header */}
@@ -633,18 +704,30 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
             <span>منظومة أكواد الوصول والتحليل المالي (Advanced Share Codes)</span>
           </h2>
           <p className="text-zinc-400 text-xs sm:text-sm mt-1">
-            أنشئ أكواد وصول للكورسات والوحدات والباقات وتابع الأرباح المحققة مع إمكانية التصدير الفوري لملفات Excel.
+            أنشئ أكواد وصول للكورسات والوحدات والباقات وقم بتصديرها كـ كروت PDF مصممة للقص والتوزيع أو ملفات Excel.
           </p>
         </div>
 
-        <Button
-          onClick={handleExportFilteredExcel}
-          disabled={!filteredCodes || filteredCodes.length === 0}
-          className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold rounded-xl px-5 h-11 text-xs sm:text-sm shadow-lg shadow-emerald-500/20 flex items-center gap-2"
-        >
-          <Download className="w-4 h-4" />
-          <span>تصدير القائمة لـ Excel ({filteredCodes.length})</span>
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            onClick={handleExportFilteredPdfVouchers}
+            disabled={isExportingPdf || !filteredCodes || filteredCodes.length === 0}
+            className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold rounded-xl px-5 h-11 text-xs sm:text-sm shadow-lg shadow-emerald-500/20 flex items-center gap-2"
+          >
+            <Printer className="w-4 h-4" />
+            <span>{isExportingPdf ? 'جاري تجهيز PDF...' : `تصدير كروت PDF للقص (${filteredCodes.length})`}</span>
+          </Button>
+
+          <Button
+            onClick={handleExportFilteredExcel}
+            disabled={!filteredCodes || filteredCodes.length === 0}
+            variant="outline"
+            className="border-zinc-800 bg-zinc-900 text-zinc-200 hover:bg-zinc-800 font-bold rounded-xl px-4 h-11 text-xs sm:text-sm flex items-center gap-2"
+          >
+            <Download className="w-4 h-4 text-emerald-400" />
+            <span>Excel ({filteredCodes.length})</span>
+          </Button>
+        </div>
       </div>
 
       {/* 1. FINANCIAL ANALYTICS TOP CARDS & TIMEFRAME FILTER */}
@@ -1082,17 +1165,48 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
                   </AlertDescription>
                 </Alert>
               ) : (
-                <Button 
-                  type="submit" 
-                  disabled={isSubmitting} 
-                  size="lg" 
-                  className="w-full h-12 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-sm shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2"
-                >
-                  {isSubmitting 
-                    ? 'جاري إنشاء الأكواد والتصدير...' 
-                    : <><Download className="h-5 w-5" /> إنشاء وتصدير الأكواد إلى Excel</>
-                  }
-                </Button>
+                <div className="space-y-2.5 pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Button 
+                      type="submit" 
+                      onClick={() => setSubmitFormat('pdf')}
+                      disabled={isSubmitting} 
+                      size="lg" 
+                      className="h-12 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-xs sm:text-sm shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {isSubmitting && submitFormat === 'pdf' 
+                        ? 'جاري تجهيز PDF...' 
+                        : <><Printer className="h-5 w-5" /> إنشاء وتصدير كروت PDF للقص 🖨️</>
+                      }
+                    </Button>
+
+                    <Button 
+                      type="submit" 
+                      onClick={() => setSubmitFormat('excel')}
+                      disabled={isSubmitting} 
+                      size="lg" 
+                      variant="outline"
+                      className="h-12 rounded-2xl border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {isSubmitting && submitFormat === 'excel' 
+                        ? 'جاري إنشاء Excel...' 
+                        : <><Download className="h-5 w-5 text-emerald-400" /> تصدير ملف Excel 📊</>
+                      }
+                    </Button>
+                  </div>
+
+                  <Button 
+                    type="submit" 
+                    onClick={() => setSubmitFormat('both')}
+                    disabled={isSubmitting} 
+                    size="lg" 
+                    variant="ghost"
+                    className="w-full h-10 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800/80 text-emerald-400 hover:text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Sparkles className="h-4 w-4 text-emerald-400" />
+                    <span>تنزيل الملفين معاً (كروت PDF للقص + ملف Excel)</span>
+                  </Button>
+                </div>
               )}
             </form>
           )}
@@ -1108,16 +1222,26 @@ export function ManageShareCodes({ teacher }: { teacher: Teacher }) {
           </h3>
 
           <div className="flex items-center gap-2">
+            {/* Export Filtered PDF Vouchers */}
+            <Button
+              onClick={handleExportFilteredPdfVouchers}
+              disabled={isExportingPdf || filteredCodes.length === 0}
+              className="bg-emerald-500 hover:bg-emerald-600 text-black text-xs font-bold rounded-xl h-9 px-3 flex items-center gap-1.5 shadow-md shadow-emerald-500/10 cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>{isExportingPdf ? 'جاري التحضير...' : `تصدير كروت PDF للقص (${filteredCodes.length})`}</span>
+            </Button>
+
             {/* Export Filtered Excel */}
             <Button
               variant="outline"
               size="sm"
               onClick={handleExportFilteredExcel}
               disabled={filteredCodes.length === 0}
-              className="border-zinc-800 bg-zinc-900 text-zinc-200 text-xs rounded-xl h-9 hover:bg-zinc-800"
+              className="border-zinc-800 bg-zinc-900 text-zinc-200 text-xs rounded-xl h-9 hover:bg-zinc-800 font-bold"
             >
               <Download className="w-3.5 h-3.5 mr-1 text-emerald-400" />
-              <span>تصدير المفلتر</span>
+              <span>Excel</span>
             </Button>
           </div>
         </div>
