@@ -28,7 +28,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useUser, useAuth, useCollection, useMemoFirebase } from '@/firebase';
+import { fetchSessionRole } from '@/lib/admin-client';
 import { collection, query, where, doc, setDoc, serverTimestamp, getDocs, getDoc } from 'firebase/firestore';
 import type { LibraryBook, LibraryRequest, BookAccess } from '@/lib/library-types';
 import { RequestBookDialog } from '@/components/library/RequestBookDialog';
@@ -233,22 +234,25 @@ export default function LibraryPage() {
     setActiveReadingBook(book);
   };
 
-  // Check if librarian or admin
-  const isLibrarianOrAdmin = useMemo(() => {
-    if (typeof window !== 'undefined') {
-      if (localStorage.getItem('is_librarian') === 'true' || localStorage.getItem('admin_session') === 'true') {
-        return true;
-      }
+  // Check if librarian or admin via server-verified session role
+  const auth = useAuth();
+  const [isLibrarianOrAdmin, setIsLibrarianOrAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user || user.isAnonymous) {
+      setIsLibrarianOrAdmin(false);
+      return;
     }
-    if (!user) return false;
-    const email = user.email?.toLowerCase().trim() || '';
-    return (
-      email === 'librarian123@gmail.com' ||
-      email.includes('librarian') ||
-      email === 'bodylion2009@gmail.com' ||
-      email === '6108almoamviii8chef@gmail.com'
-    );
-  }, [user]);
+    let cancelled = false;
+    fetchSessionRole(auth).then((role) => {
+      if (!cancelled) {
+        setIsLibrarianOrAdmin(role.isLibrarian || role.isAdmin);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, auth]);
 
   // Library Access Code Security States
   const { toast } = useToast();

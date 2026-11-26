@@ -4,9 +4,10 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCollection, useFirestore, useMemoFirebase, useDoc } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useDoc, useAuth } from '@/firebase';
 import { collection, doc, updateDoc, Timestamp, writeBatch, getDocs, query, where, limit, deleteDoc, runTransaction, getDoc, setDoc } from 'firebase/firestore';
 import type { Teacher, BiometricCredential } from '@/lib/types';
+import { buildAuthHeaders, clearInMemoryAdminToken } from '@/lib/admin-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -64,6 +65,7 @@ function TeacherLocalStudentCount({ teacherId }: { teacherId: string }) {
 export default function AdminDashboardPage() {
   const router = useRouter();
   const firestore = useFirestore();
+  const auth = useAuth();
   const { toast } = useToast();
   const { t } = useTranslation();
   const [isApprovalDialogOpen, setApprovalDialogOpen] = useState(false);
@@ -75,19 +77,14 @@ export default function AdminDashboardPage() {
   const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   
-  const [passwordToShow, setPasswordToShow] = useState<{ name: string; pass: string } | null>(null);
-
-  // S-Admin Password Reveal States
-  const [teacherToReveal, setTeacherToReveal] = useState<Teacher | null>(null);
-  const [isSAdminDialogOpen, setIsSAdminDialogOpen] = useState(false);
-  const [sAdminPasswordInput, setSAdminPasswordInput] = useState('');
-  const [showSAdminPassword, setShowSAdminPassword] = useState(false);
-  const [sAdminAuthError, setSAdminAuthError] = useState('');
-  const [isVerifyingSAdmin, setIsVerifyingSAdmin] = useState(false);
-  const [isCopied, setIsCopied] = useState(false);
-  const [passwordMissingTeacher, setPasswordMissingTeacher] = useState<Teacher | null>(null);
-  const [newAssignedPassword, setNewAssignedPassword] = useState('');
-  const [isSavingAssignedPassword, setIsSavingAssignedPassword] = useState(false);
+  // Secure Server-Side Teacher Password Reset & Legacy Purge States
+  const [teacherToReset, setTeacherToReset] = useState<Teacher | null>(null);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [newTeacherPassword, setNewTeacherPassword] = useState('');
+  const [showNewTeacherPassword, setShowNewTeacherPassword] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [isResettingTeacherPassword, setIsResettingTeacherPassword] = useState(false);
+  const [isPurgingPasswords, setIsPurgingPasswords] = useState(false);
 
   // Daily Academic Quest States
   const [questTitle, setQuestTitle] = useState('');
@@ -172,26 +169,43 @@ export default function AdminDashboardPage() {
 
 
   useEffect(() => {
-    try {
-        const sessionData = localStorage.getItem('admin-session');
-        if (!sessionData) {
-            router.replace('/admin/access');
-            return;
+    let cancelled = false;
+    async function verifySession() {
+      try {
+        localStorage.removeItem('admin-session');
+        const headers = await buildAuthHeaders(auth);
+        const res = await fetch('/api/admin/verify-passkey', {
+          method: 'GET',
+          headers,
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (!res.ok) {
+          if (!cancelled) router.replace('/profile');
+          return;
         }
-        
-        const parsedSession: AdminSession = JSON.parse(sessionData);
-        if (parsedSession.role !== 'S Admin') {
-            router.replace('/admin/access'); // Or a more appropriate page
-            toast({ title: t("Access Denied"), variant: "destructive" });
-        } else {
-            setAdminSession(parsedSession);
+        const data = await res.json();
+        if (!cancelled && data.authenticated && data.session?.role === 'S Admin') {
+          setAdminSession({
+            id: data.session.uid || 'admin',
+            name: 'Super Admin',
+            role: data.session.role,
+          });
+        } else if (!cancelled) {
+          router.replace('/profile');
+          toast({ title: t("Access Denied"), variant: "destructive" });
         }
-    } catch (e) {
-         console.error("Session storage not available.");
-         router.replace('/admin/access');
+      } catch {
+        if (!cancelled) router.replace('/profile');
+      } finally {
+        if (!cancelled) setIsAuthChecking(false);
+      }
     }
-    setIsAuthChecking(false);
-  }, [router, toast, t]);
+    verifySession();
+    return () => {
+      cancelled = true;
+    };
+  }, [router, toast, t, auth]);
 
   const teachersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -342,13 +356,19 @@ export default function AdminDashboardPage() {
   }
 
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     try {
       localStorage.removeItem('admin-session');
-      router.push('/admin/access');
-    } catch (e) {
-      console.error("Session storage not available.");
-      window.location.href = '/admin/access';
+      clearInMemoryAdminToken();
+      const headers = await buildAuthHeaders(auth);
+      await fetch('/api/admin/verify-passkey', {
+        method: 'DELETE',
+        headers,
+        credentials: 'include',
+      }).catch(() => {});
+      router.push('/profile');
+    } catch {
+      window.location.href = '/profile';
     }
   }
   
@@ -413,111 +433,86 @@ export default function AdminDashboardPage() {
       }
   };
 
-  const handleInitiateRevealPassword = (teacher: Teacher) => {
-    setTeacherToReveal(teacher);
-    setSAdminPasswordInput('');
-    setSAdminAuthError('');
-    setShowSAdminPassword(false);
-    setIsSAdminDialogOpen(true);
+  const handleInitiateResetTeacherPassword = (teacher: Teacher) => {
+    setTeacherToReset(teacher);
+    setNewTeacherPassword('');
+    setResetError('');
+    setShowNewTeacherPassword(false);
+    setIsResetDialogOpen(true);
   };
 
-  const handleVerifySAdminAndReveal = async (e?: React.FormEvent) => {
+  const handleResetTeacherPassword = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!teacherToReveal || !firestore) return;
+    if (!teacherToReset) return;
 
-    if (sAdminPasswordInput !== 'almoamviiichef6108$hellarich') {
-      setSAdminAuthError(t('Incorrect S-Admin password. Access denied.'));
+    const cleanPass = newTeacherPassword.trim();
+    if (cleanPass.length < 6) {
+      setResetError(t('Password must be at least 6 characters long.'));
       return;
     }
 
-    setIsVerifyingSAdmin(true);
-    setSAdminAuthError('');
+    setIsResettingTeacherPassword(true);
+    setResetError('');
 
     try {
-      // 1. Check in private/credentials subcollection
-      const passwordDocRef = doc(firestore, 'teachers', teacherToReveal.id, 'private', 'credentials');
-      const docSnap = await getDoc(passwordDocRef);
-
-      let foundPassword = docSnap.exists() ? docSnap.data()?.password : null;
-
-      // 2. Fallback: check on teacher document directly
-      if (!foundPassword) {
-        const teacherDocRef = doc(firestore, 'teachers', teacherToReveal.id);
-        const teacherSnap = await getDoc(teacherDocRef);
-        if (teacherSnap.exists()) {
-          foundPassword = teacherSnap.data()?.password || teacherSnap.data()?.initialPassword || null;
-        }
-      }
-
-      setIsSAdminDialogOpen(false);
-      setSAdminPasswordInput('');
-
-      if (foundPassword) {
-        setPasswordToShow({ name: teacherToReveal.name, pass: foundPassword });
-      } else {
-        // Teacher was created before password recording was saved
-        setPasswordMissingTeacher(teacherToReveal);
-        setNewAssignedPassword('');
-      }
-    } catch (err: any) {
-      console.error('Error fetching teacher credentials:', err);
-      toast({
-        variant: 'destructive',
-        title: t('Error fetching credentials'),
-        description: err.message || 'Could not retrieve password document.',
+      const headers = await buildAuthHeaders(auth, { 'Content-Type': 'application/json' });
+      const res = await fetch('/api/admin/reset-teacher-password', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          teacherId: teacherToReset.id,
+          teacherEmail: teacherToReset.email,
+          newPassword: cleanPass,
+        }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to reset teacher password.');
+      }
+
+      toast({
+        title: t('Teacher Password Reset'),
+        description: t('Password updated in Firebase Auth for {{name}}. No plaintext copy was stored in Firestore.', { name: teacherToReset.name }),
+      });
+
+      setIsResetDialogOpen(false);
+      setTeacherToReset(null);
+      setNewTeacherPassword('');
+    } catch (err: any) {
+      setResetError(err.message || 'Could not reset password.');
     } finally {
-      setIsVerifyingSAdmin(false);
+      setIsResettingTeacherPassword(false);
     }
   };
 
-  const handleSaveAssignedPassword = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!passwordMissingTeacher || !firestore || !newAssignedPassword.trim()) return;
-
-    setIsSavingAssignedPassword(true);
+  const handlePurgeLegacyPasswords = async () => {
+    setIsPurgingPasswords(true);
     try {
-      const trimmedPass = newAssignedPassword.trim();
-      const teacherId = passwordMissingTeacher.id;
-
-      // Update both private/credentials and teacher doc
-      const credsRef = doc(firestore, 'teachers', teacherId, 'private', 'credentials');
-      await setDoc(credsRef, {
-        password: trimmedPass,
-        email: passwordMissingTeacher.email,
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
-
-      const teacherRef = doc(firestore, 'teachers', teacherId);
-      await updateDoc(teacherRef, {
-        password: trimmedPass,
+      const headers = await buildAuthHeaders(auth, { 'Content-Type': 'application/json' });
+      const res = await fetch('/api/admin/purge-passwords', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
       });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to purge legacy password fields.');
+      }
 
       toast({
-        title: t('Password Saved'),
-        description: t('Password recorded for {{name}}.', { name: passwordMissingTeacher.name }),
+        title: t('Legacy Plaintext Passwords Purged'),
+        description: `Cleaned ${data.studentsCleaned || 0} students, ${data.teachersCleaned || 0} teachers, and removed ${data.privateCredsDeleted || 0} private credential docs.`,
       });
-
-      const teacherName = passwordMissingTeacher.name;
-      setPasswordMissingTeacher(null);
-      setPasswordToShow({ name: teacherName, pass: trimmedPass });
     } catch (err: any) {
       toast({
         variant: 'destructive',
-        title: t('Save Failed'),
-        description: err.message,
+        title: t('Purge Failed'),
+        description: err.message || 'Unable to purge plaintext password fields.',
       });
     } finally {
-      setIsSavingAssignedPassword(false);
+      setIsPurgingPasswords(false);
     }
-  };
-
-  const handleCopyPassword = () => {
-    if (!passwordToShow?.pass) return;
-    navigator.clipboard.writeText(passwordToShow.pass);
-    setIsCopied(true);
-    toast({ title: t('Password Copied!'), description: t('Copied to clipboard.') });
-    setTimeout(() => setIsCopied(false), 2000);
   };
   
 
@@ -537,7 +532,17 @@ export default function AdminDashboardPage() {
                 <h1 className="text-3xl font-bold tracking-tighter">{t('Admin Dashboard')}</h1>
                 <p className="text-muted-foreground">{t('Approve teacher accounts and manage subscriptions.')}</p>
             </div>
-            <div className='flex items-center gap-2 flex-shrink-0'>
+            <div className='flex items-center gap-2 flex-wrap flex-shrink-0'>
+                <Button
+                    onClick={handlePurgeLegacyPasswords}
+                    disabled={isPurgingPasswords}
+                    variant="destructive"
+                    size="sm"
+                    className="gap-1.5"
+                >
+                    <ShieldAlert className="h-4 w-4" />
+                    {isPurgingPasswords ? t('Purging...') : t('Purge Legacy Passwords')}
+                </Button>
                 <Button asChild variant="outline">
                     <Link href="/admin/management"><ArrowLeft className="mr-2"/>{t('Back to Management')}</Link>
                 </Button>
@@ -603,11 +608,11 @@ export default function AdminDashboardPage() {
                                             <Button 
                                                 variant="ghost" 
                                                 size="icon" 
-                                                title={t('View Teacher Password')}
-                                                onClick={() => handleInitiateRevealPassword(teacher)}
+                                                title={t('Reset Teacher Password')}
+                                                onClick={() => handleInitiateResetTeacherPassword(teacher)}
                                                 className="hover:bg-amber-500/10 hover:text-amber-500 transition-colors"
                                             >
-                                                <Eye className="h-4 w-4" />
+                                                <KeyRound className="h-4 w-4" />
                                             </Button>
                                             <Button 
                                                 size="sm" 
@@ -736,42 +741,43 @@ export default function AdminDashboardPage() {
         </DialogContent>
     </Dialog>
 
-    {/* S-Admin Security Verification Dialog */}
-    <Dialog open={isSAdminDialogOpen} onOpenChange={setIsSAdminDialogOpen}>
+    {/* Secure Server-Side Reset Teacher Password Dialog */}
+    <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
         <DialogContent className="sm:max-w-md">
             <DialogHeader>
                 <div className="flex items-center gap-2 text-amber-500 mb-1">
-                    <ShieldAlert className="h-6 w-6" />
-                    <DialogTitle className="text-xl font-bold">{t('S-Admin Verification')}</DialogTitle>
+                    <KeyRound className="h-6 w-6" />
+                    <DialogTitle className="text-xl font-bold">{t('Reset Teacher Password')}</DialogTitle>
                 </div>
                 <DialogDescription>
-                    {t('Enter your S-Admin security password to reveal the account credentials for')} <span className="font-semibold text-foreground">{teacherToReveal?.name}</span>.
+                    {t('Set a new password in Firebase Auth for')} <span className="font-semibold text-foreground">{teacherToReset?.name}</span>. {t('Plaintext passwords are never saved in Firestore.')}
                 </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleVerifySAdminAndReveal} className="space-y-4 py-2">
+            <form onSubmit={handleResetTeacherPassword} className="space-y-4 py-2">
                 <div className="space-y-2">
-                    <Label htmlFor="sadmin-pass-input">{t('S-Admin Master Password')}</Label>
+                    <Label htmlFor="reset-teacher-pass-input">{t('New Password')}</Label>
                     <div className="relative">
                         <Input
-                            id="sadmin-pass-input"
-                            type={showSAdminPassword ? 'text' : 'password'}
-                            placeholder="••••••••••••••••"
-                            value={sAdminPasswordInput}
-                            onChange={(e) => setSAdminPasswordInput(e.target.value)}
+                            id="reset-teacher-pass-input"
+                            type={showNewTeacherPassword ? 'text' : 'password'}
+                            placeholder="Minimum 6 characters"
+                            value={newTeacherPassword}
+                            onChange={(e) => setNewTeacherPassword(e.target.value)}
                             autoFocus
+                            minLength={6}
                             className="pr-10 font-mono"
                         />
                         <button
                             type="button"
-                            onClick={() => setShowSAdminPassword(!showSAdminPassword)}
+                            onClick={() => setShowNewTeacherPassword(!showNewTeacherPassword)}
                             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         >
-                            {showSAdminPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            {showNewTeacherPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                     </div>
-                    {sAdminAuthError && (
-                        <p className="text-sm font-medium text-destructive">{sAdminAuthError}</p>
+                    {resetError && (
+                        <p className="text-sm font-medium text-destructive">{resetError}</p>
                     )}
                 </div>
 
@@ -780,97 +786,19 @@ export default function AdminDashboardPage() {
                         type="button"
                         variant="ghost"
                         onClick={() => {
-                            setIsSAdminDialogOpen(false);
-                            setSAdminPasswordInput('');
-                            setSAdminAuthError('');
+                            setIsResetDialogOpen(false);
+                            setNewTeacherPassword('');
+                            setResetError('');
                         }}
                     >
                         {t('Cancel')}
                     </Button>
                     <Button
                         type="submit"
-                        disabled={isVerifyingSAdmin || !sAdminPasswordInput.trim()}
+                        disabled={isResettingTeacherPassword || newTeacherPassword.trim().length < 6}
                         className="bg-amber-500 hover:bg-amber-600 text-black font-bold"
                     >
-                        {isVerifyingSAdmin ? t('Verifying...') : t('Reveal Password')}
-                    </Button>
-                </DialogFooter>
-            </form>
-        </DialogContent>
-    </Dialog>
-
-    {/* Revealed Password Dialog with Copy */}
-    <AlertDialog open={!!passwordToShow} onOpenChange={() => { setPasswordToShow(null); setIsCopied(false); }}>
-        <AlertDialogContent className="sm:max-w-md">
-            <AlertDialogHeader>
-                <div className="flex items-center gap-2 text-primary mb-1">
-                    <KeyRound className="h-6 w-6" />
-                    <AlertDialogTitle className="text-xl">{t('Password for')} {passwordToShow?.name}</AlertDialogTitle>
-                </div>
-                <AlertDialogDescription>
-                    {t('This is the password created by the teacher. Displayed for administrative purposes.')}
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="space-y-3 py-2">
-                <div className="p-4 bg-muted border border-border rounded-lg flex items-center justify-between gap-3">
-                    <span className="font-mono text-xl font-bold text-foreground tracking-wide select-all break-all">
-                        {passwordToShow?.pass}
-                    </span>
-                    <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={handleCopyPassword}
-                        className="shrink-0 gap-1.5"
-                    >
-                        {isCopied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
-                        {isCopied ? t('Copied') : t('Copy')}
-                    </Button>
-                </div>
-            </div>
-            <AlertDialogFooter>
-                <AlertDialogAction onClick={() => { setPasswordToShow(null); setIsCopied(false); }}>{t('Close')}</AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
-
-    {/* Fallback Assign Password Dialog for Older Teachers */}
-    <Dialog open={!!passwordMissingTeacher} onOpenChange={() => setPasswordMissingTeacher(null)}>
-        <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-                <div className="flex items-center gap-2 text-amber-500 mb-1">
-                    <AlertTriangle className="h-6 w-6" />
-                    <DialogTitle className="text-lg font-bold">{t('No Password Recorded Yet')}</DialogTitle>
-                </div>
-                <DialogDescription>
-                    <span className="font-semibold text-foreground">{passwordMissingTeacher?.name}</span> {t('was registered before credential recording was active. As S-Admin, you can set and save a password for this teacher now:')}
-                </DialogDescription>
-            </DialogHeader>
-
-            <form onSubmit={handleSaveAssignedPassword} className="space-y-4 py-2">
-                <div className="space-y-2">
-                    <Label htmlFor="new-assigned-pass">{t('Assign New Password')}</Label>
-                    <Input
-                        id="new-assigned-pass"
-                        type="text"
-                        placeholder="e.g. Teacher@2026"
-                        value={newAssignedPassword}
-                        onChange={(e) => setNewAssignedPassword(e.target.value)}
-                        className="font-mono"
-                        autoFocus
-                    />
-                </div>
-
-                <DialogFooter className="gap-2 sm:gap-0">
-                    <Button type="button" variant="ghost" onClick={() => setPasswordMissingTeacher(null)}>
-                        {t('Close')}
-                    </Button>
-                    <Button
-                        type="submit"
-                        disabled={isSavingAssignedPassword || !newAssignedPassword.trim()}
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                    >
-                        {isSavingAssignedPassword ? t('Saving...') : t('Save & Record Password')}
+                        {isResettingTeacherPassword ? t('Updating...') : t('Update Password')}
                     </Button>
                 </DialogFooter>
             </form>

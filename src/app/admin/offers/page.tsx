@@ -247,25 +247,19 @@ export default function AdminOffersPage() {
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
   useEffect(() => {
-    try {
-        const sessionData = localStorage.getItem('admin-session');
-        if (!sessionData) {
-            router.replace('/admin/access');
-            return;
-        }
-        
-        const parsedSession: AdminSession = JSON.parse(sessionData);
-        if (parsedSession.role !== 'S Admin' && parsedSession.role !== 'Manager') {
-            router.replace('/admin/check-in');
-            toast({ title: t("Access Denied"), variant: "destructive" });
+    let cancelled = false;
+    import('@/lib/admin-client').then(({ verifyAdminSessionClient }) =>
+      verifyAdminSessionClient().then((session) => {
+        if (cancelled) return;
+        if (session) {
+          setAdminSession(session);
         } else {
-            setAdminSession(parsedSession);
+          router.replace('/profile');
         }
-    } catch (e) {
-        console.error("Session storage not available.");
-        router.replace('/admin/access');
-    }
-    setIsAuthChecking(false);
+        setIsAuthChecking(false);
+      })
+    );
+    return () => { cancelled = true; };
   }, [router, t, toast]);
 
   if (isAuthChecking || !adminSession) {

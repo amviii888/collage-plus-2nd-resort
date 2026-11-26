@@ -70,6 +70,7 @@ import { Switch } from '@/components/ui/switch';
 import { normalizeImagePath } from '@/lib/professors-registry';
 import { FolderOpen, Shield } from 'lucide-react';
 import Link from 'next/link';
+import { fetchSessionRole } from '@/lib/admin-client';
 
 export default function LibrarianPortalPage() {
   const { user, isUserLoading } = useUser();
@@ -127,22 +128,25 @@ export default function LibrarianPortalPage() {
   }, [firestore]);
   const { data: requests, isLoading: isRequestsLoading } = useCollection<LibraryRequest>(requestsQuery);
 
-  // Is Librarian Authorized - Allows librarian123@gmail.com, bodylion2009@gmail.com, and admins
-  const isLibrarian = useMemo(() => {
-    if (typeof window !== 'undefined') {
-      if (localStorage.getItem('is_librarian') === 'true' || localStorage.getItem('admin_session') === 'true') {
-        return true;
-      }
+  // Server-verified Librarian / Admin authorization (zero hardcoded emails)
+  const [isLibrarian, setIsLibrarian] = useState(false);
+
+  useEffect(() => {
+    if (isUserLoading) return;
+    if (!user || user.isAnonymous) {
+      setIsLibrarian(false);
+      return;
     }
-    if (!user) return false;
-    const email = user.email?.toLowerCase().trim() || '';
-    return (
-      email === 'librarian123@gmail.com' ||
-      email.includes('librarian') ||
-      email === 'bodylion2009@gmail.com' ||
-      email === '6108almoamviii8chef@gmail.com'
-    );
-  }, [user]);
+    let cancelled = false;
+    fetchSessionRole(auth).then((role) => {
+      if (!cancelled) {
+        setIsLibrarian(role.isLibrarian || role.isAdmin);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, isUserLoading, auth]);
 
   // Load library settings on mount
   useEffect(() => {

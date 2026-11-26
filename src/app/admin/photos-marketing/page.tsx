@@ -54,26 +54,21 @@ export default function AdminPhotosMarketingPage() {
   const [pkgDescription, setPkgDescription] = useState('');
   const [pkgPrice, setPkgPrice] = useState('');
 
-  // Authenticate Admin Session
+  // Authenticate Admin Session via server
   useEffect(() => {
-    try {
-      const sessionData = localStorage.getItem('admin-session');
-      if (!sessionData) {
-        router.replace('/admin/access');
-        return;
-      }
-      const parsedSession: AdminSession = JSON.parse(sessionData);
-      if (parsedSession.role !== 'S Admin' && parsedSession.role !== 'Manager') {
-        router.replace('/admin/check-in');
-        toast({ title: t('Access Denied'), variant: 'destructive' });
-      } else {
-        setAdminSession(parsedSession);
-      }
-    } catch (e) {
-      console.error('Session validation failed');
-      router.replace('/admin/access');
-    }
-    setIsAuthChecking(false);
+    let cancelled = false;
+    import('@/lib/admin-client').then(({ verifyAdminSessionClient }) =>
+      verifyAdminSessionClient().then((session) => {
+        if (cancelled) return;
+        if (session) {
+          setAdminSession(session);
+        } else {
+          router.replace('/profile');
+        }
+        setIsAuthChecking(false);
+      })
+    );
+    return () => { cancelled = true; };
   }, [router, t, toast]);
 
   // Load configuration from Firestore on mount

@@ -3,163 +3,338 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions for auth verification and role access
-    function isAuthenticated() {
+    // ===============================================================
+    // PILLAR 1: GLOBAL DEFAULT-DENY (MUST BE FIRST)
+    // ===============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ===============================================================
+    // PILLAR 2: CORE AUTH, ROLE & VALIDATION HELPERS
+    // ===============================================================
+    function isSignedIn() {
       return request.auth != null;
     }
 
     function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9._-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
     }
 
     function isAdmin() {
-      return isAuthenticated() && (
-        request.auth.token.role == 'admin' ||
-        request.auth.token.role == 'S Admin' ||
-        request.auth.token.admin == true
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email == 'bodylion2009@gmail.com' && request.auth.token.email_verified == true)
       );
     }
 
-    function isTeacher(teacherId) {
-      return isOwner(teacherId) || isAdmin();
+    function isTeacherUser() {
+      return isSignedIn() && exists(/databases/$(database)/documents/teachers/$(request.auth.uid));
     }
 
-    // ----------------------------------------------------
-    // Teachers & Course Management (Hybrid & Offline Compatible)
-    // ----------------------------------------------------
-    match /teachers/{teacherId} {
-      allow read, write: if true; // Public directory & self-contained teacher accounts
-
-      // Subcollections owned by teacher
-      match /{subcollection=**} {
-        allow read, write: if true;
-      }
+    function isLibrarian() {
+      return isAdmin() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'librarian'
+      );
     }
 
-    // Central Teacher Codes Registry
-    match /teacher_codes/{codeId} {
-      allow read, write: if true;
+    // Never allow plaintext passwords to be persisted in Firestore documents
+    function noPlaintextPasswordFields() {
+      return !incoming().keys().hasAny(['password', 'passcode', 'initialPassword']);
     }
 
-    // Users collection for cross-profile syncing
-    match /users/{userId} {
-      allow read, write: if true;
+    function roleUnchangedOrSafe(allowedSelfRoles) {
+      return !('role' in incoming()) ||
+        (resource == null && incoming().role in allowedSelfRoles) ||
+        (resource != null && incoming().role == existing().role);
     }
 
-    // ----------------------------------------------------
-    // Students Profiles & Progress
-    // ----------------------------------------------------
+    // ===============================================================
+    // SERVER-ONLY SECURITY & AUTH INFRASTRUCTURE
+    // ===============================================================
+    match /admins/{uid} {
+      allow get: if isOwner(uid);
+      allow list, create, update, delete: if false;
+    }
+
+    match /system_security/{docId} {
+      allow read, write: if false;
+    }
+
+    match /password_reset_challenges/{challengeId} {
+      allow read, write: if false;
+    }
+
+    // WhatsApp bot verification records:
+    // - Exact-code `get` allowed for real-time signup check on unguessable code
+    // - `list` strictly denied to prevent phone number harvesting
+    // - `write` strictly denied (only trusted backend / WhatsApp bot Admin SDK writes)
+    match /phone_verifications/{code} {
+      allow get: if isValidId(code);
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    // ===============================================================
+    // STUDENTS & STUDENT SUBCOLLECTIONS (ZERO-TRUST LOCKDOWN)
+    // ===============================================================
     match /students/{studentId} {
-      allow read: if true;
-      allow create: if true; // Allows self-signup & initial profile creation
-      allow update: if isAuthenticated() || true;
+      allow get: if isOwner(studentId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(studentId)
+        && noPlaintextPasswordFields()
+        && roleUnchangedOrSafe(['student']);
+      allow update: if (isOwner(studentId) || isAdmin())
+        && noPlaintextPasswordFields()
+        && (isAdmin() || roleUnchangedOrSafe(['student']));
       allow delete: if isAdmin();
 
-      // Student Course Access & Entitlements
       match /courseAccess/{courseId} {
-        allow read: if true;
-        allow write: if isAuthenticated() || true;
+        allow read: if isOwner(studentId) || isAdmin() || isTeacherUser();
+        allow write: if isOwner(studentId) || isAdmin() || isTeacherUser();
       }
 
-      // Student Course Collection Access
       match /courseCollectionAccess/{collectionId} {
-        allow read: if true;
-        allow write: if isAuthenticated() || true;
+        allow read: if isOwner(studentId) || isAdmin() || isTeacherUser();
+        allow write: if isOwner(studentId) || isAdmin() || isTeacherUser();
       }
 
-      // Watch History
       match /watchHistory/{historyId} {
-        allow read: if isOwner(studentId) || true;
-        allow write: if isAuthenticated() || true;
+        allow read, write: if isOwner(studentId) || isAdmin();
       }
 
-      // Notifications targeted to this student
       match /notifications/{notifId} {
-        allow read: if isOwner(studentId) || true;
-        allow write: if isAuthenticated() || true;
+        allow read: if isOwner(studentId) || isAdmin();
+        allow create: if isAdmin() || isTeacherUser();
+        allow update, delete: if isOwner(studentId) || isAdmin();
+      }
+
+      match /customizations/{customId} {
+        allow read, write: if isOwner(studentId) || isAdmin();
       }
     }
 
-    // Minimal sync data for students & parents
-    match /studentSyncData/{barcodeId} {
-      allow read: if true;
-      allow write: if isAuthenticated() || true;
+    // ===============================================================
+    // TEACHERS & TEACHER SUBCOLLECTIONS (ZERO-TRUST LOCKDOWN)
+    // ===============================================================
+    match /teachers/{teacherId} {
+      allow get: if isOwner(teacherId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(teacherId) && noPlaintextPasswordFields();
+      allow update: if (isOwner(teacherId) || isAdmin()) && noPlaintextPasswordFields();
+      allow delete: if isAdmin();
+
+      // Permanently lock legacy private/credentials subcollection from all clients
+      match /private/{docId} {
+        allow read, write: if false;
+      }
+
+      // Courses & Collections: readable by authenticated users, writable by owning teacher or admin
+      match /courses/{courseId} {
+        allow read: if isSignedIn();
+        allow write: if isOwner(teacherId) || isAdmin();
+      }
+
+      match /collections/{collectionId} {
+        allow read: if isSignedIn();
+        allow write: if isOwner(teacherId) || isAdmin();
+      }
+
+      // Student Access Requests to a teacher's gated courses
+      match /accessRequests/{requestId} {
+        allow read: if isOwner(teacherId) || isAdmin() || (isSignedIn() && existing().studentId == request.auth.uid);
+        allow create: if isSignedIn() && incoming().studentId == request.auth.uid;
+        allow update, delete: if isOwner(teacherId) || isAdmin();
+      }
+
+      // Course Share Codes (redemption requires signed-in user; no collection scraping)
+      match /shareCodes/{codeId} {
+        allow get: if isSignedIn();
+        allow list: if isOwner(teacherId) || isAdmin();
+        allow create, delete: if isOwner(teacherId) || isAdmin();
+        allow update: if isOwner(teacherId) || isAdmin() || (
+          isSignedIn() && existing().used != true && incoming().used == true
+        );
+      }
+
+      // Teacher One-Way Smart Push private records (strictly teacher-owner + admin)
+      match /localStudents/{docId} {
+        allow read, write: if isOwner(teacherId) || isAdmin();
+      }
+      match /localPlans/{docId} {
+        allow read, write: if isOwner(teacherId) || isAdmin();
+      }
+      match /localTransactions/{docId} {
+        allow read, write: if isOwner(teacherId) || isAdmin();
+      }
+      match /localAttendance/{docId} {
+        allow read, write: if isOwner(teacherId) || isAdmin();
+      }
     }
 
-    // ----------------------------------------------------
-    // System Broadcast Notifications & Announcements
-    // ----------------------------------------------------
-    match /notifications/{notifId} {
+    // Sanitized Public Teacher Discovery Catalog (Zero PII allowed)
+    match /public_teachers/{teacherId} {
       allow read: if true;
-      allow create, update: if isAuthenticated() || true;
+      allow create, update: if (isOwner(teacherId) || isAdmin())
+        && !incoming().keys().hasAny(['email', 'phoneNumber', 'password', 'passcode', 'initialPassword', 'assistantCode']);
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // USERS & ROLE INDEX
+    // ===============================================================
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId)
+        && noPlaintextPasswordFields()
+        && roleUnchangedOrSafe(['student', 'teacher']);
+      allow update: if (isOwner(userId) || isAdmin())
+        && noPlaintextPasswordFields()
+        && (isAdmin() || roleUnchangedOrSafe(['student', 'teacher']));
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // TEACHER CODES & SYNC DATA
+    // ===============================================================
+    match /teacher_codes/{codeId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin() || isTeacherUser();
+      allow write: if (isAdmin() || isTeacherUser()) && noPlaintextPasswordFields();
+    }
+
+    match /studentSyncData/{barcodeId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create, update: if isSignedIn() && noPlaintextPasswordFields();
+      allow delete: if isAdmin();
+    }
+
+    // ===============================================================
+    // NOTIFICATIONS, ANNOUNCEMENTS & PUBLIC APP CONFIG
+    // ===============================================================
+    match /notifications/{notifId} {
+      allow read: if isSignedIn();
+      allow create, update: if isAdmin() || isTeacherUser();
       allow delete: if isAdmin();
     }
 
     match /announcements/{announcementId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /featuredCourses/{courseId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
-    // ----------------------------------------------------
-    // Academic Content: Quizzes, Question Banks & Tests
-    // ----------------------------------------------------
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /recordingOffers/{offerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /recordingBookings/{bookingId} {
+      allow read: if isAdmin() || (isSignedIn() && existing().teacherId == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    match /photosMarketing/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ===============================================================
+    // ACADEMIC CONTENT: TESTS, ATTEMPTS & QUESTION BANKS
+    // ===============================================================
     match /tests/{testId} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isTeacherUser();
     }
 
     match /testAttempts/{attemptId} {
-      allow read, write: if true;
+      allow read: if isAdmin() || isTeacherUser() || (isSignedIn() && existing().studentId == request.auth.uid);
+      allow create: if isSignedIn() && incoming().studentId == request.auth.uid;
+      allow update, delete: if isAdmin() || isTeacherUser();
     }
 
     match /questionBanks/{questionId} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isTeacherUser();
     }
 
-    // ----------------------------------------------------
-    // Library, Gamification & Theming
-    // ----------------------------------------------------
+    // ===============================================================
+    // LIBRARY, GAMIFICATION & ASSISTANTS
+    // ===============================================================
+    match /library_books/{bookId} {
+      allow read: if isSignedIn();
+      allow write: if isLibrarian();
+    }
+
+    match /library_settings/{settingId} {
+      allow get: if isSignedIn();
+      allow list: if isLibrarian();
+      allow write: if isLibrarian();
+    }
+
     match /library_requests/{requestId} {
-      allow read, write: if true;
+      allow read: if isLibrarian() || (isSignedIn() && existing().studentId == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update, delete: if isLibrarian();
     }
 
     match /library_themes/{themeId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isLibrarian();
     }
 
     match /rewards/{rewardId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /seasons/{seasonId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /subjects/{subjectId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /assistants/{assistantId} {
-      allow read, write: if true;
+      allow get: if isOwner(assistantId) || isAdmin() || isTeacherUser();
+      allow list: if isAdmin() || isTeacherUser();
+      allow write: if (isAdmin() || isTeacherUser()) && noPlaintextPasswordFields();
     }
 
-    // ----------------------------------------------------
-    // Educational Centers & Hubs (One-Way Smart Push compatible)
-    // ----------------------------------------------------
     match /hubs/{hubId} {
-      allow read, write: if true;
-
+      allow read, write: if isAdmin();
       match /{subcollection=**} {
-        allow read, write: if true;
+        allow read, write: if isAdmin();
       }
-    }
-
-    // Default safety catch-all
-    match /{document=**} {
-      allow read: if isAuthenticated() || true;
-      allow write: if isAuthenticated() || isAdmin();
     }
   }
 }

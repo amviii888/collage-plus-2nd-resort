@@ -53,19 +53,19 @@ export default function CenterApprovalsPage() {
     const { data: allStudents, isLoading: studentsLoading } = useCollection<Student>(studentsQuery);
 
     useEffect(() => {
-        const sessionData = localStorage.getItem('admin-session');
-
-        if (sessionData) {
-            const parsedSession: AdminSession = JSON.parse(sessionData);
-            if(parsedSession.role === 'S Admin' || parsedSession.role === 'Manager') {
-                 setSessionUser(parsedSession);
-            } else {
-                 router.replace('/admin/access');
-            }
-        } else {
-            router.replace('/admin/access');
-        }
-        setIsLoading(false);
+        let cancelled = false;
+        import('@/lib/admin-client').then(({ verifyAdminSessionClient }) =>
+            verifyAdminSessionClient().then((session) => {
+                if (cancelled) return;
+                if (session) {
+                    setSessionUser(session);
+                } else {
+                    router.replace('/profile');
+                }
+                setIsLoading(false);
+            })
+        );
+        return () => { cancelled = true; };
     }, [router]);
 
     const handleDeleteAllStudents = async () => {

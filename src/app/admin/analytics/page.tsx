@@ -169,26 +169,21 @@ export default function AdminAnalyticsPage() {
   const canvasConfigRef = useMemoFirebase(() => firestore ? doc(firestore, 'hubs/main-hub/config/canvas') : null, [firestore]);
   const { data: canvasConfig, isLoading: isConfigLoading } = useDoc<any>(canvasConfigRef);
 
-  // Authenticate Admin
+  // Authenticate Admin via server session
   useEffect(() => {
-    try {
-      const sessionData = localStorage.getItem('admin-session');
-      if (!sessionData) {
-        router.replace('/admin/access');
-        return;
-      }
-      const parsedSession: AdminSession = JSON.parse(sessionData);
-      if (parsedSession.role !== 'S Admin' && parsedSession.role !== 'Manager') {
-        router.replace('/admin/access');
-        toast({ title: t("Access Denied"), variant: "destructive" });
-      } else {
-        setAdminSession(parsedSession);
-      }
-    } catch (e) {
-      console.error("Session storage failed", e);
-      router.replace('/admin/access');
-    }
-    setIsAuthChecking(false);
+    let cancelled = false;
+    import('@/lib/admin-client').then(({ verifyAdminSessionClient }) =>
+      verifyAdminSessionClient().then((session) => {
+        if (cancelled) return;
+        if (session) {
+          setAdminSession(session);
+        } else {
+          router.replace('/profile');
+        }
+        setIsAuthChecking(false);
+      })
+    );
+    return () => { cancelled = true; };
   }, [router, t, toast]);
 
   // Load teachers from Firestore

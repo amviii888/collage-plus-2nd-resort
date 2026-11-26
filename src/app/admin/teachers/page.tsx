@@ -211,18 +211,16 @@ export default function AdminTeacherManagementPage() {
     const [infoTeacher, setInfoTeacher] = useState<any | null>(null);
     const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
-    // Admins only guard
+    // Server-verified admins only guard (also enforced by admin/layout.tsx)
     useEffect(() => {
         if (!isUserLoading) {
-            const sessionData = localStorage.getItem('admin-session');
-            if (sessionData) {
-                const session = JSON.parse(sessionData);
-                if (session.role !== 'S Admin' && session.role !== 'Manager') {
-                     router.replace('/admin/dashboard');
-                }
-            } else {
-                 router.replace('/admin/access');
-            }
+            import('@/lib/admin-client').then(({ verifyAdminSessionClient }) =>
+                verifyAdminSessionClient().then((session) => {
+                    if (!session) {
+                        router.replace('/profile');
+                    }
+                })
+            );
         }
     }, [isUserLoading, router]);
 
@@ -495,17 +493,7 @@ export default function AdminTeacherManagementPage() {
                 createdAt: new Date().toISOString()
             });
 
-            const credsRef = doc(firestore, 'teachers', teacherId, 'private', 'credentials');
-            await setDoc(credsRef, {
-                password: data.password,
-                email: data.email,
-                updatedAt: new Date().toISOString(),
-            });
-
-            // Restore admin session if present
-            if (existingAdminSession) {
-                localStorage.setItem('admin-session', existingAdminSession);
-            }
+            // Plaintext passwords are never stored in Firestore (managed solely by Firebase Auth).
             
             toast({ title: t('Success'), description: `${t('Teacher account created successfully:')} ${data.name}` });
             form.reset();

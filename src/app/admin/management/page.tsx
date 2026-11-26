@@ -122,23 +122,19 @@ export default function ManagementPage() {
     const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
     useEffect(() => {
-        try {
-            const sessionData = localStorage.getItem('admin-session');
-            if (sessionData) {
-                const parsedSession: AdminSession = JSON.parse(sessionData);
-                if (parsedSession.role !== 'S Admin' && parsedSession.role !== 'Manager') {
-                    router.replace('/admin/check-in'); // Redirect non-admins
+        let cancelled = false;
+        import('@/lib/admin-client').then(({ verifyAdminSessionClient }) =>
+            verifyAdminSessionClient().then((session) => {
+                if (cancelled) return;
+                if (session) {
+                    setSessionUser(session);
                 } else {
-                    setSessionUser(parsedSession);
+                    router.replace('/profile');
                 }
-            } else {
-                router.replace('/admin/access');
-            }
-        } catch (e) {
-            console.error("Session check failed", e);
-            router.replace('/admin/access');
-        }
-        setIsAuthChecking(false);
+                setIsAuthChecking(false);
+            })
+        );
+        return () => { cancelled = true; };
     }, [router]);
 
 

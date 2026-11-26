@@ -1,61 +1,69 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getBunnyServerConfig, verifyFirebaseRequestAuth } from '@/lib/server-security';
 
-// Active Bunny Stream Credentials (Library 804078)
-const isOldOrStale = (val?: string) => !val || val === '775464' || val.startsWith('f51c7eeb') || val.includes('vz-c109ef36');
-
-const LIBRARY_ID = isOldOrStale(process.env.BUNNY_STREAM_LIBRARY_ID) ? '804078' : process.env.BUNNY_STREAM_LIBRARY_ID!;
-const API_KEY = isOldOrStale(process.env.BUNNY_STREAM_API_KEY) ? 'c30837fc-ac31-4c78-bd13ea7e8d85-177d-4dbd' : process.env.BUNNY_STREAM_API_KEY!;
-const CDN_HOSTNAME = isOldOrStale(process.env.BUNNY_STREAM_CDN_HOSTNAME) ? 'vz-7dc30faa-b42.b-cdn.net' : process.env.BUNNY_STREAM_CDN_HOSTNAME!;
+const VIDEO_ID_REGEX = /^[a-zA-Z0-9_-]{8,80}$/;
 
 export async function PUT(
   req: NextRequest,
   context: { params: Promise<{ videoId: string }> }
 ) {
   try {
-    const { videoId } = await context.params;
+    const user = await verifyFirebaseRequestAuth(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
 
-    if (!videoId) {
-      return NextResponse.json({ error: 'videoId is required' }, { status: 400 });
+    const { libraryId, apiKey, cdnHostname } = getBunnyServerConfig();
+    if (!libraryId || !apiKey) {
+      return NextResponse.json({ error: 'Video upload service is not configured.' }, { status: 503 });
+    }
+
+    const { videoId } = await context.params;
+    const cleanVideoId = (videoId || '').trim();
+
+    if (!cleanVideoId || !VIDEO_ID_REGEX.test(cleanVideoId)) {
+      return NextResponse.json({ error: 'Valid videoId is required.' }, { status: 400 });
     }
 
     if (!req.body) {
-      return NextResponse.json({ error: 'No video payload received' }, { status: 400 });
+      return NextResponse.json({ error: 'No video payload received.' }, { status: 400 });
     }
 
-    // Pipe the stream directly to Bunny Stream without buffering the entire file into memory
-    const bunnyRes = await fetch(`https://video.bunnycdn.com/library/${LIBRARY_ID}/videos/${videoId}`, {
-      method: 'PUT',
-      headers: {
-        'AccessKey': API_KEY,
-        'Content-Type': 'application/octet-stream',
-      },
-      // Pass the readable stream directly
-      // @ts-ignore
-      body: req.body,
-      duplex: 'half',
-    });
+    const bunnyRes = await fetch(
+      `https://video.bunnycdn.com/library/${libraryId}/videos/${encodeURIComponent(cleanVideoId)}`,
+      {
+        method: 'PUT',
+        headers: {
+          AccessKey: apiKey,
+          'Content-Type': 'application/octet-stream',
+        },
+        // @ts-ignore
+        body: req.body,
+        duplex: 'half',
+      }
+    );
 
     if (!bunnyRes.ok) {
-      const errText = await bunnyRes.text();
       return NextResponse.json(
-        { error: `Bunny Stream Upload Failed: ${errText}` },
+        { error: `Video upload failed (${bunnyRes.status}).` },
         { status: bunnyRes.status }
       );
     }
 
     const data = await bunnyRes.json().catch(() => ({ success: true }));
+    const safeCdn = cdnHostname || 'vz-7dc30faa-b42.b-cdn.net';
 
     return NextResponse.json({
       success: true,
-      videoId,
+      videoId: cleanVideoId,
       data,
-      embedUrl: `https://iframe.mediadelivery.net/embed/${LIBRARY_ID}/${videoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`,
-      thumbnailUrl: `https://${CDN_HOSTNAME}/${videoId}/thumbnail.jpg`,
+      embedUrl: `https://iframe.mediadelivery.net/embed/${libraryId}/${cleanVideoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`,
+      thumbnailUrl: `https://${safeCdn}/${cleanVideoId}/thumbnail.jpg`,
     });
   } catch (error: any) {
     console.error('Error proxying Bunny upload:', error);
     return NextResponse.json(
-      { error: error?.message || 'Failed to upload video' },
+      { error: 'Failed to upload video.' },
       { status: 500 }
     );
   }

@@ -302,42 +302,16 @@ export function BiometricAppLock() {
         ''
       ).trim();
 
-      const lastValidPassword = (localStorage.getItem('mol5saty_last_valid_password') || '').trim();
-      const teacherPass = (localStorage.getItem('teacher_password') || '').trim();
-      const assistantPass = (localStorage.getItem('assistantPassword') || '').trim();
-      const studentPass = (localStorage.getItem('student_password') || '').trim();
-      const studentPhone = (localStorage.getItem('student_phone') || localStorage.getItem('studentPhone') || '').trim();
-      const userEmailPrefix = user?.email?.split('@')[0] || '';
-      const userUid = user?.uid || '';
+      // Clean up legacy insecure plaintext password keys if present
+      localStorage.removeItem('mol5saty_last_valid_password');
+      localStorage.removeItem('teacher_password');
+      localStorage.removeItem('assistantPassword');
+      localStorage.removeItem('student_password');
 
-      const validExactCodes = [
-        lastValidPassword,
-        teacherPass,
-        assistantPass,
-        studentPass,
-        user?.email,
-      ].filter(Boolean);
+      let isMatched = false;
 
-      const validCaseInsensitiveCodes = [
-        studentCode,
-        studentPhone,
-        userEmailPrefix,
-        userUid,
-        userUid.slice(0, 6),
-      ].filter(Boolean).map(c => c.toUpperCase());
-
-      const inputClean = val.toUpperCase();
-
-      // Check 1: Exact password match against local stored passwords
-      let isMatched = validExactCodes.some(code => code === val);
-
-      // Check 2: Case-insensitive student code / phone / UID / email prefix
-      if (!isMatched) {
-        isMatched = validCaseInsensitiveCodes.some(code => code === inputClean || inputClean === code);
-      }
-
-      // Check 3: Firebase Auth live sign-in verification for user's actual password
-      if (!isMatched && auth) {
+      // Primary check: Firebase Auth live password verification
+      if (auth) {
         const emailOptions = [
           user?.email,
           studentCode ? `${studentCode}@mol5saty.student` : null,
@@ -348,16 +322,14 @@ export function BiometricAppLock() {
           try {
             await signInWithEmailAndPassword(auth, testEmail, val);
             isMatched = true;
-            localStorage.setItem('mol5saty_last_valid_password', val);
             break;
-          } catch (e) {}
+          } catch {}
         }
       }
 
       if (isMatched) {
         setErrorMessage(null);
         setScanSuccess(true);
-        localStorage.setItem('mol5saty_last_valid_password', val);
         setTimeout(() => {
           sessionStorage.setItem('mol5saty_app_unlocked', 'true');
           setIsLocked(false);
@@ -365,7 +337,7 @@ export function BiometricAppLock() {
         }, 300);
         return;
       } else {
-        setErrorMessage(isArabic ? 'كود الطالب أو كلمة المرور غير صحيحة، يرجى إعادة المحاولة.' : 'Incorrect student code or password. Please try again.');
+        setErrorMessage(isArabic ? 'كلمة المرور غير صحيحة، يرجى إعادة المحاولة.' : 'Incorrect password. Please try again.');
         return;
       }
     }

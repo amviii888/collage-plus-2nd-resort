@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { isStudentEmail, clearAllStudentAuthSessions, isDeviceLockedOutForStudent, unlockDeviceForStudent } from '@/lib/auth-helpers';
+import { fetchSessionRole } from '@/lib/admin-client';
 
 const AuthHeader = () => {
     const { i18n } = useTranslation();
@@ -206,49 +207,29 @@ function LoginFormContent() {
         }
 
         try {
-            // S-ADMIN / ADMIN SPECIAL FLOW
-            const lowerId = identifier.toLowerCase().trim();
-            if (lowerId === 'eagle07amviii8$apfa4017@gmail.com' || lowerId === '6108almoamviii8chef@gmail.com') {
-                try {
-                    await signInWithEmailAndPassword(auth, identifier.trim(), password);
-                    resetFailedAttempts('universal');
-                    window.location.href = '/profile';
-                    return;
-                } catch (err: any) {
-                    throw new Error("Invalid credentials.");
-                }
-            }
-
             // Universal Login logic (supports verified phone number, 5-6 digit student code, email, etc.)
             const trimmedIdentifier = identifier.trim();
             const cleanPhone = trimmedIdentifier.replace(/[\s\-\(\)]/g, '');
             const isPhoneAttempt = /^(\+?20)?0?1\d{9}$/.test(cleanPhone);
             let resolvedIdentifier = trimmedIdentifier;
+            let altStudentEmail: string | undefined;
             let isStudentAttempt = /^\d{5,6}$/.test(trimmedIdentifier);
 
-            if (isPhoneAttempt && firestore) {
+            if (isPhoneAttempt) {
                 try {
-                    const { collection, query, where, getDocs, limit } = await import('firebase/firestore');
-                    const localPhone = cleanPhone.startsWith('+20')
-                        ? '0' + cleanPhone.slice(3)
-                        : (cleanPhone.startsWith('20') ? '0' + cleanPhone.slice(2) : cleanPhone);
-                    const intlPhone = localPhone.startsWith('0') ? '+20' + localPhone.slice(1) : ('+20' + localPhone);
-
-                    const qStudents = query(collection(firestore, 'students'), where('phoneNumber', 'in', [localPhone, intlPhone]), limit(1));
-                    let studentSnaps = await getDocs(qStudents);
-
-                    if (studentSnaps.empty) {
-                        const qUsers = query(collection(firestore, 'users'), where('phoneNumber', 'in', [localPhone, intlPhone]), limit(1));
-                        studentSnaps = await getDocs(qUsers);
-                    }
-
-                    if (!studentSnaps.empty) {
-                        const sData = studentSnaps.docs[0].data();
-                        if (sData?.barcodeId) {
-                            resolvedIdentifier = sData.barcodeId;
-                            isStudentAttempt = true;
-                        } else if (sData?.email) {
-                            resolvedIdentifier = sData.email;
+                    const phoneRes = await fetch('/api/auth/resolve-phone-login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ identifier: cleanPhone }),
+                    });
+                    if (phoneRes.ok) {
+                        const phoneData = await phoneRes.json();
+                        if (phoneData.found && phoneData.loginEmail) {
+                            resolvedIdentifier = phoneData.loginEmail;
+                            altStudentEmail = phoneData.altLoginEmail;
+                            if (isStudentEmail(phoneData.loginEmail)) {
+                                isStudentAttempt = false; // already resolved to full email
+                            }
                         }
                     }
                 } catch (phoneLookupErr) {
@@ -264,87 +245,39 @@ function LoginFormContent() {
                 } catch (err: any) {
                     try {
                         userCredential = await signInWithEmailAndPassword(auth, `${resolvedIdentifier}@universe.student`, password);
-                    } catch (err2: any) {
-                        try {
-                            userCredential = await signInWithEmailAndPassword(auth, resolvedIdentifier, password);
-                        } catch (err3: any) {
-                            // Firestore direct lookup fallback if student registered in database
-                            if (firestore) {
-                                const { collection, query, where, getDocs, limit } = await import('firebase/firestore');
-                                const qStud = query(
-                                    collection(firestore, 'students'), 
-                                    where('barcodeId', '==', resolvedIdentifier), 
-                                    limit(1)
-                                );
-                                const studSnap = await getDocs(qStud);
-                                if (!studSnap.empty) {
-                                    const sDoc = studSnap.docs[0].data();
-                                    const storedPass = (sDoc.password || sDoc.passcode || sDoc.barcodeId || '').toString().trim();
-                                    if (storedPass === password.trim()) {
-                                        userCredential = {
-                                            user: {
-                                                uid: studSnap.docs[0].id,
-                                                email: sDoc.email || `${resolvedIdentifier}@mol5saty.student`,
-                                                displayName: sDoc.name || `طالب ${resolvedIdentifier}`
-                                            }
-                                        };
-                                    } else {
-                                        throw err3;
-                                    }
-                                } else {
-                                    throw err3;
-                                }
-                            } else {
-                                throw err3;
-                            }
-                        }
+                    } catch {
+                        userCredential = await signInWithEmailAndPassword(auth, resolvedIdentifier, password);
                     }
                 }
             } else {
                 try {
                     userCredential = await signInWithEmailAndPassword(auth, resolvedIdentifier, password);
                 } catch (firstErr: any) {
-                    const idLower = resolvedIdentifier.toLowerCase().trim();
-                    if (idLower === 'librarian123@gmail.com' || idLower.includes('librarian')) {
-                        userCredential = await createUserWithEmailAndPassword(auth, resolvedIdentifier, password);
-                    } else if (firestore) {
-                        // Check if teacher or student matches directly in Firestore
-                        const { collection, query, where, getDocs, limit } = await import('firebase/firestore');
-                        const qStud = query(
-                            collection(firestore, 'students'), 
-                            where('email', '==', resolvedIdentifier), 
-                            limit(1)
-                        );
-                        const studSnap = await getDocs(qStud);
-                        if (!studSnap.empty) {
-                            const sDoc = studSnap.docs[0].data();
-                            const storedPass = (sDoc.password || sDoc.passcode || '').toString().trim();
-                            if (storedPass === password.trim()) {
-                                userCredential = {
-                                    user: {
-                                        uid: studSnap.docs[0].id,
-                                        email: resolvedIdentifier,
-                                        displayName: sDoc.name || 'طالب أكاديمي'
-                                    }
-                                };
-                            } else {
-                                throw firstErr;
-                            }
-                        } else {
-                            throw firstErr;
-                        }
+                    if (altStudentEmail && altStudentEmail !== resolvedIdentifier) {
+                        userCredential = await signInWithEmailAndPassword(auth, altStudentEmail, password);
                     } else {
                         throw firstErr;
                     }
                 }
             }
 
-            // Always save last valid password for lock screens and session continuity
-            if (password) {
-                localStorage.setItem('mol5saty_last_valid_password', password);
+            // Never persist raw passwords in localStorage
+            localStorage.removeItem('mol5saty_last_valid_password');
+
+            // Verify server-side elevated roles (admin / librarian) via Firebase ID token
+            const sessionRole = await fetchSessionRole(auth);
+            if (sessionRole.isAdmin) {
+                resetFailedAttempts('universal');
+                window.location.href = '/profile';
+                return;
+            }
+            if (sessionRole.isLibrarian) {
+                resetFailedAttempts('universal');
+                window.location.href = '/librarian';
+                return;
             }
 
-            // Accurately resolve role: Standard non-student emails are Teacher / Admin by default
+            // Accurately resolve role: Standard non-student emails are Teacher by default
             const isStudentMail = isStudentEmail(userCredential.user.email) ||
                                   identifier.trim().toLowerCase().endsWith('@mol5saty.student') || 
                                   identifier.trim().toLowerCase().endsWith('@universe.student') ||
@@ -370,19 +303,6 @@ function LoginFormContent() {
             }
 
             const isStudent = detectedRole === 'student' && (isStudentAttempt || isStudentMail);
-
-            const isAdmin = detectedRole === 'admin' || 
-                            detectedRole === 's admin' || 
-                            detectedRole === 'super_admin' || 
-                            detectedRole === 'manager' ||
-                            userCredential.user.email?.toLowerCase() === 'eagle07amviii8$apfa4017@gmail.com' ||
-                            userCredential.user.email?.toLowerCase() === '6108almoamviii8chef@gmail.com';
-
-            if (isAdmin) {
-                resetFailedAttempts('universal');
-                window.location.href = '/profile';
-                return;
-            }
 
             if (isStudent) {
                 // Purge any stale teacher session keys
@@ -533,16 +453,6 @@ function LoginFormContent() {
             }
 
             resetFailedAttempts('universal');
-
-            const emailLower = (userCredential.user.email || identifier || '').toLowerCase().trim();
-            if (emailLower === 'librarian123@gmail.com' || emailLower.includes('librarian')) {
-                if (typeof window !== 'undefined') {
-                    localStorage.setItem('librarian_session', 'true');
-                }
-                window.location.href = '/librarian';
-                return;
-            }
-
             window.location.href = '/profile';
         } catch (err: any) {
              incrementFailedAttempts('universal');

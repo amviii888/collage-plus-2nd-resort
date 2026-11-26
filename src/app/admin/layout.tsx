@@ -9,7 +9,8 @@ import { useTranslation } from 'react-i18next';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { useUser } from '@/firebase';
+import { useUser, useAuth } from '@/firebase';
+import { buildAuthHeaders, clearInMemoryAdminToken } from '@/lib/admin-client';
 
 function AdminUnauthorizedAccess() {
     const router = useRouter();
@@ -52,6 +53,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const router = useRouter();
     const pathname = usePathname();
     const { user, isUserLoading } = useUser();
+    const auth = useAuth();
     const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [sessionUser, setSessionUser] = useState<AdminSession | null>(null);
@@ -68,32 +70,51 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     useEffect(() => {
         if (isUserLoading) return;
 
+        let cancelled = false;
         async function verifyAdmin() {
             try {
                 const collapsedState = localStorage.getItem('admin-nav-collapsed');
                 setIsCollapsed(collapsedState ? JSON.parse(collapsedState) : false);
 
-                const persistentSession = localStorage.getItem('admin-session');
-                if (persistentSession) {
-                    const parsedSession: AdminSession = JSON.parse(persistentSession);
-                    if (parsedSession.role === 'S Admin' || parsedSession.role === 'Manager' || parsedSession.role === 'Admin') {
-                        setSessionUser(parsedSession);
-                        setAuthStatus('authorized');
-                        return;
-                    }
+                // Clean up legacy insecure localStorage admin-session key if present
+                localStorage.removeItem('admin-session');
+
+                const headers = await buildAuthHeaders(auth);
+                const res = await fetch('/api/admin/verify-passkey', {
+                    method: 'GET',
+                    headers,
+                    credentials: 'include',
+                    cache: 'no-store',
+                });
+
+                if (!res.ok) {
+                    if (!cancelled) setAuthStatus('unauthorized');
+                    return;
                 }
 
-                // Without typing the S-Admin passkey in /profile first (which sets admin-session in localStorage),
-                // access is blocked and user must pass S-Admin verification on /profile.
-                setAuthStatus('unauthorized');
+                const data = await res.json();
+                if (!cancelled && data.authenticated && data.session?.role === 'S Admin') {
+                    setSessionUser({
+                        id: data.session.uid || user?.uid || 'admin',
+                        name: 'Super Admin',
+                        role: data.session.role,
+                    });
+                    setAuthStatus('authorized');
+                    return;
+                }
+
+                if (!cancelled) setAuthStatus('unauthorized');
             } catch (e) {
                 console.error("Session check failed", e);
-                setAuthStatus('unauthorized');
+                if (!cancelled) setAuthStatus('unauthorized');
             }
         }
 
         verifyAdmin();
-    }, [pathname, user, isUserLoading]);
+        return () => {
+            cancelled = true;
+        };
+    }, [pathname, user, auth, isUserLoading]);
 
     const toggleNav = () => {
         setIsCollapsed(prevState => {
@@ -107,8 +128,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         });
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
         localStorage.removeItem('admin-session');
+        clearInMemoryAdminToken();
+        try {
+            const headers = await buildAuthHeaders(auth);
+            await fetch('/api/admin/verify-passkey', {
+                method: 'DELETE',
+                headers,
+                credentials: 'include',
+            });
+        } catch {}
         router.push('/login');
     };
 

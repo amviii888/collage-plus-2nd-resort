@@ -113,7 +113,6 @@ export function TeacherSignupForm() {
         assistantCode,
         planId: basicPlan?.id || 'basic', // Default to basic plan
         planName: basicPlan?.title || 'Basic',
-        password: data.password,
       });
 
       // Also create role record in 'users' collection for the main login check
@@ -126,13 +125,7 @@ export function TeacherSignupForm() {
         createdAt: new Date().toISOString()
       });
 
-      // 3. Store private credentials subcollection for S-Admin inspection
-      const credsRef = doc(firestore, 'teachers', teacherId, 'private', 'credentials');
-      await setDoc(credsRef, {
-        password: data.password,
-        email: data.email,
-        updatedAt: new Date().toISOString(),
-      });
+      // Plaintext passwords are never stored in Firestore (Firebase Auth is the sole password store).
 
       // 4. Generate doctor code and sync code mapping directly into Firestore database
       const cleanNameCode = data.name.trim().split(' ').map(w => w[0]).join('').toUpperCase().substring(0, 3) || 'DOC';
@@ -168,7 +161,7 @@ export function TeacherSignupForm() {
 
       localStorage.setItem('teacher_session', 'true');
       localStorage.setItem('teacherId', teacherId);
-      localStorage.setItem('mol5saty_last_valid_password', data.password);
+      localStorage.removeItem('mol5saty_last_valid_password');
       sessionStorage.setItem('mol5saty_app_unlocked', 'true');
       if (data.profilePictureUrl) {
         localStorage.setItem(`custom_teacher_avatar_${teacherId}`, data.profilePictureUrl);

@@ -195,7 +195,7 @@ export function NotificationListener() {
       const isStudentSession = Boolean(knownStudentCodes.size > 0 || isStudentEmail || currentPath.startsWith('/profile') || currentPath.startsWith('/student'));
       const isParentSession = Boolean(knownParentPhones.size > 0 || knownParentCodes.size > 0 || currentPath.startsWith('/parent'));
       const isTeacherSession = Boolean(rawTeacherId || currentPath.startsWith('/teacher'));
-      const isAdminSession = Boolean(rawAdminSession || userEmail === 'bodylion2009@gmail.com' || userEmail === '6108almoamviii8chef@gmail.com' || currentPath.startsWith('/admin'));
+      const isAdminSession = Boolean(currentPath.startsWith('/admin'));
 
       const isFirstSnap = isInitialLoadRef.current;
       const subStartTime = listenerStartTimeRef.current;

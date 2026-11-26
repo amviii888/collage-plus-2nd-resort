@@ -8,27 +8,13 @@
 export interface BunnyConfig {
   libraryId: string;
   cdnHostname: string;
-  apiKey?: string;
-  tokenSecurityKey?: string;
 }
 
-// Active Bunny Stream Credentials (Library 804078)
-const isOldOrStale = (val?: string) => !val || val === '775464' || val.startsWith('f51c7eeb') || val.includes('vz-c109ef36') || val.startsWith('70922179');
-
-// Active Bunny configuration with fallbacks
+// Public non-secret Bunny Stream identifiers only.
+// API keys and signing tokens live strictly in server-side environment variables.
 export const BUNNY_CONFIG: BunnyConfig = {
-  libraryId: isOldOrStale(process.env.NEXT_PUBLIC_BUNNY_STREAM_LIBRARY_ID || process.env.BUNNY_STREAM_LIBRARY_ID)
-    ? '804078'
-    : (process.env.NEXT_PUBLIC_BUNNY_STREAM_LIBRARY_ID || process.env.BUNNY_STREAM_LIBRARY_ID)!,
-  cdnHostname: isOldOrStale(process.env.NEXT_PUBLIC_BUNNY_CDN_HOSTNAME || process.env.BUNNY_STREAM_CDN_HOSTNAME)
-    ? 'vz-7dc30faa-b42.b-cdn.net'
-    : (process.env.NEXT_PUBLIC_BUNNY_CDN_HOSTNAME || process.env.BUNNY_STREAM_CDN_HOSTNAME)!,
-  apiKey: isOldOrStale(process.env.BUNNY_STREAM_API_KEY)
-    ? 'c30837fc-ac31-4c78-bd13ea7e8d85-177d-4dbd'
-    : process.env.BUNNY_STREAM_API_KEY!,
-  tokenSecurityKey: isOldOrStale(process.env.BUNNY_STREAM_TOKEN_KEY)
-    ? '14dc9ec7-b4cf-404b-b39a-afd33f122a55'
-    : process.env.BUNNY_STREAM_TOKEN_KEY!,
+  libraryId: (process.env.NEXT_PUBLIC_BUNNY_STREAM_LIBRARY_ID || '').trim() || '804078',
+  cdnHostname: (process.env.NEXT_PUBLIC_BUNNY_CDN_HOSTNAME || '').trim() || 'vz-7dc30faa-b42.b-cdn.net',
 };
 
 export type VideoProviderType = 'bunny' | 'youtube' | 'drive' | 'direct';

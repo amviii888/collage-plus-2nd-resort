@@ -21,6 +21,8 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/firebase';
+import { getFirebaseIdToken } from '@/lib/admin-client';
 
 export interface BunnyUploadResult {
   videoId: string;
@@ -45,6 +47,7 @@ export function BunnyVideoUploader({
   compact = false,
 }: BunnyVideoUploaderProps) {
   const { toast } = useToast();
+  const auth = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -109,10 +112,14 @@ export function BunnyVideoUploader({
       const cleanFileName = selectedFile.name.replace(/\.[^/.]+$/, '');
       const finalTitle = initialTitle?.trim() || cleanFileName;
 
-      // 1. Create video object in Bunny Stream via server-side API
+      // 1. Create video object in Bunny Stream via authenticated server-side API
+      const idToken = await getFirebaseIdToken(auth);
+      const createHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (idToken) createHeaders['Authorization'] = `Bearer ${idToken}`;
+
       const createRes = await fetch('/api/bunny/create-upload', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: createHeaders,
         body: JSON.stringify({ title: finalTitle }),
       });
 
@@ -188,7 +195,7 @@ export function BunnyVideoUploader({
   };
 
   // Fallback proxy upload if direct TUS is blocked by mobile firewall/network
-  const fallbackProxyUpload = (
+  const fallbackProxyUpload = async (
     file: File,
     videoId: string,
     libraryId: string,
@@ -196,9 +203,13 @@ export function BunnyVideoUploader({
     embedUrl: string,
     thumbnailUrl: string
   ) => {
+    const idToken = await getFirebaseIdToken(auth);
     return new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('PUT', `/api/bunny/upload-proxy/${videoId}`, true);
+      if (idToken) {
+        xhr.setRequestHeader('Authorization', `Bearer ${idToken}`);
+      }
 
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
@@ -245,7 +256,12 @@ export function BunnyVideoUploader({
     // Check status after a couple seconds to confirm transcoding
     setTimeout(async () => {
       try {
-        const res = await fetch(`/api/bunny/status?videoId=${result.videoId}`);
+        const idToken = await getFirebaseIdToken(auth);
+        const statusHeaders: Record<string, string> = {};
+        if (idToken) statusHeaders['Authorization'] = `Bearer ${idToken}`;
+        const res = await fetch(`/api/bunny/status?videoId=${encodeURIComponent(result.videoId)}`, {
+          headers: statusHeaders,
+        });
         if (res.ok) {
           const statusData = await res.json();
           if (statusData.status === 'ready') {

@@ -62,6 +62,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { isStudentEmail, clearAllStudentAuthSessions, performFullLogout } from '@/lib/auth-helpers';
+import { buildAuthHeaders, fetchSessionRole, setInMemoryAdminToken } from '@/lib/admin-client';
 import { getStudentConnectedProfessors, findProfessorByCode, setActiveProfessorBranding, ProfessorItem, getAdminCustomTeacherCodes, REGISTERED_PROFESSORS, normalizeImagePath, DEFAULT_CUSTOM_PROFESSOR_IMAGE, getTeacherCustomAvatar } from '@/lib/professors-registry';
 import { AttendanceHistoryModal } from '@/components/AttendanceHistoryModal';
 import { SeasonalHubCard } from '@/components/SeasonalHubCard';
@@ -290,33 +291,71 @@ const getPetSpeech = (petId: string, customRewards: any[] = []) => {
     }
 };
 
-function SAdminProfile({ userId }: { userId: string }) {
+function SAdminProfile({ userId, needsSetupInitial = false }: { userId: string; needsSetupInitial?: boolean }) {
     const router = useRouter();
+    const auth = useAuth();
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [needsFirstRunSetup, setNeedsFirstRunSetup] = useState(needsSetupInitial);
+
+    useEffect(() => {
+        let cancelled = false;
+        async function checkStatus() {
+            const headers = await buildAuthHeaders(auth);
+            const res = await fetch('/api/admin/verify-passkey', {
+                method: 'GET',
+                headers,
+                credentials: 'include',
+                cache: 'no-store',
+            }).catch(() => null);
+            if (!res || !res.ok || cancelled) return;
+            const data = await res.json();
+            if (data.authenticated) {
+                router.push('/admin/dashboard');
+                return;
+            }
+            if (typeof data.needsFirstRunSetup === 'boolean') {
+                setNeedsFirstRunSetup(data.needsFirstRunSetup);
+            }
+        }
+        checkStatus();
+        return () => {
+            cancelled = true;
+        };
+    }, [auth, router]);
 
     const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setIsSubmitting(true);
         setError('');
 
-        const validPasskeys = [
-            'AP5793154862',
-            '_eagle07APfApamviii84017',
-            'almoamviiichef6108$hellarich'
-        ];
+        try {
+            const headers = await buildAuthHeaders(auth, { 'Content-Type': 'application/json' });
+            const res = await fetch('/api/admin/verify-passkey', {
+                method: 'POST',
+                headers,
+                credentials: 'include',
+                body: JSON.stringify({
+                    passkey: password.trim(),
+                    setupPasskey: needsFirstRunSetup,
+                }),
+            });
 
-        if (validPasskeys.includes(password.trim())) {
-            try {
-                localStorage.setItem('admin-session', JSON.stringify({ id: userId, name: 'Super Admin', role: 'S Admin' }));
-                router.push('/admin/dashboard');
-            } catch (e: any) {
-                setError("An error occurred during verification.");
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                setError(data.error || 'Incorrect passkey. Please check your verification key.');
                 setIsSubmitting(false);
+                return;
             }
-        } else {
-            setError("Incorrect passkey. Please check your verification key.");
+
+            if (data.adminToken) {
+                setInMemoryAdminToken(data.adminToken);
+            }
+            localStorage.removeItem('admin-session');
+            router.push('/admin/dashboard');
+        } catch {
+            setError('An error occurred during server verification.');
             setIsSubmitting(false);
         }
     };
@@ -328,9 +367,13 @@ function SAdminProfile({ userId }: { userId: string }) {
                      <div className="mx-auto bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl h-16 w-16 flex items-center justify-center shadow-lg shadow-blue-500/20 mb-2">
                         <Shield className="h-8 w-8" />
                     </div>
-                    <CardTitle className="text-2xl font-black text-[#0f172a] dark:text-white">S-Admin Verification</CardTitle>
+                    <CardTitle className="text-2xl font-black text-[#0f172a] dark:text-white">
+                        {needsFirstRunSetup ? 'Configure S-Admin Key' : 'S-Admin Verification'}
+                    </CardTitle>
                     <CardDescription className="text-xs text-slate-500 dark:text-slate-400">
-                        Enter your S-Admin verification key to access the administrative control panel.
+                        {needsFirstRunSetup
+                            ? 'Create a strong passkey (10+ characters) to lock and protect the administrative control panel.'
+                            : 'Enter your S-Admin verification key to access the administrative control panel.'}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -346,13 +389,14 @@ function SAdminProfile({ userId }: { userId: string }) {
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••••••"
                                 required
+                                minLength={needsFirstRunSetup ? 10 : 1}
                                 autoFocus
                                 className="h-12 text-lg text-center font-mono rounded-2xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:border-blue-600"
                              />
                              {error && <p className="text-xs font-bold text-red-500 text-center animate-pulse">{error}</p>}
                         </div>
                         <Button type="submit" disabled={isSubmitting} className="w-full h-12 text-sm font-bold bg-[#2563eb] hover:bg-blue-700 text-white rounded-2xl shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer">
-                            {isSubmitting ? 'Verifying S-Admin Access...' : 'Enter Admin Panel'}
+                            {isSubmitting ? 'Verifying S-Admin Access...' : needsFirstRunSetup ? 'Save Key & Enter Admin Panel' : 'Enter Admin Panel'}
                         </Button>
                     </form>
                 </CardContent>
@@ -2684,7 +2728,14 @@ export default function ProfilePage() {
     }
     return null;
   });
+  const auth = useAuth();
   const [isAssistant, setIsAssistant] = useState(false);
+  const [serverRole, setServerRole] = useState<{
+    checked: boolean;
+    isAdmin: boolean;
+    isLibrarian: boolean;
+    needsPasskeySetup: boolean;
+  }>({ checked: false, isAdmin: false, isLibrarian: false, needsPasskeySetup: false });
 
   useEffect(() => {
     setHasMounted(true);
@@ -2694,6 +2745,28 @@ export default function ProfilePage() {
       setIsAssistant(!!localStorage.getItem('assistantForTeacherId'));
     }
   }, []);
+
+  useEffect(() => {
+    if (isUserLoading) return;
+    if (!user || user.isAnonymous) {
+      setServerRole({ checked: true, isAdmin: false, isLibrarian: false, needsPasskeySetup: false });
+      return;
+    }
+    let cancelled = false;
+    fetchSessionRole(auth).then((role) => {
+      if (!cancelled) {
+        setServerRole({
+          checked: true,
+          isAdmin: role.isAdmin,
+          isLibrarian: role.isLibrarian,
+          needsPasskeySetup: role.needsPasskeySetup,
+        });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, isUserLoading, auth]);
 
   useEffect(() => {
     if (!hasMounted || isUserLoading) return;
@@ -2717,7 +2790,7 @@ export default function ProfilePage() {
   }, [firestore, user?.uid]);
   const { data: teacherDoc, isLoading: isTeacherDocLoading } = useDoc<Teacher>(teacherDocRef);
 
-  if (isUserLoading || (user && isTeacherDocLoading) || !hasMounted || isAssistant) {
+  if (isUserLoading || (user && (!serverRole.checked || isTeacherDocLoading)) || !hasMounted || isAssistant) {
     return (
         <div className="p-4 space-y-4 max-w-7xl mx-auto">
             <Skeleton className="h-32 w-full rounded-2xl" />
@@ -2746,12 +2819,11 @@ export default function ProfilePage() {
       );
   }
   
-  const userEmailLower = user.email?.toLowerCase().trim();
-  if (userEmailLower === 'eagle07amviii8$apfa4017@gmail.com' || userEmailLower === '6108almoamviii8chef@gmail.com') {
-      return <SAdminProfile userId={user.uid} />;
+  if (serverRole.isAdmin) {
+      return <SAdminProfile userId={user.uid} needsSetupInitial={serverRole.needsPasskeySetup} />;
   }
 
-  if (userEmailLower === 'librarian123@gmail.com' || userEmailLower?.includes('librarian')) {
+  if (serverRole.isLibrarian) {
       if (typeof window !== 'undefined') {
           window.location.replace('/librarian');
       }

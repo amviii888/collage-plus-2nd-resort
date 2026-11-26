@@ -50,52 +50,58 @@ import {
   DEFAULT_CUSTOM_PROFESSOR_IMAGE 
 } from '@/lib/professors-registry';
 
+let cachedPublicCatalogPromise: Promise<Record<string, { coursesCount: number; studentsCount: number }>> | null = null;
+
+function loadPublicCatalogCounts(): Promise<Record<string, { coursesCount: number; studentsCount: number }>> {
+  if (!cachedPublicCatalogPromise) {
+    cachedPublicCatalogPromise = fetch('/api/public/catalog')
+      .then((res) => (res.ok ? res.json() : { teachers: [] }))
+      .then((data) => {
+        const map: Record<string, { coursesCount: number; studentsCount: number }> = {};
+        for (const t of data.teachers || []) {
+          const entry = {
+            coursesCount: typeof t.coursesCount === 'number' ? t.coursesCount : 0,
+            studentsCount: typeof t.studentsCount === 'number' ? t.studentsCount : 0,
+          };
+          if (t.id) map[t.id] = entry;
+          if (t.teacherCode) map[String(t.teacherCode).toUpperCase().trim()] = entry;
+        }
+        return map;
+      })
+      .catch(() => ({}));
+  }
+  return cachedPublicCatalogPromise;
+}
+
 function TeacherLiveMetrics({ professorId, professorCode }: { professorId?: string; professorCode?: string }) {
-  const firestore = useFirestore();
+  const [catalogCounts, setCatalogCounts] = useState<{ coursesCount: number; studentsCount: number }>({
+    coursesCount: 0,
+    studentsCount: 0,
+  });
   const [localStudentCount, setLocalStudentCount] = useState<number>(0);
-  
+
   const code = (professorCode || '').toUpperCase().trim();
 
-  // 1. Real courses from Firestore:
-  const coursesQuery = useMemoFirebase(() => {
-    if (!firestore || !professorId) return null;
-    return collection(firestore, 'teachers', professorId, 'courses');
-  }, [firestore, professorId]);
-  const { data: courses } = useCollection<any>(coursesQuery);
+  // 1. Load sanitized public counts from /api/public/catalog (zero client PII reads)
+  useEffect(() => {
+    let cancelled = false;
+    loadPublicCatalogCounts().then((map) => {
+      if (cancelled) return;
+      const hit = (professorId && map[professorId]) || (code && map[code]);
+      if (hit) {
+        setCatalogCounts(hit);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [professorId, code]);
 
-  // 2. Real teacher doc in Firestore:
-  const teacherRef = useMemoFirebase(() => {
-    if (!firestore || !professorId) return null;
-    return doc(firestore, 'teachers', professorId);
-  }, [firestore, professorId]);
-  const { data: teacherDoc } = useDoc<any>(teacherRef);
-
-  // 3. Query Firestore students collection for students linked to this professor code
-  const studentsByConnectedQuery = useMemoFirebase(() => {
-    if (!firestore || !code) return null;
-    return query(collection(firestore, 'students'), where('connectedProfessors', 'array-contains', code));
-  }, [firestore, code]);
-  const { data: studentsByConnected } = useCollection<any>(studentsByConnectedQuery);
-
-  const studentsByCodeQuery = useMemoFirebase(() => {
-    if (!firestore || !code) return null;
-    return query(collection(firestore, 'students'), where('professorCode', '==', code));
-  }, [firestore, code]);
-  const { data: studentsByCode } = useCollection<any>(studentsByCodeQuery);
-
-  const studentsByTeacherIdQuery = useMemoFirebase(() => {
-    if (!firestore || !professorId) return null;
-    return query(collection(firestore, 'students'), where('teacherId', '==', professorId));
-  }, [firestore, professorId]);
-  const { data: studentsByTeacherId } = useCollection<any>(studentsByTeacherIdQuery);
-
-  // 4. Local storage scan for actual student profiles created on this browser
+  // 2. Local storage check for student profile created on this device
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
       let count = 0;
-      const scannedIds = new Set<string>();
-
       const activeProfList = localStorage.getItem('student_connected_professors_active');
       if (activeProfList) {
         try {
@@ -103,56 +109,14 @@ function TeacherLiveMetrics({ professorId, professorCode }: { professorId?: stri
           if (list.includes(code)) {
             count++;
           }
-        } catch (e) {}
+        } catch {}
       }
-
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && (k.startsWith('student_profile_offline_') || k.startsWith('cached_student_profile_'))) {
-          try {
-            const profile = JSON.parse(localStorage.getItem(k) || '{}');
-            const sid = profile.id || profile.barcode || k;
-            if (!scannedIds.has(sid)) {
-              if (
-                profile.professorCode === code || 
-                (Array.isArray(profile.connectedProfessors) && profile.connectedProfessors.includes(code)) ||
-                (professorId && profile.teacherId === professorId)
-              ) {
-                scannedIds.add(sid);
-                count++;
-              }
-            }
-          } catch (e) {}
-        }
-      }
-
       setLocalStudentCount(count);
-    } catch (e) {
-      console.error(e);
-    }
+    } catch {}
   }, [code, professorId]);
 
-  // Aggregate unique real students count
-  const actualStudents = useMemo(() => {
-    const uniqueIds = new Set<string>();
-    
-    studentsByConnected?.forEach(s => s?.id && uniqueIds.add(s.id));
-    studentsByCode?.forEach(s => s?.id && uniqueIds.add(s.id));
-    studentsByTeacherId?.forEach(s => s?.id && uniqueIds.add(s.id));
-
-    const totalFromFirestore = uniqueIds.size;
-    
-    const teacherDocCount = typeof teacherDoc?.studentsCount === 'number' 
-      ? teacherDoc.studentsCount 
-      : typeof teacherDoc?.studentCount === 'number' 
-        ? teacherDoc.studentCount 
-        : 0;
-
-    const baseCount = Math.max(totalFromFirestore, teacherDocCount);
-    return Math.max(baseCount, localStudentCount);
-  }, [studentsByConnected, studentsByCode, studentsByTeacherId, teacherDoc, localStudentCount]);
-
-  const actualCourses = courses ? courses.length : (teacherDoc?.coursesCount ?? 0);
+  const actualStudents = Math.max(catalogCounts.studentsCount, localStudentCount);
+  const actualCourses = catalogCounts.coursesCount;
 
   return (
     <div className="flex items-center gap-4 text-xs text-slate-600 dark:text-slate-400">
