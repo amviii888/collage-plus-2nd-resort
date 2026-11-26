@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getFirebaseAdmin } from '@/lib/firebase-admin';
+import { getHiddenStaffIdentifiers } from '@/lib/server-security';
 import { REGISTERED_PROFESSORS } from '@/lib/professors-registry';
 
 export interface PublicTeacherCatalogItem {
@@ -22,7 +23,8 @@ export interface PublicTeacherCatalogItem {
 /**
  * Public sanitized teacher & course catalog.
  * Exposes ONLY public display metadata and aggregate counts.
- * Explicitly strips email, phoneNumber, password, assistantCode, and all PII.
+ * Explicitly strips email, phoneNumber, password, assistantCode, and all PII,
+ * and excludes special staff (Admin & Librarian) accounts.
  */
 export async function GET() {
   try {
@@ -46,10 +48,26 @@ export async function GET() {
     }
 
     const db = adminApp.db();
-    const teachersSnap = await db.collection('teachers').limit(200).get();
+    const [teachersSnap, hiddenStaff] = await Promise.all([
+      db.collection('teachers').limit(200).get(),
+      getHiddenStaffIdentifiers(),
+    ]);
+
+    const hiddenEmails = new Set(hiddenStaff.emails.map((e) => e.toLowerCase()));
+    const hiddenUids = new Set(hiddenStaff.uids);
+
+    const visibleDocs = teachersSnap.docs.filter((docSnap) => {
+      const d = docSnap.data();
+      const email = typeof d.email === 'string' ? d.email.trim().toLowerCase() : '';
+      const role = typeof d.role === 'string' ? d.role.trim().toLowerCase() : '';
+      if (hiddenUids.has(docSnap.id)) return false;
+      if (email && hiddenEmails.has(email)) return false;
+      if (role === 'admin' || role === 's admin' || role === 'super admin' || role === 'librarian') return false;
+      return true;
+    });
 
     const items: PublicTeacherCatalogItem[] = await Promise.all(
-      teachersSnap.docs.map(async (docSnap) => {
+      visibleDocs.map(async (docSnap) => {
         const d = docSnap.data();
         let coursesCount = typeof d.coursesCount === 'number' ? d.coursesCount : 0;
 

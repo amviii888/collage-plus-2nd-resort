@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useCollection, useFirestore, useMemoFirebase, useDoc, useAuth } from '@/firebase';
 import { collection, doc, updateDoc, Timestamp, writeBatch, getDocs, query, where, limit, deleteDoc, runTransaction, getDoc, setDoc } from 'firebase/firestore';
 import type { Teacher, BiometricCredential } from '@/lib/types';
-import { buildAuthHeaders, clearInMemoryAdminToken } from '@/lib/admin-client';
+import { buildAuthHeaders, clearInMemoryAdminToken, setHiddenStaffIdentifiers, isSpecialStaffRecord, type HiddenStaffIdentifiers } from '@/lib/admin-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -75,6 +75,7 @@ export default function AdminDashboardPage() {
   const [paymentDate, setPaymentDate] = useState<Date | undefined>(undefined);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
+  const [hiddenStaff, setHiddenStaff] = useState<HiddenStaffIdentifiers>({ emails: [], uids: [] });
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   
   // Secure Server-Side Teacher Password Reset & Legacy Purge States
@@ -185,9 +186,13 @@ export default function AdminDashboardPage() {
           return;
         }
         const data = await res.json();
-        if (!cancelled && data.authenticated && data.session?.role === 'S Admin') {
+        if (!cancelled && (data.authenticated || data.authorized) && data.session?.role === 'S Admin') {
+          if (data.hiddenStaff) {
+            setHiddenStaffIdentifiers(data.hiddenStaff);
+            setHiddenStaff(data.hiddenStaff);
+          }
           setAdminSession({
-            id: data.session.uid || 'admin',
+            id: data.session.uid || data.session.id || 'admin',
             name: 'Super Admin',
             role: data.session.role,
           });
@@ -212,7 +217,13 @@ export default function AdminDashboardPage() {
     return collection(firestore, 'teachers');
   }, [firestore]);
 
-  const { data: teachers, isLoading, error: teachersError } = useCollection<Teacher>(teachersQuery);
+  const { data: rawTeachers, isLoading, error: teachersError } = useCollection<Teacher>(teachersQuery);
+
+  // Never show special staff (Admin / Librarian) accounts inside the Teachers list
+  const teachers = useMemo(() => {
+    if (!rawTeachers) return [];
+    return rawTeachers.filter((teacher) => !isSpecialStaffRecord(teacher as any, hiddenStaff));
+  }, [rawTeachers, hiddenStaff]);
 
   const codeRequests = useMemo(() => {
     if (!teachers) return [];
@@ -502,7 +513,7 @@ export default function AdminDashboardPage() {
 
       toast({
         title: t('Legacy Plaintext Passwords Purged'),
-        description: `Cleaned ${data.studentsCleaned || 0} students, ${data.teachersCleaned || 0} teachers, and removed ${data.privateCredsDeleted || 0} private credential docs.`,
+        description: `Cleaned ${data.studentsCleaned || 0} students, ${data.teachersCleaned || 0} teachers, and removed ${data.credentialsDocsDeleted || data.privateCredsDeleted || 0} legacy password records. All accounts and logins remain active.`,
       });
     } catch (err: any) {
       toast({
@@ -533,16 +544,33 @@ export default function AdminDashboardPage() {
                 <p className="text-muted-foreground">{t('Approve teacher accounts and manage subscriptions.')}</p>
             </div>
             <div className='flex items-center gap-2 flex-wrap flex-shrink-0'>
-                <Button
-                    onClick={handlePurgeLegacyPasswords}
-                    disabled={isPurgingPasswords}
-                    variant="destructive"
-                    size="sm"
-                    className="gap-1.5"
-                >
-                    <ShieldAlert className="h-4 w-4" />
-                    {isPurgingPasswords ? t('Purging...') : t('Purge Legacy Passwords')}
-                </Button>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button
+                            disabled={isPurgingPasswords}
+                            variant="destructive"
+                            size="sm"
+                            className="gap-1.5"
+                        >
+                            <ShieldAlert className="h-4 w-4" />
+                            {isPurgingPasswords ? t('Purging...') : t('Purge Legacy Passwords')}
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>{t('Purge Legacy Plaintext Passwords?')}</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {t('This safely strips old exposed plaintext password text fields from Firestore documents only. It does NOT delete any student or teacher accounts and does NOT change anyone’s real login password in Firebase Auth.')}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
+                            <AlertDialogAction onClick={handlePurgeLegacyPasswords}>
+                                {t('Yes, Clean Legacy Fields')}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
                 <Button asChild variant="outline">
                     <Link href="/admin/management"><ArrowLeft className="mr-2"/>{t('Back to Management')}</Link>
                 </Button>

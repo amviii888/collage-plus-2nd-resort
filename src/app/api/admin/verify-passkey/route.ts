@@ -5,6 +5,7 @@ import {
   verifyFirebaseRequestAuth,
   isAuthorizedAdminUser,
   ensureFirestoreAdminRole,
+  getHiddenStaffIdentifiers,
   getSAdminPasskeyStatus,
   verifySAdminPasskey,
   claimFirstRunSAdminPasskey,
@@ -61,6 +62,7 @@ export async function GET(req: NextRequest) {
         needsFirstRunSetup: status.needsFirstRunSetup,
       });
     }
+    const hiddenStaff = await getHiddenStaffIdentifiers();
     return NextResponse.json({
       authorized: true,
       authenticated: true,
@@ -70,6 +72,7 @@ export async function GET(req: NextRequest) {
         name: 'Super Admin',
         role: session.role,
       },
+      hiddenStaff,
       needsFirstRunSetup: false,
     });
   } catch (error) {
@@ -135,6 +138,8 @@ export async function POST(req: NextRequest) {
       role: 'S Admin',
     });
 
+    const hiddenStaff = await getHiddenStaffIdentifiers();
+
     const response = NextResponse.json({
       success: true,
       authorized: true,
@@ -146,6 +151,7 @@ export async function POST(req: NextRequest) {
         name: 'Super Admin',
         role: 'S Admin',
       },
+      hiddenStaff,
     });
 
     setAdminSessionCookie(response, token, 8 * 60 * 60);

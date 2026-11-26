@@ -199,7 +199,22 @@ export default function AdminTeacherManagementPage() {
         if (!firestore) return null;
         return collection(firestore, 'teachers');
     }, [firestore]);
-    const { data: cloudTeachers } = useCollection<Teacher>(teachersColRef);
+    const { data: rawCloudTeachers } = useCollection<Teacher>(teachersColRef);
+    const [hiddenStaff, setHiddenStaff] = useState<{ emails: string[]; uids: string[] }>({ emails: [], uids: [] });
+
+    const cloudTeachers = useMemo(() => {
+        if (!rawCloudTeachers) return [];
+        const hiddenEmails = new Set(hiddenStaff.emails.map((e) => e.toLowerCase()));
+        const hiddenUids = new Set(hiddenStaff.uids);
+        return rawCloudTeachers.filter((t: any) => {
+            const email = typeof t?.email === 'string' ? t.email.trim().toLowerCase() : '';
+            const role = typeof t?.role === 'string' ? t.role.trim().toLowerCase() : '';
+            if (hiddenUids.has(t?.id)) return false;
+            if (email && hiddenEmails.has(email)) return false;
+            if (role === 'admin' || role === 's admin' || role === 'super admin' || role === 'librarian') return false;
+            return true;
+        });
+    }, [rawCloudTeachers, hiddenStaff]);
 
     // Fetch students from Firestore for student code tracking
     const studentsColRef = useMemoFirebase(() => {
@@ -218,6 +233,8 @@ export default function AdminTeacherManagementPage() {
                 verifyAdminSessionClient().then((session) => {
                     if (!session) {
                         router.replace('/profile');
+                    } else if (session.hiddenStaff) {
+                        setHiddenStaff(session.hiddenStaff);
                     }
                 })
             );

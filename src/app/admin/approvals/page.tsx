@@ -1,6 +1,6 @@
 
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, getDocs, writeBatch } from 'firebase/firestore';
@@ -49,8 +49,23 @@ export default function CenterApprovalsPage() {
         return query(collection(firestore, 'students'));
     }, [firestore]);
 
-    const { data: requestingTeachers, isLoading: teachersLoading } = useCollection<Teacher>(teachersRequestingQuery);
+    const { data: rawRequestingTeachers, isLoading: teachersLoading } = useCollection<Teacher>(teachersRequestingQuery);
     const { data: allStudents, isLoading: studentsLoading } = useCollection<Student>(studentsQuery);
+    const [hiddenStaff, setHiddenStaff] = useState<{ emails: string[]; uids: string[] }>({ emails: [], uids: [] });
+
+    const requestingTeachers = useMemo(() => {
+        if (!rawRequestingTeachers) return [];
+        const hiddenEmails = new Set(hiddenStaff.emails.map((e) => e.toLowerCase()));
+        const hiddenUids = new Set(hiddenStaff.uids);
+        return rawRequestingTeachers.filter((t: any) => {
+            const email = typeof t?.email === 'string' ? t.email.trim().toLowerCase() : '';
+            const role = typeof t?.role === 'string' ? t.role.trim().toLowerCase() : '';
+            if (hiddenUids.has(t?.id)) return false;
+            if (email && hiddenEmails.has(email)) return false;
+            if (role === 'admin' || role === 's admin' || role === 'super admin' || role === 'librarian') return false;
+            return true;
+        });
+    }, [rawRequestingTeachers, hiddenStaff]);
 
     useEffect(() => {
         let cancelled = false;
@@ -59,6 +74,9 @@ export default function CenterApprovalsPage() {
                 if (cancelled) return;
                 if (session) {
                     setSessionUser(session);
+                    if (session.hiddenStaff) {
+                        setHiddenStaff(session.hiddenStaff);
+                    }
                 } else {
                     router.replace('/profile');
                 }

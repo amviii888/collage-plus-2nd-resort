@@ -267,6 +267,56 @@ export async function isAuthorizedLibrarianUser(user: VerifiedFirebaseUser | nul
   return false;
 }
 
+/**
+ * Collects all special staff (Admin + Librarian) emails and UIDs from server env
+ * and Firestore role collections so they are never shown as regular teachers.
+ */
+export async function getHiddenStaffIdentifiers(): Promise<{ emails: string[]; uids: string[] }> {
+  const emailSet = new Set<string>([
+    ...getConfiguredAdminEmails(),
+    ...getConfiguredLibrarianEmails(),
+  ]);
+  const uidSet = new Set<string>();
+
+  try {
+    const adminApp = getFirebaseAdmin();
+    if (adminApp) {
+      const db = adminApp.db();
+      const [adminsSnap, librariansSnap] = await Promise.all([
+        db.collection('admins').get().catch(() => null),
+        db.collection('users').where('role', 'in', ['librarian', 'admin', 'S Admin']).get().catch(() => null),
+      ]);
+
+      if (adminsSnap) {
+        for (const docSnap of adminsSnap.docs) {
+          uidSet.add(docSnap.id);
+          const email = docSnap.data()?.email;
+          if (typeof email === 'string' && email.trim()) {
+            emailSet.add(email.trim().toLowerCase());
+          }
+        }
+      }
+
+      if (librariansSnap) {
+        for (const docSnap of librariansSnap.docs) {
+          uidSet.add(docSnap.id);
+          const email = docSnap.data()?.email;
+          if (typeof email === 'string' && email.trim()) {
+            emailSet.add(email.trim().toLowerCase());
+          }
+        }
+      }
+    }
+  } catch {
+    // Env-configured emails remain active even if Firestore lookup fails
+  }
+
+  return {
+    emails: Array.from(emailSet),
+    uids: Array.from(uidSet),
+  };
+}
+
 export async function getSAdminPasskeyStatus(): Promise<{
   envConfigured: boolean;
   claimedFallbackExists: boolean;

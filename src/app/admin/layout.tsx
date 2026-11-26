@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useUser, useAuth } from '@/firebase';
-import { buildAuthHeaders, clearInMemoryAdminToken } from '@/lib/admin-client';
+import { buildAuthHeaders, clearInMemoryAdminToken, setHiddenStaffIdentifiers } from '@/lib/admin-client';
 
 function AdminUnauthorizedAccess() {
     const router = useRouter();
@@ -93,9 +93,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 }
 
                 const data = await res.json();
-                if (!cancelled && data.authenticated && data.session?.role === 'S Admin') {
+                if (!cancelled && (data.authenticated || data.authorized) && data.session?.role === 'S Admin') {
+                    if (data.hiddenStaff) {
+                        setHiddenStaffIdentifiers(data.hiddenStaff);
+                    }
                     setSessionUser({
-                        id: data.session.uid || user?.uid || 'admin',
+                        id: data.session.uid || data.session.id || user?.uid || 'admin',
                         name: 'Super Admin',
                         role: data.session.role,
                     });

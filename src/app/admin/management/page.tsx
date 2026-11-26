@@ -6,6 +6,7 @@ import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, writeBatch, getDocs, deleteDoc, query, updateDoc, where } from 'firebase/firestore';
 import type { Student, Teacher, Transaction, Hub, AttendanceRecord, Center, EnrollmentPlan, StudentSubscription, DataCategoryId, Aide } from '@/lib/types';
 import { dataCategories } from '@/lib/types';
+import { isSpecialStaffRecord } from '@/lib/admin-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -159,7 +160,11 @@ export default function ManagementPage() {
         return query(collection(firestore, 'teachers'));
     }, [firestore]);
 
-    const { data: allTeachers, isLoading: teachersLoading } = useCollection<Teacher>(allTeachersQuery);
+    const { data: rawAllTeachers, isLoading: teachersLoading } = useCollection<Teacher>(allTeachersQuery);
+    const allTeachers = useMemo(() => {
+        if (!rawAllTeachers) return [];
+        return rawAllTeachers.filter((t: Teacher) => !isSpecialStaffRecord(t as any));
+    }, [rawAllTeachers]);
     
     const allAidesQuery = useMemoFirebase(() => {
         if (!firestore) return null;
