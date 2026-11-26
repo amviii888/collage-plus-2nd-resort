@@ -263,6 +263,10 @@ function LoginFormContent() {
 
             // Never persist raw passwords in localStorage
             localStorage.removeItem('mol5saty_last_valid_password');
+            // User just authenticated — mark biometric session unlocked so redirect to Admin Verification / Profile is never blocked
+            try {
+                sessionStorage.setItem('mol5saty_app_unlocked', 'true');
+            } catch {}
 
             // Verify server-side elevated roles (admin / librarian) via Firebase ID token
             const sessionRole = await fetchSessionRole(auth);

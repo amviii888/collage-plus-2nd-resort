@@ -9,7 +9,6 @@ import { useUser, useAuth } from '@/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 
 const PUBLIC_ROUTES = [
-  '/',
   '/login',
   '/teacher-signup',
   '/student-signup',
@@ -30,6 +29,8 @@ const PUBLIC_ROUTES = [
   '/student-login'
 ];
 
+const UNLOCK_STORAGE_KEY = 'mol5saty_app_unlocked';
+
 export function BiometricAppLock() {
   const pathname = usePathname();
   const { i18n } = useTranslation();
@@ -47,8 +48,39 @@ export function BiometricAppLock() {
 
   const lastHiddenTimeRef = useRef<number | null>(null);
   const hasAutoTriggeredRef = useRef<boolean>(false);
+  const isAuthenticatingRef = useRef<boolean>(false);
+  const unlockedInMemoryRef = useRef<boolean>(false);
+  const unlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Check if current route is public / exempt
+  const isSessionUnlocked = useCallback(() => {
+    if (unlockedInMemoryRef.current) return true;
+    if (typeof window === 'undefined') return false;
+    try {
+      return sessionStorage.getItem(UNLOCK_STORAGE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const markSessionUnlocked = useCallback(() => {
+    unlockedInMemoryRef.current = true;
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem(UNLOCK_STORAGE_KEY, 'true');
+      } catch {}
+    }
+  }, []);
+
+  const clearSessionUnlocked = useCallback(() => {
+    unlockedInMemoryRef.current = false;
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem(UNLOCK_STORAGE_KEY);
+      } catch {}
+    }
+  }, []);
+
+  // Check if current route is public / exempt (auth & legal pages only; '/' locks when signed in so fingerprint runs right at app open)
   const isExemptRoute = useCallback(() => {
     if (!pathname) return true;
     const clean = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
@@ -58,9 +90,7 @@ export function BiometricAppLock() {
       pathname.startsWith('/privacy') ||
       pathname.startsWith('/support') ||
       pathname.startsWith('/delete-account') ||
-      pathname.startsWith('/courses') ||
-      pathname.startsWith('/collections') ||
-      pathname.startsWith('/discover')
+      pathname.startsWith('/forgot-password')
     ) {
       return true;
     }
@@ -90,6 +120,15 @@ export function BiometricAppLock() {
     return hasStudent || hasTeacher || hasParent || hasAssistant;
   }, [user]);
 
+  // Clean up any pending unlock timer on unmount
+  useEffect(() => {
+    return () => {
+      if (unlockTimerRef.current) {
+        clearTimeout(unlockTimerRef.current);
+      }
+    };
+  }, []);
+
   // Detect iOS vs Android
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -99,7 +138,7 @@ export function BiometricAppLock() {
     setDeviceType(isIOS ? 'ios' : isAndroid ? 'android' : 'other');
   }, []);
 
-  // Determine initial lock state when app opens
+  // Determine initial lock state when app opens (never re-locks during in-app redirects once unlocked)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -114,49 +153,83 @@ export function BiometricAppLock() {
       return;
     }
 
-    const isUnlockedThisSession = sessionStorage.getItem('mol5saty_app_unlocked') === 'true';
-    if (!isUnlockedThisSession) {
-      setIsLocked(true);
+    if (isSessionUnlocked()) {
+      setIsLocked(false);
+      return;
     }
-  }, [isExemptRoute, hasActiveSession]);
 
-  // Monitor app backgrounding / screen off (visibilitychange)
+    setIsLocked(true);
+  }, [isExemptRoute, hasActiveSession, isSessionUnlocked]);
+
+  // Monitor app backgrounding / reopening so fingerprint runs every time the user reopens the app
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const handleVisibilityChange = () => {
+    const lockForReopen = () => {
+      if (isAuthenticatingRef.current) return;
       const biometricEnabled = localStorage.getItem('mol5saty_biometric_enabled') !== 'false';
       if (!biometricEnabled) return;
+      if (isExemptRoute() || !hasActiveSession()) return;
+
+      clearSessionUnlocked();
+      setIsLocked(true);
+      setScanSuccess(false);
+      setErrorMessage(null);
+      setShowPasscodeField(false);
+      hasAutoTriggeredRef.current = false;
+    };
+
+    const handleVisibilityChange = () => {
+      // Ignore visibility flickers caused by the native OS fingerprint / Face ID prompt itself
+      if (isAuthenticatingRef.current) return;
 
       if (document.visibilityState === 'hidden') {
         lastHiddenTimeRef.current = Date.now();
       } else if (document.visibilityState === 'visible') {
         const lastHidden = lastHiddenTimeRef.current;
+        lastHiddenTimeRef.current = null;
         if (lastHidden) {
           const elapsedMs = Date.now() - lastHidden;
-          // Re-lock if the app was closed/backgrounded for more than 45 seconds
-          if (elapsedMs > 45 * 1000) {
-            if (!isExemptRoute() && hasActiveSession()) {
-              sessionStorage.removeItem('mol5saty_app_unlocked');
-              setIsLocked(true);
-              setScanSuccess(false);
-              setErrorMessage(null);
-              hasAutoTriggeredRef.current = false;
-            }
+          // Re-lock whenever the user left the app and reopened it (>= 10 seconds in background)
+          if (elapsedMs >= 10 * 1000) {
+            lockForReopen();
           }
         }
-        lastHiddenTimeRef.current = null;
       }
     };
 
+    // Handle mobile browser / PWA bfcache restore when reopening the app
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        lockForReopen();
+      }
+    };
+
+    // Handle explicit manual trigger from Settings / Login buttons
+    const handleManualTrigger = () => {
+      if (!hasActiveSession()) return;
+      clearSessionUnlocked();
+      setIsLocked(true);
+      setScanSuccess(false);
+      setErrorMessage(null);
+      setShowPasscodeField(false);
+      hasAutoTriggeredRef.current = false;
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener('trigger_biometric_lock_prompt', handleManualTrigger);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('trigger_biometric_lock_prompt', handleManualTrigger);
     };
-  }, [isExemptRoute, hasActiveSession]);
+  }, [isExemptRoute, hasActiveSession, clearSessionUnlocked]);
 
   // Trigger Native iOS Face ID / Android Fingerprint Sheet
   const handleAuthorizeAndUnlock = useCallback(async () => {
+    if (isAuthenticatingRef.current) return;
+    isAuthenticatingRef.current = true;
     setIsAuthenticating(true);
     setErrorMessage(null);
 
@@ -167,8 +240,6 @@ export function BiometricAppLock() {
       } catch (e) {}
     }
 
-    let biometricPromptOpened = false;
-
     // Trigger platform WebAuthn credentials prompt (triggers Apple Face ID on iOS, Google Biometrics on Android)
     if (typeof window !== 'undefined' && window.PublicKeyCredential && navigator.credentials) {
       try {
@@ -177,11 +248,8 @@ export function BiometricAppLock() {
         const challenge = new Uint8Array(32);
         window.crypto.getRandomValues(challenge);
 
-        biometricPromptOpened = true;
-
         if (isRegistered) {
           // 1. Subsequent unlocks: ALWAYS verify existing saved fingerprint/Face ID via credentials.get
-          // Never ask user to create a passkey again once registered!
           let allowCredentialsList: PublicKeyCredentialDescriptor[] | undefined = undefined;
           if (savedCredId) {
             try {
@@ -206,7 +274,6 @@ export function BiometricAppLock() {
 
           const getAssertion = await navigator.credentials.get(getOptions);
           if (getAssertion) {
-            // Keep registration flag permanent
             localStorage.setItem('mol5saty_biometric_registered', 'true');
           }
         } else {
@@ -237,56 +304,59 @@ export function BiometricAppLock() {
             const rawIdStr = btoa(String.fromCharCode(...new Uint8Array(credResult.rawId)));
             localStorage.setItem('mol5saty_saved_biometric_cred_id', rawIdStr);
           }
-          // Mark permanently registered so it never asks to create again!
           localStorage.setItem('mol5saty_biometric_registered', 'true');
         }
       } catch (err: any) {
         console.warn('Biometric platform prompt note:', err?.name);
         if (err?.name === 'NotAllowedError' || err?.name === 'AbortError') {
           // User deliberately cancelled the biometric sheet
+          isAuthenticatingRef.current = false;
           setIsAuthenticating(false);
           setShowPasscodeField(true);
-          setErrorMessage(isArabic ? 'تم إلغاء فحص البصمة. يمكنك إدخال كود الطالب أو المحاولة مجدداً.' : 'Biometric prompt cancelled. Enter student code or try again.');
+          setErrorMessage(isArabic ? 'تم إلغاء فحص البصمة. يمكنك إدخال كلمة المرور أو المحاولة مجدداً.' : 'Biometric prompt cancelled. Enter your password or try again.');
           return;
         }
       }
     }
 
-    // Success transition
+    // CRITICAL: Mark unlocked synchronously BEFORE any transition so route changes,
+    // admin verification redirects, or clicks can NEVER re-trigger the lock overlay.
+    markSessionUnlocked();
+    lastHiddenTimeRef.current = null;
     setScanSuccess(true);
+
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
         navigator.vibrate([40, 60]);
       } catch (e) {}
     }
 
-    setTimeout(() => {
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('mol5saty_app_unlocked', 'true');
-      }
+    if (unlockTimerRef.current) clearTimeout(unlockTimerRef.current);
+    unlockTimerRef.current = setTimeout(() => {
+      isAuthenticatingRef.current = false;
       setIsLocked(false);
       setIsAuthenticating(false);
       setScanSuccess(false);
-    }, 450);
-  }, [user, isArabic]);
+    }, 180);
+  }, [user, isArabic, markSessionUnlocked]);
 
-  // Auto-trigger on phone mount so Face ID / Fingerprint prompt fires immediately upon launch
+  // Auto-trigger on mount so Face ID / Fingerprint prompt fires immediately upon app launch
   useEffect(() => {
-    if (isLocked && !hasAutoTriggeredRef.current && !showPasscodeField) {
+    if (isLocked && !hasAutoTriggeredRef.current && !showPasscodeField && !isSessionUnlocked()) {
       hasAutoTriggeredRef.current = true;
       const timer = setTimeout(() => {
         handleAuthorizeAndUnlock();
-      }, 450);
+      }, 250);
       return () => clearTimeout(timer);
     }
-  }, [isLocked, showPasscodeField, handleAuthorizeAndUnlock]);
+  }, [isLocked, showPasscodeField, isSessionUnlocked, handleAuthorizeAndUnlock]);
 
   // Passcode / Student Code / Password Unlock
   const handlePasscodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const val = passcodeInput.trim();
     if (!val) {
-      setErrorMessage(isArabic ? 'يرجى إدخال كود الطالب أو كلمة المرور الخاصة بحسابك' : 'Please enter your student code or account password');
+      setErrorMessage(isArabic ? 'يرجى إدخال كلمة المرور الخاصة بحسابك' : 'Please enter your account password');
       return;
     }
 
@@ -328,13 +398,16 @@ export function BiometricAppLock() {
       }
 
       if (isMatched) {
+        markSessionUnlocked();
+        lastHiddenTimeRef.current = null;
         setErrorMessage(null);
         setScanSuccess(true);
-        setTimeout(() => {
-          sessionStorage.setItem('mol5saty_app_unlocked', 'true');
+        if (unlockTimerRef.current) clearTimeout(unlockTimerRef.current);
+        unlockTimerRef.current = setTimeout(() => {
           setIsLocked(false);
           setPasscodeInput('');
-        }, 300);
+          setScanSuccess(false);
+        }, 180);
         return;
       } else {
         setErrorMessage(isArabic ? 'كلمة المرور غير صحيحة، يرجى إعادة المحاولة.' : 'Incorrect password. Please try again.');
@@ -358,7 +431,9 @@ export function BiometricAppLock() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[2147483646] flex flex-col items-center justify-center bg-[#09090b]/98 backdrop-blur-2xl text-foreground p-4 sm:p-6 select-none overflow-hidden"
+        className={`fixed inset-0 z-[2147483646] flex flex-col items-center justify-center bg-[#09090b]/98 backdrop-blur-2xl text-foreground p-4 sm:p-6 select-none overflow-hidden ${
+          scanSuccess ? 'pointer-events-none' : ''
+        }`}
         style={{ direction: isArabic ? 'rtl' : 'ltr' }}
       >
         {/* Ambient background glows */}
