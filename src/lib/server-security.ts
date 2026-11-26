@@ -77,7 +77,9 @@ export function verifyHmacToken<T = Record<string, unknown>>(token: string | nul
  */
 export function normalizePhoneNumber(raw?: string | null): string {
   if (!raw || typeof raw !== 'string') return '';
-  let digits = raw.replace(/\D/g, '');
+  // Strip WhatsApp JID domains (@s.whatsapp.net, @c.us, @lid) and multi-device suffixes (:14)
+  const stripped = raw.split('@')[0].split(':')[0];
+  let digits = stripped.replace(/\D/g, '');
   if (!digits) return '';
 
   // Strip leading 00 international prefix
@@ -139,6 +141,17 @@ export interface VerifiedFirebaseUser {
   emailVerified: boolean;
 }
 
+function getTokenVerifierAuth() {
+  const projectId =
+    process.env.FIREBASE_PROJECT_ID ||
+    (firebaseAppletConfig as any)?.projectId ||
+    'collageplus-87d4b';
+  const tokenAppName = 'token-verifier';
+  const existing = getApps().find((a) => a.name === tokenAppName);
+  const app = existing || initializeApp({ projectId }, tokenAppName);
+  return getAuth(app);
+}
+
 /**
  * Verifies a Firebase ID token from `Authorization: Bearer <token>`.
  * Works on any Firebase project (ID token verification requires no IAM credentials).
@@ -151,21 +164,17 @@ export async function verifyFirebaseRequestAuth(req: NextRequest): Promise<Verif
 
   try {
     const adminInstance = getFirebaseAdmin();
-    let authService;
+    let decoded;
     if (adminInstance) {
-      authService = adminInstance.auth();
+      try {
+        decoded = await adminInstance.auth().verifyIdToken(idToken);
+      } catch {
+        decoded = await getTokenVerifierAuth().verifyIdToken(idToken);
+      }
     } else {
-      const projectId =
-        process.env.FIREBASE_PROJECT_ID ||
-        (firebaseAppletConfig as any)?.projectId ||
-        'collageplus-87d4b';
-      const tokenAppName = 'token-verifier';
-      const existing = getApps().find((a) => a.name === tokenAppName);
-      const app = existing || initializeApp({ projectId }, tokenAppName);
-      authService = getAuth(app);
+      decoded = await getTokenVerifierAuth().verifyIdToken(idToken);
     }
 
-    const decoded = await authService.verifyIdToken(idToken);
     return {
       uid: decoded.uid,
       email: (decoded.email || '').toLowerCase().trim(),
@@ -176,10 +185,48 @@ export async function verifyFirebaseRequestAuth(req: NextRequest): Promise<Verif
   }
 }
 
+export async function ensureFirestoreAdminRole(user: VerifiedFirebaseUser): Promise<void> {
+  try {
+    const adminApp = getFirebaseAdmin();
+    if (!adminApp) return;
+    await adminApp.db().collection('admins').doc(user.uid).set(
+      {
+        uid: user.uid,
+        email: user.email,
+        role: 'S Admin',
+        active: true,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  } catch {
+    // Non-blocking sync when Admin SDK or Firestore is unavailable
+  }
+}
+
+export async function ensureFirestoreLibrarianRole(user: VerifiedFirebaseUser): Promise<void> {
+  try {
+    const adminApp = getFirebaseAdmin();
+    if (!adminApp) return;
+    await adminApp.db().collection('users').doc(user.uid).set(
+      {
+        uid: user.uid,
+        email: user.email,
+        role: 'librarian',
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  } catch {
+    // Non-blocking sync when Admin SDK or Firestore is unavailable
+  }
+}
+
 export async function isAuthorizedAdminUser(user: VerifiedFirebaseUser | null): Promise<boolean> {
   if (!user) return false;
   const configuredEmails = getConfiguredAdminEmails();
   if (user.email && configuredEmails.includes(user.email)) {
+    await ensureFirestoreAdminRole(user);
     return true;
   }
 
@@ -204,6 +251,7 @@ export async function isAuthorizedLibrarianUser(user: VerifiedFirebaseUser | nul
 
   const configuredEmails = getConfiguredLibrarianEmails();
   if (user.email && configuredEmails.includes(user.email)) {
+    await ensureFirestoreLibrarianRole(user);
     return true;
   }
 

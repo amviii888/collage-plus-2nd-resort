@@ -102,6 +102,14 @@ export async function POST(req: NextRequest) {
         if (data.phoneVerified !== true) {
           throw new Error('PHONE_NOT_VERIFIED');
         }
+        if (
+          typeof data.verifiedSenderPhone !== 'string' ||
+          typeof data.expectedPhoneNormalized !== 'string' ||
+          data.expectedPhoneNormalized.length < 8 ||
+          data.verifiedSenderPhone !== data.expectedPhoneNormalized
+        ) {
+          throw new Error('PHONE_MISMATCH');
+        }
         if (typeof data.expiresAt === 'number' && Date.now() > data.expiresAt + 5 * 60 * 1000) {
           throw new Error('CHALLENGE_EXPIRED');
         }

@@ -310,8 +310,9 @@ function SAdminProfile({ userId, needsSetupInitial = false }: { userId: string; 
                 cache: 'no-store',
             }).catch(() => null);
             if (!res || !res.ok || cancelled) return;
-            const data = await res.json();
-            if (data.authenticated) {
+            const data = await res.json().catch(() => null);
+            if (!data || cancelled) return;
+            if (data.authenticated || data.authorized) {
                 router.push('/admin/dashboard');
                 return;
             }
@@ -338,13 +339,17 @@ function SAdminProfile({ userId, needsSetupInitial = false }: { userId: string; 
                 credentials: 'include',
                 body: JSON.stringify({
                     passkey: password.trim(),
+                    mode: needsFirstRunSetup ? 'setup' : 'verify',
                     setupPasskey: needsFirstRunSetup,
                 }),
             });
 
-            const data = await res.json();
-            if (!res.ok || !data.success) {
-                setError(data.error || 'Incorrect passkey. Please check your verification key.');
+            const data = await res.json().catch(() => null);
+            if (!res.ok || !(data?.success || data?.authorized)) {
+                setError(
+                    data?.error ||
+                    `Verification failed (HTTP ${res.status}). Please refresh the page and try again.`
+                );
                 setIsSubmitting(false);
                 return;
             }
@@ -355,7 +360,7 @@ function SAdminProfile({ userId, needsSetupInitial = false }: { userId: string; 
             localStorage.removeItem('admin-session');
             router.push('/admin/dashboard');
         } catch {
-            setError('An error occurred during server verification.');
+            setError('Could not reach the verification server. Please refresh and try again.');
             setIsSubmitting(false);
         }
     };

@@ -113,6 +113,11 @@ service cloud.firestore {
         allow write: if isOwner(studentId) || isAdmin() || isTeacherUser();
       }
 
+      match /bookAccess/{bookId} {
+        allow read: if isOwner(studentId) || isAdmin() || isLibrarian();
+        allow write: if isAdmin() || isLibrarian();
+      }
+
       match /watchHistory/{historyId} {
         allow read, write: if isOwner(studentId) || isAdmin();
       }

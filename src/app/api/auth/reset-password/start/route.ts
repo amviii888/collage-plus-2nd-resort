@@ -88,7 +88,12 @@ export async function POST(req: NextRequest) {
 
     const studentDoc = snap.docs[0];
     const studentData = studentDoc.data();
-    const rawPhone = typeof studentData.phoneNumber === 'string' ? studentData.phoneNumber.trim() : '';
+    const rawPhone =
+      typeof studentData.phoneNumber === 'string' && studentData.phoneNumber.trim()
+        ? studentData.phoneNumber.trim()
+        : typeof studentData.phone === 'string'
+        ? studentData.phone.trim()
+        : '';
     const expectedPhoneNormalized = normalizePhoneNumber(rawPhone);
 
     if (!expectedPhoneNormalized || expectedPhoneNormalized.length < 8) {

@@ -389,7 +389,7 @@ export default function LibrarianPortalPage() {
         studentName: req.studentName,
         granted: true,
         grantedAt: serverTimestamp(),
-        grantedBy: user?.email || 'Librarian123@gmail.com',
+        grantedBy: user?.email || 'librarian',
       }, { merge: true });
 
       // 2. Update request status to granted
@@ -397,7 +397,7 @@ export default function LibrarianPortalPage() {
         await updateDoc(doc(firestore, 'library_requests', req.id), {
           status: 'granted',
           resolvedAt: serverTimestamp(),
-          resolvedBy: user?.email || 'Librarian123@gmail.com',
+          resolvedBy: user?.email || 'librarian',
         });
       }
 
@@ -429,7 +429,7 @@ export default function LibrarianPortalPage() {
         await updateDoc(doc(firestore, 'library_requests', req.id), {
           status: 'rejected',
           resolvedAt: serverTimestamp(),
-          resolvedBy: user?.email || 'Librarian123@gmail.com',
+          resolvedBy: user?.email || 'librarian',
         });
       }
       toast({ title: 'تم رفض طلب الكتاب' });

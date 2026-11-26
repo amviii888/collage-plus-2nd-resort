@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirebaseAdmin } from '@/lib/firebase-admin';
-import { normalizePhoneNumber, signHmacToken } from '@/lib/server-security';
+import { normalizePhoneNumber, signHmacToken, timingSafeStringEqual } from '@/lib/server-security';
 
 const checkRateLimitMap = new Map<string, { count: number; windowStart: number }>();
 const WINDOW_MS = 5 * 60 * 1000;
 const MAX_CHECKS = 60;
+const MAX_PHONE_MISMATCHES = 5;
 
 function allowCheck(ip: string): boolean {
   const now = Date.now();
@@ -58,6 +59,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: 'expired', error: 'Verification code expired. Please request a new code.' }, { status: 410 });
     }
 
+    if (typeof challenge.attempts === 'number' && challenge.attempts >= MAX_PHONE_MISMATCHES) {
+      return NextResponse.json(
+        { status: 'expired', error: 'Too many mismatched phone attempts. Please start a new reset request.' },
+        { status: 410 }
+      );
+    }
+
     // Check WhatsApp bot record at phone_verifications/{verificationCode}
     const verifRef = db.collection('phone_verifications').doc(String(challenge.verificationCode));
     const verifSnap = await verifRef.get();
@@ -71,24 +79,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: 'pending' });
     }
 
-    // Extract the actual WhatsApp sender number recorded by the bot
+    // Extract ONLY the actual WhatsApp sender number recorded by the bot (never from client input)
     const rawSenderPhone =
       verifData.phoneNumber ||
       verifData.senderPhone ||
       verifData.from ||
       verifData.phone ||
+      verifData.waId ||
+      verifData.whatsappNumber ||
       '';
 
     const senderNormalized = normalizePhoneNumber(String(rawSenderPhone));
-    const expectedNormalized = String(challenge.expectedPhoneNormalized || '');
+    const expectedNormalized = normalizePhoneNumber(String(challenge.expectedPhoneNormalized || ''));
 
-    if (!senderNormalized || senderNormalized !== expectedNormalized) {
-      // Security critical: reject mismatched phone & invalidate the verification record so it cannot be reused
+    const isExactMatch =
+      senderNormalized.length >= 8 &&
+      expectedNormalized.length >= 8 &&
+      timingSafeStringEqual(senderNormalized, expectedNormalized);
+
+    if (!isExactMatch) {
+      const nextAttempts = (typeof challenge.attempts === 'number' ? challenge.attempts : 0) + 1;
+      // Security critical: reject mismatched phone & delete the verification record so it cannot be reused
       await verifRef.delete().catch(() => {});
       await challengeRef.update({
         lastMismatchAt: new Date().toISOString(),
-        attempts: (challenge.attempts || 0) + 1,
+        attempts: nextAttempts,
       }).catch(() => {});
+
+      if (nextAttempts >= MAX_PHONE_MISMATCHES) {
+        return NextResponse.json(
+          {
+            status: 'expired',
+            error: 'Too many wrong phone numbers tried for this code. Please start a new password reset request.',
+          },
+          { status: 410 }
+        );
+      }
 
       return NextResponse.json(
         {
@@ -103,6 +129,7 @@ export async function POST(req: NextRequest) {
     // Exact registered phone number match confirmed!
     await challengeRef.update({
       phoneVerified: true,
+      verifiedSenderPhone: senderNormalized,
       verifiedAt: new Date().toISOString(),
     });
 
