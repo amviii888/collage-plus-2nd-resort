@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useAuth, useCollection, useMemoFirebase } from '@/firebase';
+import { getFirebaseIdToken } from '@/lib/admin-client';
 import { collection, query, where } from 'firebase/firestore';
 import type { QuestionBankItem, Grade } from '@/lib/types';
 import { grades } from '@/lib/data';
@@ -27,6 +28,7 @@ import { formatDistanceToNow } from 'date-fns';
 export function StudentQuestionsBankView({ teacherId }: { teacherId: string }) {
   const { t } = useTranslation();
   const firestore = useFirestore();
+  const auth = useAuth();
 
   const [selectedGrade, setSelectedGrade] = useState<string>('all');
   const [allQuestions, setAllQuestions] = useState<QuestionBankItem[]>([]);
@@ -101,7 +103,10 @@ export function StudentQuestionsBankView({ teacherId }: { teacherId: string }) {
         return;
       }
 
-      const response = await fetch(`/api/questions-bank?teacherId=${teacherId}`);
+      const idToken = await getFirebaseIdToken(auth);
+      const headers: Record<string, string> = {};
+      if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
+      const response = await fetch(`/api/questions-bank?teacherId=${teacherId}`, { headers });
       if (response.ok) {
         const json = await response.json();
         const items = (json.data || []).map((item: any) => ({

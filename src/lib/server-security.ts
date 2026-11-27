@@ -175,6 +175,11 @@ export async function verifyFirebaseRequestAuth(req: NextRequest): Promise<Verif
       decoded = await getTokenVerifierAuth().verifyIdToken(idToken);
     }
 
+    // Reject anonymous Firebase tokens across all protected server endpoints
+    if (decoded.firebase?.sign_in_provider === 'anonymous') {
+      return null;
+    }
+
     return {
       uid: decoded.uid,
       email: (decoded.email || '').toLowerCase().trim(),
@@ -264,6 +269,28 @@ export async function isAuthorizedLibrarianUser(user: VerifiedFirebaseUser | nul
       }
     }
   } catch {}
+  return false;
+}
+
+export async function isAuthorizedTeacherUser(user: VerifiedFirebaseUser | null): Promise<boolean> {
+  if (!user) return false;
+  if (await isAuthorizedAdminUser(user)) return true;
+
+  try {
+    const adminApp = getFirebaseAdmin();
+    if (adminApp) {
+      const db = adminApp.db();
+      const [teacherDoc, userDoc] = await Promise.all([
+        db.collection('teachers').doc(user.uid).get(),
+        db.collection('users').doc(user.uid).get(),
+      ]);
+      if (teacherDoc.exists) return true;
+      if (userDoc.exists && userDoc.data()?.role === 'teacher') return true;
+      return false;
+    }
+  } catch {
+    return false;
+  }
   return false;
 }
 

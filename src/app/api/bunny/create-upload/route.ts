@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { getBunnyServerConfig, verifyFirebaseRequestAuth } from '@/lib/server-security';
+import {
+  getBunnyServerConfig,
+  verifyFirebaseRequestAuth,
+  isAuthorizedTeacherUser,
+} from '@/lib/server-security';
 
 export async function POST(req: NextRequest) {
   try {
     const user = await verifyFirebaseRequestAuth(req);
     if (!user) {
       return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
+    const isTeacher = await isAuthorizedTeacherUser(user);
+    if (!isTeacher) {
+      return NextResponse.json({ error: 'Only teachers and admins can upload videos.' }, { status: 403 });
     }
 
     const { libraryId, apiKey, cdnHostname } = getBunnyServerConfig();

@@ -20,7 +20,7 @@ import {
   increment,
   arrayUnion
 } from 'firebase/firestore';
-import { signInAnonymously } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
 import type { Course, ShareCode } from '@/lib/types';
 import { useTranslation } from 'react-i18next';
 import { KeyRound, Sparkles, CheckCircle2, ShieldCheck } from 'lucide-react';
@@ -36,6 +36,7 @@ interface UnlockCourseDialogProps {
 export function UnlockCourseDialog({ isOpen, setIsOpen, courseId, teacherId }: UnlockCourseDialogProps) {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [code, setCode] = useState('');
@@ -79,11 +80,19 @@ export function UnlockCourseDialog({ isOpen, setIsOpen, courseId, teacherId }: U
     }
 
     try {
-      let currentUser = user;
+      const currentUser = user;
 
-      if (!currentUser) {
-        const userCredential = await signInAnonymously(auth);
-        currentUser = userCredential.user;
+      if (!currentUser || currentUser.isAnonymous) {
+        setError("يرجى تسجيل الدخول بحساب الطالب الخاص بك أولاً لتفعيل كود الكورس.");
+        toast({
+          variant: "destructive",
+          title: "تسجيل الدخول مطلوب",
+          description: "يجب تسجيل الدخول بحسابك العادي قبل تفعيل أي كود.",
+        });
+        setIsSubmitting(false);
+        setIsOpen(false);
+        router.push('/login');
+        return;
       }
       
       const courseRef = doc(firestore, 'teachers', teacherId, 'courses', courseId);

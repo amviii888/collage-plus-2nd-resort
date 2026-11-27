@@ -2,6 +2,7 @@
 
 import React, { type ReactNode, useEffect, useState } from 'react';
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { getAuth, setPersistence, browserLocalPersistence, type Auth } from 'firebase/auth';
 import { getFirestore, enableMultiTabIndexedDbPersistence, type Firestore } from 'firebase/firestore';
 
@@ -11,6 +12,8 @@ import { firebaseConfig } from './config';
 interface FirebaseClientProviderProps {
   children: ReactNode;
 }
+
+let appCheckInitialized = false;
 
 function getServices() {
   if (typeof window === 'undefined') {
@@ -23,6 +26,21 @@ function getServices() {
     }
 
     const app = getApps().length > 0 ? getApp() : initializeApp(resolvedConfig);
+
+    // Initialize Firebase App Check (Google Cloud Fraud Defense / reCAPTCHA Enterprise) when site key is configured
+    const recaptchaSiteKey = (process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '').trim();
+    if (recaptchaSiteKey && !appCheckInitialized) {
+      try {
+        initializeAppCheck(app, {
+          provider: new ReCaptchaEnterpriseProvider(recaptchaSiteKey),
+          isTokenAutoRefreshEnabled: true,
+        });
+        appCheckInitialized = true;
+      } catch (appCheckErr) {
+        console.warn('App Check init notice:', appCheckErr);
+      }
+    }
+
     const auth = getAuth(app);
     const dbId = resolvedConfig.firestoreDatabaseId;
     const firestore = dbId && dbId !== '(default)' ? getFirestore(app, dbId) : getFirestore(app);

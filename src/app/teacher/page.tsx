@@ -5,7 +5,6 @@ import { useSearchParams, useRouter } from 'next/navigation';
 
 import { useFirestore, useDoc, useMemoFirebase, useCollection, useUser, useAuth } from '@/firebase';
 import { doc, collection, query, serverTimestamp, runTransaction, increment, updateDoc, where, Timestamp, getDocs, limit } from 'firebase/firestore';
-import { signInAnonymously } from 'firebase/auth';
 
 import type { Teacher, Course, TeacherRating, Assistant } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
@@ -113,14 +112,15 @@ function TeacherRatingSection({ teacherId }: { teacherId: string }) {
         setIsSubmitting(true);
         
         try {
-            let currentUser = user;
-            if (!currentUser) {
-                const userCredential = await signInAnonymously(auth);
-                currentUser = userCredential.user;
-            }
-            
-            if (!currentUser) {
-                throw new Error("Could not authenticate user.");
+            const currentUser = user;
+            if (!currentUser || currentUser.isAnonymous) {
+                toast({
+                    title: "تسجيل الدخول مطلوب",
+                    description: "يرجى تسجيل الدخول بحسابك أولاً لتقييم الأستاذ.",
+                    variant: "destructive",
+                });
+                setIsSubmitting(false);
+                return;
             }
 
             const teacherRef = doc(firestore, 'teachers', teacherId);
@@ -271,14 +271,16 @@ function StudentTestView({ teacherId }: { teacherId: string }) {
         setIsSubmitting(true);
         
         try {
-            let currentUser = user;
-            if (!currentUser) {
-                const userCredential = await signInAnonymously(auth);
-                currentUser = userCredential.user;
-            }
-
-            if (!currentUser) {
-                throw new Error("Could not authenticate user.");
+            const currentUser = user;
+            if (!currentUser || currentUser.isAnonymous) {
+                toast({
+                    title: "تسجيل الدخول مطلوب",
+                    description: "يرجى تسجيل الدخول بحسابك أولاً لبدء الاختبار.",
+                    variant: "destructive",
+                });
+                setIsSubmitting(false);
+                router.push('/login');
+                return;
             }
 
             const testsRef = collection(firestore, 'tests');

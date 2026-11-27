@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBunnyServerConfig, verifyFirebaseRequestAuth } from '@/lib/server-security';
+import {
+  getBunnyServerConfig,
+  verifyFirebaseRequestAuth,
+  isAuthorizedTeacherUser,
+} from '@/lib/server-security';
 
 const VIDEO_ID_REGEX = /^[a-zA-Z0-9_-]{8,80}$/;
 
@@ -11,6 +15,10 @@ export async function PUT(
     const user = await verifyFirebaseRequestAuth(req);
     if (!user) {
       return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
+    const isTeacher = await isAuthorizedTeacherUser(user);
+    if (!isTeacher) {
+      return NextResponse.json({ error: 'Only teachers and admins can upload videos.' }, { status: 403 });
     }
 
     const { libraryId, apiKey, cdnHostname } = getBunnyServerConfig();

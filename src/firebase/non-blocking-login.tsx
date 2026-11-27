@@ -1,19 +1,13 @@
 'use client';
 import {
   Auth, // Import Auth type for type hinting
-  signInAnonymously,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  // Assume getAuth and app are initialized elsewhere
 } from 'firebase/auth';
 
-/** Initiate anonymous sign-in (non-blocking). */
-export function initiateAnonymousSignIn(authInstance: Auth): void {
-  // CRITICAL: Call signInAnonymously directly with error catch to prevent unhandled network rejections
-  signInAnonymously(authInstance).catch((err) => {
-    console.warn('[Firebase Auth] Anonymous sign-in network notice:', err?.message || err);
-  });
-  // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
+/** Anonymous sign-in is disabled; users must sign in with a real account. */
+export function initiateAnonymousSignIn(_authInstance: Auth): void {
+  console.warn('[Firebase Auth] Anonymous sign-in is disabled.');
 }
 
 /** Initiate email/password sign-up (non-blocking). */

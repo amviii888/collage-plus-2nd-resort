@@ -1,9 +1,19 @@
 import { getFirebaseAdmin } from '@/lib/firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
+import {
+  verifyFirebaseRequestAuth,
+  isAuthorizedAdminUser,
+  isAuthorizedTeacherUser,
+} from '@/lib/server-security';
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await verifyFirebaseRequestAuth(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const teacherId = searchParams.get('teacherId');
 
@@ -13,7 +23,6 @@ export async function GET(req: NextRequest) {
 
     const admin = getFirebaseAdmin();
     if (!admin) {
-      // Graceful fallback: return empty data array so client-side Firestore can handle or show empty state without 500 error
       return NextResponse.json({ data: [] });
     }
     const db = admin.db();
@@ -47,6 +56,15 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await verifyFirebaseRequestAuth(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
+    const isTeacher = await isAuthorizedTeacherUser(user);
+    if (!isTeacher) {
+      return NextResponse.json({ error: 'Only teachers and admins can create question banks.' }, { status: 403 });
+    }
+
     const admin = getFirebaseAdmin();
     if (!admin) {
       return NextResponse.json({ error: 'Firebase Admin not initialized' }, { status: 500 });
@@ -60,12 +78,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    const isAdmin = await isAuthorizedAdminUser(user);
+    if (!isAdmin && teacherId !== user.uid) {
+      return NextResponse.json({ error: 'You can only manage your own question banks.' }, { status: 403 });
+    }
+
     const payload = {
-      title: title.trim(),
-      description: (description || '').trim(),
-      grade,
-      fileUrl,
-      teacherId,
+      title: String(title).trim(),
+      description: String(description || '').trim(),
+      grade: String(grade),
+      fileUrl: String(fileUrl),
+      teacherId: String(teacherId),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };
@@ -81,6 +104,15 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
+    const user = await verifyFirebaseRequestAuth(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
+    const isTeacher = await isAuthorizedTeacherUser(user);
+    if (!isTeacher) {
+      return NextResponse.json({ error: 'Only teachers and admins can update question banks.' }, { status: 403 });
+    }
+
     const admin = getFirebaseAdmin();
     if (!admin) {
       return NextResponse.json({ error: 'Firebase Admin not initialized' }, { status: 500 });
@@ -94,16 +126,27 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    const existingDoc = await db.collection('questionBanks').doc(String(id)).get();
+    if (!existingDoc.exists) {
+      return NextResponse.json({ error: 'Question bank not found.' }, { status: 404 });
+    }
+
+    const isAdmin = await isAuthorizedAdminUser(user);
+    const existingOwner = existingDoc.data()?.teacherId;
+    if (!isAdmin && existingOwner !== user.uid) {
+      return NextResponse.json({ error: 'You can only update your own question banks.' }, { status: 403 });
+    }
+
     const payload = {
-      title: title.trim(),
-      description: (description || '').trim(),
-      grade,
-      fileUrl,
-      teacherId,
+      title: String(title).trim(),
+      description: String(description || '').trim(),
+      grade: String(grade),
+      fileUrl: String(fileUrl),
+      teacherId: isAdmin ? String(teacherId) : user.uid,
       updatedAt: FieldValue.serverTimestamp(),
     };
 
-    await db.collection('questionBanks').doc(id).update(payload);
+    await db.collection('questionBanks').doc(String(id)).update(payload);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
@@ -114,6 +157,15 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const user = await verifyFirebaseRequestAuth(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
+    const isTeacher = await isAuthorizedTeacherUser(user);
+    if (!isTeacher) {
+      return NextResponse.json({ error: 'Only teachers and admins can delete question banks.' }, { status: 403 });
+    }
+
     const admin = getFirebaseAdmin();
     if (!admin) {
       return NextResponse.json({ error: 'Firebase Admin not initialized' }, { status: 500 });
@@ -125,6 +177,16 @@ export async function DELETE(req: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'Missing document id' }, { status: 400 });
+    }
+
+    const existingDoc = await db.collection('questionBanks').doc(id).get();
+    if (!existingDoc.exists) {
+      return NextResponse.json({ error: 'Question bank not found.' }, { status: 404 });
+    }
+
+    const isAdmin = await isAuthorizedAdminUser(user);
+    if (!isAdmin && existingDoc.data()?.teacherId !== user.uid) {
+      return NextResponse.json({ error: 'You can only delete your own question banks.' }, { status: 403 });
     }
 
     await db.collection('questionBanks').doc(id).delete();

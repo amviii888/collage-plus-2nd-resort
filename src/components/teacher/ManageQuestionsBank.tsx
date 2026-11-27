@@ -4,7 +4,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { safeZodResolver } from '@/lib/zod-compat';
 import { z } from 'zod';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useAuth } from '@/firebase';
+import { getFirebaseIdToken } from '@/lib/admin-client';
 import { collection, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
 import type { QuestionBankItem } from '@/lib/types';
 import { grades } from '@/lib/data';
@@ -53,6 +54,7 @@ interface QuestionBankFormProps {
 function QuestionBankFormModal({ teacherId, itemToEdit, onFinished }: QuestionBankFormProps) {
   const { t } = useTranslation();
   const firestore = useFirestore();
+  const auth = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -85,9 +87,12 @@ function QuestionBankFormModal({ teacherId, itemToEdit, onFinished }: QuestionBa
       let success = false;
       // 1. Try API route first
       try {
+        const idToken = await getFirebaseIdToken(auth);
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
         const response = await fetch('/api/questions-bank' + (itemToEdit ? '' : ''), {
           method: itemToEdit ? 'PUT' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             ...(itemToEdit ? { id: itemToEdit.id } : {}),
             title: data.title.trim(),
@@ -286,6 +291,7 @@ function QuestionBankFormModal({ teacherId, itemToEdit, onFinished }: QuestionBa
 export function ManageQuestionsBank({ teacherId }: { teacherId: string }) {
   const { t } = useTranslation();
   const firestore = useFirestore();
+  const auth = useAuth();
   const { toast } = useToast();
 
   const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>('all');
@@ -317,7 +323,10 @@ export function ManageQuestionsBank({ teacherId }: { teacherId: string }) {
       // 2. If client-side was empty, fallback to API route
       if (loadedItems.length === 0) {
         try {
-          const response = await fetch(`/api/questions-bank?teacherId=${teacherId}`);
+          const idToken = await getFirebaseIdToken(auth);
+          const headers: Record<string, string> = {};
+          if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
+          const response = await fetch(`/api/questions-bank?teacherId=${teacherId}`, { headers });
           if (response.ok) {
             const json = await response.json();
             loadedItems = (json.data || []).map((item: any) => ({
@@ -383,8 +392,12 @@ export function ManageQuestionsBank({ teacherId }: { teacherId: string }) {
     if (!firestore) return;
     if (window.confirm(t('Are you sure you want to delete this question bank?'))) {
       try {
+        const idToken = await getFirebaseIdToken(auth);
+        const headers: Record<string, string> = {};
+        if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
         const response = await fetch(`/api/questions-bank?id=${item.id}`, {
           method: 'DELETE',
+          headers,
         });
         if (!response.ok) {
           const errData = await response.json();

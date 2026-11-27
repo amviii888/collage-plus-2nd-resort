@@ -37,8 +37,9 @@ export async function POST(req: NextRequest) {
     const auth = adminApp.auth();
     const db = adminApp.db();
 
-    // Update password strictly in Firebase Authentication
+    // Update password strictly in Firebase Authentication and revoke all active sessions immediately
     await auth.updateUser(teacherId, { password: newPassword });
+    await auth.revokeRefreshTokens(teacherId).catch(() => {});
 
     // Strip any legacy plaintext password fields from Firestore
     const teacherRef = db.collection('teachers').doc(teacherId);

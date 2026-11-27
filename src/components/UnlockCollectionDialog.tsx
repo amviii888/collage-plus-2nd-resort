@@ -21,7 +21,7 @@ import {
   addDoc,
   setDoc
 } from 'firebase/firestore';
-import { signInAnonymously } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
 import type { Course, CourseCollection, Teacher, CourseRequest, CollectionCustomItem } from '@/lib/types';
 import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -49,6 +49,7 @@ export function UnlockCollectionDialog({
 }: UnlockCollectionDialogProps) {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'request' | 'code'>('request');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -141,10 +142,18 @@ export function UnlockCollectionDialog({
     }
 
     try {
-      let currentUser = user;
-      if (!currentUser) {
-        const userCredential = await signInAnonymously(auth);
-        currentUser = userCredential.user;
+      const currentUser = user;
+      if (!currentUser || currentUser.isAnonymous) {
+        setError("يرجى تسجيل الدخول بحساب الطالب الخاص بك أولاً لتفعيل كود المجموعة.");
+        toast({
+          variant: "destructive",
+          title: "تسجيل الدخول مطلوب",
+          description: "يجب تسجيل الدخول بحسابك العادي قبل تفعيل أي كود.",
+        });
+        setIsSubmitting(false);
+        setIsOpen(false);
+        router.push('/login');
+        return;
       }
 
       const effectiveStudentId = profile?.id || 
@@ -330,10 +339,18 @@ export function UnlockCollectionDialog({
     }
 
     try {
-      let currentUser = user;
-      if (!currentUser) {
-        const userCredential = await signInAnonymously(auth);
-        currentUser = userCredential.user;
+      const currentUser = user;
+      if (!currentUser || currentUser.isAnonymous) {
+        setError("يرجى تسجيل الدخول بحساب الطالب الخاص بك أولاً لإرسال طلب الانضمام.");
+        toast({
+          variant: "destructive",
+          title: "تسجيل الدخول مطلوب",
+          description: "يجب تسجيل الدخول بحسابك العادي قبل إرسال طلب الوصول.",
+        });
+        setIsSubmitting(false);
+        setIsOpen(false);
+        router.push('/login');
+        return;
       }
 
       const uid = currentUser.uid;

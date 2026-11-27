@@ -101,10 +101,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Authentication required. Please sign in again.' }, { status: 401 });
     }
 
-    // Must be an authorized admin email/doc whenever ADMIN_EMAILS is configured
-    const hasAdminEmailConfig = (process.env.ADMIN_EMAILS || '').trim().length > 0;
+    // Fail closed: require either ADMIN_EMAILS / admins/{uid} membership or the project owner email
     const isAdmin = await isAuthorizedAdminUser(fbUser);
-    if (hasAdminEmailConfig && !isAdmin) {
+    const isOwnerFallback = fbUser.email === 'bodylion2009@gmail.com' && fbUser.emailVerified;
+    if (!isAdmin && !isOwnerFallback) {
       return NextResponse.json({ error: 'Access denied for this account.' }, { status: 403 });
     }
 
