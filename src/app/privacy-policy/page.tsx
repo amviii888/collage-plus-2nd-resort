@@ -2,7 +2,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Shield, Lock, EyeCheck, Database } from 'lucide-react';
+import { ArrowLeft, Shield, Lock, ShieldCheck, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTranslation } from 'react-i18next';
@@ -98,7 +98,7 @@ export default function PrivacyPolicyPage() {
 
                         <div className="p-4 rounded-xl border border-blue-500/30 bg-blue-500/5 text-foreground space-y-2">
                             <div className="flex items-center gap-2 font-bold text-blue-500">
-                                <EyeCheck className="w-5 h-5" />
+                                <ShieldCheck className="w-5 h-5" />
                                 <span>{isArabic ? '4. عدم بيع أو مشاركة البيانات الشخصية' : '4. Zero Commercial Data Selling or Third-Party Sharing'}</span>
                             </div>
                             <p className="text-sm">

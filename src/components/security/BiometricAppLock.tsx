@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { usePathname } from 'next/navigation';
-import { Fingerprint, Lock, ShieldCheck, KeyRound, Sparkles, CheckCircle, ArrowRight, Shield, ScanFace, Smartphone, RefreshCw } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Fingerprint, Lock, ShieldCheck, KeyRound, Sparkles, CheckCircle, ArrowRight, Shield, ScanFace, Smartphone, RefreshCw, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { useUser, useAuth } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { EmailAuthProvider, reauthenticateWithCredential, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 
 const PUBLIC_ROUTES = [
   '/login',
@@ -33,14 +33,16 @@ const UNLOCK_STORAGE_KEY = 'mol5saty_app_unlocked';
 
 export function BiometricAppLock() {
   const pathname = usePathname();
+  const router = useRouter();
   const { i18n } = useTranslation();
   const isArabic = i18n.language === 'ar';
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const auth = useAuth();
 
   const [isLocked, setIsLocked] = useState(false);
   const [deviceType, setDeviceType] = useState<'ios' | 'android' | 'other'>('other');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [isVerifyingPasscode, setIsVerifyingPasscode] = useState(false);
   const [scanSuccess, setScanSuccess] = useState(false);
   const [passcodeInput, setPasscodeInput] = useState('');
   const [showPasscodeField, setShowPasscodeField] = useState(false);
@@ -97,28 +99,20 @@ export function BiometricAppLock() {
     return false;
   }, [pathname]);
 
-  // Check if any user session is logged in
+  // Check if any real user session is actively logged in (ignore stale leftover caches like teacher_accounts)
   const hasActiveSession = useCallback(() => {
     if (typeof window === 'undefined') return false;
-    if (user && !user.isAnonymous) return true;
+    const activeFbUser = auth?.currentUser || user;
+    if (activeFbUser && !activeFbUser.isAnonymous) return true;
     const hasStudent = !!(
-      localStorage.getItem('viewingStudentId') ||
       localStorage.getItem('student_barcode') ||
       localStorage.getItem('studentBarcode') ||
       localStorage.getItem('app_student_auth_session')
     );
-    const hasTeacher = !!(
-      localStorage.getItem('teacher_session') === 'true' ||
-      localStorage.getItem('teacherId') ||
-      localStorage.getItem('teacher_accounts')
-    );
+    const hasTeacher = localStorage.getItem('teacher_session') === 'true';
     const hasParent = !!localStorage.getItem('parentForStudentBarcode');
-    const hasAssistant = !!(
-      localStorage.getItem('assistantForTeacherId') ||
-      localStorage.getItem('assistantTeacherName')
-    );
-    return hasStudent || hasTeacher || hasParent || hasAssistant;
-  }, [user]);
+    return hasStudent || hasTeacher || hasParent;
+  }, [auth, user]);
 
   // Clean up any pending unlock timer on unmount
   useEffect(() => {
@@ -138,9 +132,9 @@ export function BiometricAppLock() {
     setDeviceType(isIOS ? 'ios' : isAndroid ? 'android' : 'other');
   }, []);
 
-  // Determine initial lock state when app opens (never re-locks during in-app redirects once unlocked)
+  // Determine initial lock state when app opens (wait for auth hydration so user email is ready)
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || isUserLoading) return;
 
     const biometricEnabled = localStorage.getItem('mol5saty_biometric_enabled') !== 'false';
     if (!biometricEnabled) {
@@ -159,7 +153,7 @@ export function BiometricAppLock() {
     }
 
     setIsLocked(true);
-  }, [isExemptRoute, hasActiveSession, isSessionUnlocked]);
+  }, [isUserLoading, isExemptRoute, hasActiveSession, isSessionUnlocked]);
 
   // Monitor app backgrounding / reopening so fingerprint runs every time the user reopens the app
   useEffect(() => {
@@ -361,59 +355,131 @@ export function BiometricAppLock() {
     }
 
     setErrorMessage(null);
+    setIsVerifyingPasscode(true);
 
-    if (typeof window !== 'undefined') {
-      const studentCode = (
-        localStorage.getItem('student_barcode') || 
-        localStorage.getItem('studentBarcode') || 
-        localStorage.getItem('studentCode') ||
-        localStorage.getItem('app_student_auth_session') ||
-        localStorage.getItem('viewingStudentId') ||
-        ''
-      ).trim();
+    try {
+      if (typeof window !== 'undefined') {
+        const studentCode = (
+          localStorage.getItem('student_barcode') ||
+          localStorage.getItem('studentBarcode') ||
+          localStorage.getItem('studentCode') ||
+          localStorage.getItem('app_student_auth_session') ||
+          localStorage.getItem('viewingStudentId') ||
+          ''
+        ).trim();
 
-      // Clean up legacy insecure plaintext password keys if present
-      localStorage.removeItem('mol5saty_last_valid_password');
-      localStorage.removeItem('teacher_password');
-      localStorage.removeItem('assistantPassword');
-      localStorage.removeItem('student_password');
+        // Clean up legacy insecure plaintext password keys if present
+        localStorage.removeItem('mol5saty_last_valid_password');
+        localStorage.removeItem('teacher_password');
+        localStorage.removeItem('assistantPassword');
+        localStorage.removeItem('student_password');
 
-      let isMatched = false;
+        let isMatched = false;
+        let rateLimited = false;
 
-      // Primary check: Firebase Auth live password verification
-      if (auth) {
-        const emailOptions = [
-          user?.email,
-          studentCode ? `${studentCode}@mol5saty.student` : null,
-          studentCode ? `${studentCode}@universe.student` : null,
-        ].filter(Boolean) as string[];
+        // 1. Check exact Student Code match if the active user is a student with a stored code
+        if (studentCode && studentCode.length >= 4 && val.toUpperCase() === studentCode.toUpperCase()) {
+          isMatched = true;
+        }
 
-        for (const testEmail of emailOptions) {
+        const activeFbUser = auth?.currentUser || user;
+
+        // 2. Reauthenticate active Firebase user with password
+        if (!isMatched && activeFbUser && activeFbUser.email) {
           try {
-            await signInWithEmailAndPassword(auth, testEmail, val);
+            const cred = EmailAuthProvider.credential(activeFbUser.email, val);
+            await reauthenticateWithCredential(activeFbUser, cred);
             isMatched = true;
-            break;
-          } catch {}
+          } catch (reauthErr: any) {
+            if (reauthErr?.code === 'auth/too-many-requests') {
+              rateLimited = true;
+            }
+          }
+        }
+
+        // 3. Fallback: signInWithEmailAndPassword across known session emails
+        if (!isMatched && !rateLimited && auth) {
+          const emailOptions = Array.from(
+            new Set(
+              [
+                activeFbUser?.email,
+                user?.email,
+                studentCode ? `${studentCode}@mol5saty.student` : null,
+                studentCode ? `${studentCode}@universe.student` : null,
+              ].filter(Boolean) as string[]
+            )
+          );
+
+          for (const testEmail of emailOptions) {
+            try {
+              await signInWithEmailAndPassword(auth, testEmail, val);
+              isMatched = true;
+              break;
+            } catch (signInErr: any) {
+              if (signInErr?.code === 'auth/too-many-requests') {
+                rateLimited = true;
+                break;
+              }
+            }
+          }
+        }
+
+        if (isMatched) {
+          markSessionUnlocked();
+          lastHiddenTimeRef.current = null;
+          setErrorMessage(null);
+          setScanSuccess(true);
+          if (unlockTimerRef.current) clearTimeout(unlockTimerRef.current);
+          unlockTimerRef.current = setTimeout(() => {
+            setIsLocked(false);
+            setPasscodeInput('');
+            setScanSuccess(false);
+          }, 180);
+          return;
+        } else if (rateLimited) {
+          setErrorMessage(
+            isArabic
+              ? 'محاولات كثيرة جداً. يرجى الانتظار قليلاً أو تسجيل الخروج والدخول مجدداً.'
+              : 'Too many attempts. Please wait a moment or sign out and log in again.'
+          );
+          return;
+        } else {
+          setErrorMessage(
+            isArabic
+              ? 'كلمة المرور غير صحيحة. يمكنك أيضاً تسجيل الخروج وإعادة الدخول.'
+              : 'Incorrect password. You can also sign out and log back in.'
+          );
+          return;
         }
       }
-
-      if (isMatched) {
-        markSessionUnlocked();
-        lastHiddenTimeRef.current = null;
-        setErrorMessage(null);
-        setScanSuccess(true);
-        if (unlockTimerRef.current) clearTimeout(unlockTimerRef.current);
-        unlockTimerRef.current = setTimeout(() => {
-          setIsLocked(false);
-          setPasscodeInput('');
-          setScanSuccess(false);
-        }, 180);
-        return;
-      } else {
-        setErrorMessage(isArabic ? 'كلمة المرور غير صحيحة، يرجى إعادة المحاولة.' : 'Incorrect password. Please try again.');
-        return;
-      }
+    } finally {
+      setIsVerifyingPasscode(false);
     }
+  };
+
+  // Safe escape hatch: sign out cleanly and redirect to /login so no user is ever trapped
+  const handleSignOutEscape = async () => {
+    try {
+      if (auth) {
+        await signOut(auth).catch(() => {});
+      }
+    } catch {}
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('teacher_session');
+      localStorage.removeItem('teacherId');
+      localStorage.removeItem('viewingStudentId');
+      localStorage.removeItem('student_barcode');
+      localStorage.removeItem('studentBarcode');
+      localStorage.removeItem('app_student_auth_session');
+      localStorage.removeItem('parentForStudentBarcode');
+      localStorage.removeItem('assistantForTeacherId');
+      localStorage.removeItem('assistantTeacherName');
+    }
+    markSessionUnlocked();
+    setIsLocked(false);
+    setPasscodeInput('');
+    setErrorMessage(null);
+    router.replace('/login');
   };
 
   // If not locked or on public pages, render nothing
@@ -577,9 +643,10 @@ export function BiometricAppLock() {
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all cursor-pointer"
+                    disabled={isVerifyingPasscode}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-bold transition-all cursor-pointer"
                   >
-                    {isArabic ? 'دخول' : 'Enter'}
+                    {isVerifyingPasscode ? '...' : (isArabic ? 'دخول' : 'Enter')}
                   </button>
                 </div>
                 {errorMessage && (
@@ -589,6 +656,16 @@ export function BiometricAppLock() {
                 )}
               </form>
             )}
+
+            {/* Safe Escape Hatch: Sign Out & Go to Login */}
+            <button
+              type="button"
+              onClick={handleSignOutEscape}
+              className="w-full py-2 px-3 rounded-xl text-[11px] text-zinc-400 hover:text-rose-300 hover:bg-rose-500/10 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{isArabic ? 'تسجيل الخروج والعودة لصفحة الدخول' : 'Sign out & go to Login'}</span>
+            </button>
           </div>
 
           {/* Friendly Security Badge */}
